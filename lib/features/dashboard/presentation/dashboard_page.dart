@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/state/app_store.dart';
 import '../../../shared/design_system/page_frame.dart';
 
 class DashboardPage extends StatelessWidget {
-  const DashboardPage({required this.onAddCamera, super.key});
+  const DashboardPage({
+    required this.onAddCamera,
+    required this.onOpenMonitor,
+    super.key,
+  });
 
   final VoidCallback onAddCamera;
+  final VoidCallback onOpenMonitor;
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
+    final store = AppScope.of(context);
     final columns = width >= 1100
         ? 3
         : width >= 700
@@ -58,6 +65,18 @@ class DashboardPage extends StatelessWidget {
                         foregroundColor: const Color(0xFF1D4ED8),
                       ),
                     ),
+                    if (store.cameras.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: onOpenMonitor,
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Abrir monitor'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0x99FFFFFF)),
+                        ),
+                      ),
+                    ],
                   ],
                 );
                 if (narrow) return content;
@@ -83,17 +102,17 @@ class DashboardPage extends StatelessWidget {
             crossAxisSpacing: 14,
             mainAxisSpacing: 14,
             childAspectRatio: columns == 1 ? 2.9 : 2.1,
-            children: const [
+            children: [
               _OverviewCard(
                 icon: Icons.videocam_outlined,
                 title: 'Câmeras',
-                value: '0 cadastradas',
+                value: '${store.cameras.length} cadastradas',
                 color: Color(0xFF2563EB),
               ),
               _OverviewCard(
                 icon: Icons.grid_view_rounded,
                 title: 'Layout ativo',
-                value: '4 câmeras',
+                value: store.activeLayout.name,
                 color: Color(0xFF7C3AED),
               ),
               _OverviewCard(
@@ -105,11 +124,23 @@ class DashboardPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          const EmptyPanel(
-            icon: Icons.desktop_windows_outlined,
-            title: 'Seu monitor estará aqui',
-            description:
-                'Adicione uma câmera e escolha um layout para abrir a visualização ao vivo.',
+          EmptyPanel(
+            icon: store.cameras.isEmpty
+                ? Icons.desktop_windows_outlined
+                : Icons.live_tv_outlined,
+            title: store.cameras.isEmpty
+                ? 'Seu monitor estará aqui'
+                : 'Pronto para visualizar',
+            description: store.cameras.isEmpty
+                ? 'Adicione uma câmera e escolha um layout para abrir a visualização ao vivo.'
+                : 'Abra o monitor para visualizar as câmeras selecionadas na grade ${store.activeLayout.name.toLowerCase()}.',
+            action: store.cameras.isEmpty
+                ? null
+                : FilledButton.icon(
+                    onPressed: onOpenMonitor,
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Abrir monitor'),
+                  ),
           ),
         ],
       ),
