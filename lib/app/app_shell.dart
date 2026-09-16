@@ -36,7 +36,7 @@ class _AppShellState extends State<AppShell> {
         return Scaffold(
           body: Row(
             children: [
-              if (!compact && rail)
+              if (!compact && rail && _section != AppSection.monitor)
                 NavigationRail(
                   selectedIndex: _selectedIndex,
                   labelType: NavigationRailLabelType.all,
@@ -50,17 +50,15 @@ class _AppShellState extends State<AppShell> {
                       ),
                   ],
                 ),
-              if (!compact && !rail)
+              if (!compact && !rail && _section != AppSection.monitor)
                 _DesktopSidebar(
                   section: _section,
                   onSelected: (section) => setState(() => _section = section),
                 ),
-              Expanded(
-                child: IndexedStack(index: _selectedIndex, children: _pages),
-              ),
+              Expanded(child: _pages[_selectedIndex]),
             ],
           ),
-          bottomNavigationBar: compact
+          bottomNavigationBar: compact && _section != AppSection.monitor
               ? NavigationBar(
                   selectedIndex: _selectedIndex,
                   onDestinationSelected: _selectIndex,
@@ -83,10 +81,13 @@ class _AppShellState extends State<AppShell> {
       _destinations.indexWhere((item) => item.$1 == _section);
 
   List<Widget> get _pages => [
-    DashboardPage(onAddCamera: () => _selectIndex(1)),
+    DashboardPage(
+      onAddCamera: () => _selectIndex(1),
+      onOpenMonitor: () => _selectIndex(3),
+    ),
     const CameraCatalogPage(),
     const LayoutsPage(),
-    const MonitorPage(),
+    MonitorPage(onExit: () => _selectIndex(0)),
     const SettingsPage(),
   ];
 

@@ -30,36 +30,35 @@ class PageFrame extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  title,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineMedium
-                                      ?.copyWith(fontWeight: FontWeight.w700),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  subtitle,
-                                  style: Theme.of(context).textTheme.bodyLarge
-                                      ?.copyWith(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant,
-                                      ),
-                                ),
-                              ],
+                      if (MediaQuery.sizeOf(context).width < 600) ...[
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _PageHeading(title: title, subtitle: subtitle),
+                            if (actions.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 8,
+                                children: actions,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ] else ...[
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _PageHeading(
+                                title: title,
+                                subtitle: subtitle,
+                              ),
                             ),
-                          ),
-                          ...actions,
-                        ],
-                      ),
+                            ...actions,
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 28),
                       child,
                     ],
@@ -70,6 +69,35 @@ class PageFrame extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PageHeading extends StatelessWidget {
+  const _PageHeading({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }
