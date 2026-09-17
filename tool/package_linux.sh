@@ -6,6 +6,11 @@ if [[ "$(uname -s)" != "Linux" || "$(uname -m)" != "x86_64" ]]; then
   exit 1
 fi
 
+if ! pkg-config --exists mpv; then
+  printf '%s\n' 'Instale libmpv-dev para compilar o player Linux.' >&2
+  exit 1
+fi
+
 flutter build linux --release
 bundle="$PWD/build/linux/x64/release/bundle"
 mpv_path="$(ldconfig -p | awk '/libmpv\.so\.2 / { print $NF; exit }')"
