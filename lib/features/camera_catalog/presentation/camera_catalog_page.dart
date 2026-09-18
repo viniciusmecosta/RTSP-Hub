@@ -262,12 +262,26 @@ class _CameraEditorState extends State<_CameraEditor> {
             final host = value?.trim() ?? '';
             final error = CameraFieldValidation.hostError(host);
             if (error != null) return error;
+            final port =
+                int.tryParse(_port.text.trim()) ??
+                widget.store.config.defaultPort;
+            final enteredPath = _mainPath.text.trim().isEmpty
+                ? widget.store.config.defaultPath
+                : _mainPath.text.trim();
+            final path = enteredPath.startsWith('/')
+                ? enteredPath
+                : '/$enteredPath';
             final duplicate = widget.store.cameras.any(
               (camera) =>
                   camera.id != widget.camera?.id &&
-                  camera.host.toLowerCase() == host.toLowerCase(),
+                  camera.host.toLowerCase() == host.toLowerCase() &&
+                  camera.effectivePort(widget.store.config.defaultPort) ==
+                      port &&
+                  camera.mainPath == path,
             );
-            return duplicate ? 'Já existe uma câmera com esse endereço.' : null;
+            return duplicate
+                ? 'Esse endereço, porta e caminho já estão cadastrados.'
+                : null;
           },
         ),
         Row(

@@ -82,11 +82,29 @@ void main() {
   test(
     'rejects duplicate camera addresses regardless of letter case',
     () async {
-      expect(await saveCamera(host: 'Camera.Local'), isTrue);
-      expect(await saveCamera(host: 'camera.local'), isFalse);
+      expect(
+        await saveCamera(host: 'Camera.Local', mainPath: '/channel/1'),
+        isTrue,
+      );
+      expect(
+        await saveCamera(host: 'camera.local', mainPath: '/channel/1'),
+        isFalse,
+      );
       expect(store.cameras, hasLength(1));
     },
   );
+
+  test('allows multiple channels from the same recorder address', () async {
+    expect(
+      await saveCamera(host: 'recorder.local', mainPath: '/channel/1'),
+      isTrue,
+    );
+    expect(
+      await saveCamera(host: 'recorder.local', mainPath: '/channel/2'),
+      isTrue,
+    );
+    expect(store.cameras, hasLength(2));
+  });
 }
 
 class _MemoryRepository extends ConfigRepository {

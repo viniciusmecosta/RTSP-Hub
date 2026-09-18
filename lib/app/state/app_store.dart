@@ -111,9 +111,12 @@ class AppStore extends ChangeNotifier {
     if (_config.cameras.any(
       (camera) =>
           camera.id != id &&
-          camera.host.toLowerCase() == normalizedHost.toLowerCase(),
+          camera.host.toLowerCase() == normalizedHost.toLowerCase() &&
+          camera.effectivePort(_config.defaultPort) == parsedPort &&
+          camera.mainPath == _normalizePath(path),
     )) {
-      _message = 'Já existe uma câmera cadastrada com esse endereço.';
+      _message =
+          'Já existe uma câmera cadastrada com o mesmo endereço, porta e caminho.';
       notifyListeners();
       return false;
     }
