@@ -22,6 +22,7 @@ class _MonitorPageState extends State<MonitorPage> {
   int _page = 0;
   bool _mainStreams = false;
   bool _showControls = true;
+  String? _focusedCameraId;
   int _generation = 0;
 
   @override
@@ -49,9 +50,16 @@ class _MonitorPageState extends State<MonitorPage> {
     );
     final pages = ((ids.length + pageSize - 1) ~/ pageSize).clamp(1, 100);
     _page = _page.clamp(0, pages - 1);
+    if (_focusedCameraId != null && !ids.contains(_focusedCameraId)) {
+      _focusedCameraId = null;
+    }
     final start = _page * pageSize;
     final end = (start + pageSize).clamp(0, ids.length);
-    final visibleIds = ids.sublist(start, end).whereType<String>().toSet();
+    final pageSlots = ids.sublist(start, end);
+    final visibleIds =
+        (_focusedCameraId == null ? pageSlots : <String?>[_focusedCameraId])
+            .whereType<String>()
+            .toSet();
     for (final id in _sessions.keys.toList()) {
       if (!visibleIds.contains(id)) {
         final old = _sessions.remove(id);
@@ -101,8 +109,13 @@ class _MonitorPageState extends State<MonitorPage> {
     final perPage = _pageSize(layout, MediaQuery.sizeOf(context).width);
     final pages = ((slots.length + perPage - 1) ~/ perPage).clamp(1, 100);
     if (_page >= pages) _page = pages - 1;
-    final from = _page * perPage;
-    final visibleCount = (slots.length - from).clamp(0, perPage);
+    final focusedIndex = _focusedCameraId == null
+        ? -1
+        : slots.indexOf(_focusedCameraId!);
+    final from = focusedIndex >= 0 ? focusedIndex : _page * perPage;
+    final visibleCount = focusedIndex >= 0
+        ? 1
+        : (slots.length - from).clamp(0, perPage);
     return Scaffold(
       backgroundColor: const Color(0xFF06090F),
       body: SafeArea(
@@ -155,6 +168,17 @@ class _MonitorPageState extends State<MonitorPage> {
                               onTap: () => setState(
                                 () => _showControls = !_showControls,
                               ),
+                              onFocus: camera == null
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        _focusedCameraId =
+                                            _focusedCameraId == camera.id
+                                            ? null
+                                            : camera.id;
+                                      });
+                                      _syncSessions();
+                                    },
                               onRetry: session == null
                                   ? null
                                   : () => session.start(),
@@ -187,6 +211,36 @@ class _MonitorPageState extends State<MonitorPage> {
               onPressed: widget.onExit,
               icon: const Icon(Icons.arrow_back, color: Colors.white),
             ),
+            IconButton(
+              tooltip: _focusedCameraId == null
+                  ? 'Ampliar câmera selecionada'
+                  : 'Voltar à grade',
+              onPressed: () {
+                setState(() {
+                  if (_focusedCameraId == null) {
+                    final selectedIndex =
+                        _page *
+                        _pageSize(
+                          store.activeLayout,
+                          MediaQuery.sizeOf(context).width,
+                        );
+                    _focusedCameraId = store.config.slotCameraIds
+                        .skip(selectedIndex)
+                        .whereType<String>()
+                        .firstOrNull;
+                  } else {
+                    _focusedCameraId = null;
+                  }
+                });
+                _syncSessions();
+              },
+              icon: Icon(
+                _focusedCameraId == null
+                    ? Icons.fullscreen
+                    : Icons.fullscreen_exit,
+                color: Colors.white,
+              ),
+            ),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
@@ -198,7 +252,7 @@ class _MonitorPageState extends State<MonitorPage> {
                 ),
               ),
             ),
-            if (pages > 1)
+            if (pages > 1 && _focusedCameraId == null)
               IconButton(
                 onPressed: _page > 0
                     ? () {
@@ -208,12 +262,12 @@ class _MonitorPageState extends State<MonitorPage> {
                     : null,
                 icon: const Icon(Icons.chevron_left, color: Colors.white),
               ),
-            if (pages > 1)
+            if (pages > 1 && _focusedCameraId == null)
               Text(
                 '${_page + 1}/$pages',
                 style: const TextStyle(color: Colors.white),
               ),
-            if (pages > 1)
+            if (pages > 1 && _focusedCameraId == null)
               IconButton(
                 onPressed: _page + 1 < pages
                     ? () {
@@ -297,17 +351,20 @@ class _CameraTile extends StatelessWidget {
     required this.camera,
     required this.session,
     required this.onTap,
+    required this.onFocus,
     required this.onRetry,
   });
   final CameraDevice? camera;
   final RtspSession? session;
   final VoidCallback onTap;
+  final VoidCallback? onFocus;
   final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onDoubleTap: onFocus,
       child: ColoredBox(
         color: const Color(0xFF111821),
         child: Stack(
