@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../../app/state/app_store.dart';
@@ -116,82 +117,114 @@ class _MonitorPageState extends State<MonitorPage> {
     final visibleCount = focusedIndex >= 0
         ? 1
         : (slots.length - from).clamp(0, perPage);
-    return Scaffold(
-      backgroundColor: const Color(0xFF06090F),
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (_showControls) _toolbar(context, store, layout, pages),
-            Expanded(
-              child: store.cameras.isEmpty
-                  ? const _MonitorEmpty(
-                      message: 'Cadastre câmeras para começar a visualizar.',
-                    )
-                  : visibleCount == 0
-                  ? const _MonitorEmpty(
-                      message:
-                          'A grade está vazia. Associe câmeras em Layouts.',
-                    )
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        final columns = _columns(layout, constraints.maxWidth);
-                        final rows = (visibleCount / columns).ceil();
-                        return GridView.builder(
-                          padding: const EdgeInsets.all(3),
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: visibleCount,
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: columns,
-                                mainAxisSpacing: 3,
-                                crossAxisSpacing: 3,
-                                childAspectRatio: constraints.maxWidth < 600
-                                    ? 16 / 10
-                                    : (constraints.maxWidth / columns) /
-                                          ((constraints.maxHeight / rows).clamp(
-                                            80,
-                                            double.infinity,
-                                          )),
-                              ),
-                          itemBuilder: (context, offset) {
-                            final slotIndex = from + offset;
-                            final id = slots[slotIndex];
-                            final camera = id == null
-                                ? null
-                                : store.cameras
-                                      .where((item) => item.id == id)
-                                      .firstOrNull;
-                            final session = id == null ? null : _sessions[id];
-                            return _CameraTile(
-                              camera: camera,
-                              session: session,
-                              onTap: () => setState(
-                                () => _showControls = !_showControls,
-                              ),
-                              onFocus: camera == null
-                                  ? null
-                                  : () {
-                                      setState(() {
-                                        _focusedCameraId =
-                                            _focusedCameraId == camera.id
-                                            ? null
-                                            : camera.id;
-                                      });
-                                      _syncSessions();
-                                    },
-                              onRetry: session == null
-                                  ? null
-                                  : () => session.start(),
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _handleBack();
+      },
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            _handleBack();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Scaffold(
+          backgroundColor: const Color(0xFF06090F),
+          body: SafeArea(
+            child: Column(
+              children: [
+                if (_showControls) _toolbar(context, store, layout, pages),
+                Expanded(
+                  child: store.cameras.isEmpty
+                      ? const _MonitorEmpty(
+                          message:
+                              'Cadastre câmeras para começar a visualizar.',
+                        )
+                      : visibleCount == 0
+                      ? const _MonitorEmpty(
+                          message:
+                              'A grade está vazia. Associe câmeras em Layouts.',
+                        )
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            final columns = _columns(
+                              layout,
+                              constraints.maxWidth,
+                            );
+                            final rows = (visibleCount / columns).ceil();
+                            return GridView.builder(
+                              padding: const EdgeInsets.all(3),
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: visibleCount,
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: columns,
+                                    mainAxisSpacing: 3,
+                                    crossAxisSpacing: 3,
+                                    childAspectRatio: constraints.maxWidth < 600
+                                        ? 16 / 10
+                                        : (constraints.maxWidth / columns) /
+                                              ((constraints.maxHeight / rows)
+                                                  .clamp(80, double.infinity)),
+                                  ),
+                              itemBuilder: (context, offset) {
+                                final slotIndex = from + offset;
+                                final id = slots[slotIndex];
+                                final camera = id == null
+                                    ? null
+                                    : store.cameras
+                                          .where((item) => item.id == id)
+                                          .firstOrNull;
+                                final session = id == null
+                                    ? null
+                                    : _sessions[id];
+                                return _CameraTile(
+                                  camera: camera,
+                                  session: session,
+                                  onTap: () => setState(
+                                    () => _showControls = !_showControls,
+                                  ),
+                                  onFocus: camera == null
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            _focusedCameraId =
+                                                _focusedCameraId == camera.id
+                                                ? null
+                                                : camera.id;
+                                          });
+                                          _syncSessions();
+                                        },
+                                  onRetry: session == null
+                                      ? null
+                                      : () => session.start(),
+                                );
+                              },
                             );
                           },
-                        );
-                      },
-                    ),
+                        ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  void _handleBack() {
+    if (_focusedCameraId != null) {
+      setState(() => _focusedCameraId = null);
+      _syncSessions();
+    } else if (!_showControls) {
+      setState(() => _showControls = true);
+    } else {
+      widget.onExit();
+    }
   }
 
   Widget _toolbar(
