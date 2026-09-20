@@ -6,8 +6,8 @@ if [[ "$(uname -s)" != "Linux" || "$(uname -m)" != "x86_64" ]]; then
   exit 1
 fi
 
-if ! pkg-config --exists mpv; then
-  printf '%s\n' 'Instale libmpv-dev para compilar o player Linux.' >&2
+if ! pkg-config --exists gtk+-3.0 mpv epoxy libsecret-1; then
+  printf '%s\n' 'Instale os pacotes de desenvolvimento GTK, mpv, epoxy e libsecret para compilar o aplicativo Linux.' >&2
   exit 1
 fi
 
