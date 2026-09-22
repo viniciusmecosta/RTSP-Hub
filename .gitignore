@@ -45,6 +45,7 @@ app.*.map.json
 /android/app/release
 /docs
 /imple
+/rtsp_view_debug.apk
 
 /android/.kotlin/
 
