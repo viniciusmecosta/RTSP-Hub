@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../app/state/app_store.dart';
+import '../../monitor/application/rtsp_session.dart';
 import '../domain/camera_device.dart';
 import '../domain/camera_field_validation.dart';
 import '../../../shared/design_system/page_frame.dart';
@@ -201,6 +206,10 @@ class _CameraEditorState extends State<_CameraEditor> {
   late final TextEditingController _subPath;
   bool _obscure = true;
   bool _busy = false;
+  bool _testing = false;
+  String? _probeMessage;
+  RtspSession? _probe;
+  Completer<bool>? _probeCompleter;
 
   @override
   void initState() {
@@ -221,6 +230,15 @@ class _CameraEditorState extends State<_CameraEditor> {
 
   @override
   void dispose() {
+    final probe = _probe;
+    if (probe != null) {
+      probe.firstFrameRendered.removeListener(_checkProbe);
+      probe.error.removeListener(_checkProbe);
+      unawaited(probe.disposeSession());
+    }
+    if (!(_probeCompleter?.isCompleted ?? true)) {
+      _probeCompleter!.complete(false);
+    }
     for (final controller in [
       _name,
       _host,
@@ -381,18 +399,58 @@ class _CameraEditorState extends State<_CameraEditor> {
                   ],
                 ),
                 const SizedBox(height: 16),
+                if (_probe?.videoController != null)
+                  Offstage(
+                    child: SizedBox.square(
+                      dimension: 2,
+                      child: Video(
+                        controller: _probe!.videoController!,
+                        controls: NoVideoControls,
+                      ),
+                    ),
+                  ),
                 Flexible(child: SingleChildScrollView(child: fields)),
+                if (_probeMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _probeMessage!.startsWith('Fluxo validado')
+                              ? Icons.check_circle_outline
+                              : Icons.info_outline,
+                          size: 18,
+                          color: _probeMessage!.startsWith('Fluxo validado')
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(_probeMessage!)),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
+                    OutlinedButton.icon(
+                      onPressed: _busy || _testing ? null : _testStream,
+                      icon: _testing
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.play_circle_outline),
+                      label: Text(_testing ? 'Testando…' : 'Testar fluxo'),
+                    ),
                     TextButton(
                       onPressed: _busy ? null : () => Navigator.pop(context),
                       child: const Text('Cancelar'),
                     ),
-                    const SizedBox(width: 8),
                     FilledButton.icon(
-                      onPressed: _busy ? null : _save,
+                      onPressed: _busy || _testing ? null : _save,
                       icon: _busy
                           ? const SizedBox.square(
                               dimension: 18,
@@ -409,6 +467,69 @@ class _CameraEditorState extends State<_CameraEditor> {
         ),
       ),
     );
+  }
+
+  Future<void> _testStream() async {
+    if (!_formKey.currentState!.validate()) return;
+    final host = _host.text.trim();
+    final enteredPath = _mainPath.text.trim().isEmpty
+        ? widget.store.config.defaultPath
+        : _mainPath.text.trim();
+    final camera = CameraDevice(
+      id: widget.camera?.id ?? const Uuid().v4(),
+      name: _name.text.trim().isEmpty ? host : _name.text.trim(),
+      host: host,
+      port: _port.text.trim().isEmpty ? null : int.tryParse(_port.text.trim()),
+      username: _username.text.trim(),
+      mainPath: enteredPath.startsWith('/') ? enteredPath : '/$enteredPath',
+      subPath: _subPath.text.trim(),
+    );
+    final session = RtspSession(
+      camera: camera,
+      password: _password.text.isEmpty ? null : _password.text,
+      defaultPort: widget.store.config.defaultPort,
+      bufferMs: widget.store.config.bufferMs,
+      useMainStream: true,
+    );
+    final completer = Completer<bool>();
+    _probe = session;
+    _probeCompleter = completer;
+    _probeMessage = 'Conectando e aguardando o primeiro quadro…';
+    session.firstFrameRendered.addListener(_checkProbe);
+    session.error.addListener(_checkProbe);
+    setState(() => _testing = true);
+    unawaited(session.start());
+    final succeeded = await completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => false,
+    );
+    if (!mounted) return;
+    final failure = session.error.value;
+    setState(() {
+      _probeMessage = succeeded
+          ? 'Fluxo validado: primeiro quadro recebido.'
+          : failure == null
+          ? 'Tempo esgotado. Confira a rota, a rede e as credenciais.'
+          : 'Não foi possível abrir o fluxo: $failure';
+      _testing = false;
+      _probe = null;
+      _probeCompleter = null;
+    });
+    await WidgetsBinding.instance.endOfFrame;
+    session.firstFrameRendered.removeListener(_checkProbe);
+    session.error.removeListener(_checkProbe);
+    await session.disposeSession();
+  }
+
+  void _checkProbe() {
+    final completer = _probeCompleter;
+    final session = _probe;
+    if (completer == null || session == null || completer.isCompleted) return;
+    if (session.firstFrameRendered.value) {
+      completer.complete(true);
+    } else if (session.error.value != null) {
+      completer.complete(false);
+    }
   }
 
   Future<void> _save() async {

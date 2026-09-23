@@ -34,6 +34,7 @@ class RtspSession extends ChangeNotifier {
     CameraPlaybackStatus.idle,
   );
   final ValueNotifier<String?> error = ValueNotifier(null);
+  final ValueNotifier<bool> firstFrameRendered = ValueNotifier(false);
   Player? _player;
   VideoController? _videoController;
   StreamSubscription<String>? _errorSubscription;
@@ -54,6 +55,7 @@ class RtspSession extends ChangeNotifier {
         ? CameraPlaybackStatus.connecting
         : CameraPlaybackStatus.reconnecting;
     error.value = null;
+    firstFrameRendered.value = false;
     notifyListeners();
     try {
       MediaKit.ensureInitialized();
@@ -108,6 +110,7 @@ class RtspSession extends ChangeNotifier {
       );
       if (generation == _generation && !_disposed) {
         _failures = 0;
+        firstFrameRendered.value = true;
         status.value = CameraPlaybackStatus.playing;
         error.value = null;
         notifyListeners();
@@ -151,6 +154,7 @@ class RtspSession extends ChangeNotifier {
     notifyListeners();
     status.dispose();
     error.dispose();
+    firstFrameRendered.dispose();
     dispose();
   }
 
