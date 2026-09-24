@@ -23,6 +23,8 @@ class RtspSession extends ChangeNotifier {
     required this.defaultPort,
     required this.bufferMs,
     required this.useMainStream,
+    this.firstFrameTimeout = const Duration(seconds: 8),
+    this.retryEnabled = true,
   });
 
   final CameraDevice camera;
@@ -30,6 +32,8 @@ class RtspSession extends ChangeNotifier {
   final int defaultPort;
   final int bufferMs;
   final bool useMainStream;
+  final Duration firstFrameTimeout;
+  final bool retryEnabled;
   final ValueNotifier<CameraPlaybackStatus> status = ValueNotifier(
     CameraPlaybackStatus.idle,
   );
@@ -105,9 +109,7 @@ class RtspSession extends ChangeNotifier {
       await player.setAudioTrack(AudioTrack.no());
       final controller = _videoController;
       if (controller == null || generation != _generation || _disposed) return;
-      await controller.waitUntilFirstFrameRendered.timeout(
-        const Duration(seconds: 8),
-      );
+      await controller.waitUntilFirstFrameRendered.timeout(firstFrameTimeout);
       if (generation == _generation && !_disposed) {
         _failures = 0;
         firstFrameRendered.value = true;
@@ -195,7 +197,7 @@ class RtspSession extends ChangeNotifier {
     error.value = message;
     status.value = CameraPlaybackStatus.reconnecting;
     notifyListeners();
-    _scheduleRetry();
+    if (retryEnabled) _scheduleRetry();
   }
 
   void _scheduleRetry() {

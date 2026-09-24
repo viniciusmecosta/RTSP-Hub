@@ -45,6 +45,44 @@ class SettingsPage extends StatelessWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
+                  leading: const Icon(Icons.start_outlined),
+                  title: const Text('Ao abrir o aplicativo'),
+                  subtitle: const Text(
+                    'Escolha a tela inicial deste dispositivo',
+                  ),
+                  trailing: DropdownButton<String>(
+                    value: store.config.startupSection,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'dashboard',
+                        child: Text('Início'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'monitor',
+                        child: Text('Monitor'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'cameras',
+                        child: Text('Câmeras'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'layouts',
+                        child: Text('Layouts'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'discovery',
+                        child: Text('Achador'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        store.updateSettings(startupSection: value);
+                      }
+                    },
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
                   leading: const Icon(Icons.memory_outlined),
                   title: const Text('Perfil de desempenho'),
                   subtitle: const Text(

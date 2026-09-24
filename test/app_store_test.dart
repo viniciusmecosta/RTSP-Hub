@@ -105,6 +105,16 @@ void main() {
     );
     expect(store.cameras, hasLength(2));
   });
+
+  test('persists the selected startup section', () async {
+    await store.updateSettings(startupSection: 'monitor');
+
+    expect(store.config.startupSection, 'monitor');
+    expect(
+      repository.saved.last.toJson()['settings'],
+      containsPair('startupSection', 'monitor'),
+    );
+  });
 }
 
 class _MemoryRepository extends ConfigRepository {
