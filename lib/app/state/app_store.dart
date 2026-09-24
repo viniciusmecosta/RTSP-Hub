@@ -256,6 +256,7 @@ class AppStore extends ChangeNotifier {
     int? bufferMs,
     String? resourceMode,
     bool? autoFullscreen,
+    String? startupSection,
   }) async {
     await _commit(
       _config.copyWith(
@@ -265,6 +266,7 @@ class AppStore extends ChangeNotifier {
         bufferMs: bufferMs,
         resourceMode: resourceMode,
         autoFullscreen: autoFullscreen,
+        startupSection: startupSection,
       ),
     );
   }
