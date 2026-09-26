@@ -1,17 +1,32 @@
-# rtsp_view
+# RTSP View
 
-Rtsp view
+Aplicativo Flutter para cadastrar câmeras RTSP, localizar canais e monitorar vários fluxos em Android, Windows e Linux.
 
-## Getting Started
+## Executar no Linux
 
-This project is a starting point for a Flutter application.
+O plugin de vídeo usa libmpv para reproduzir RTSP. Em Ubuntu ou Debian, instale as dependências de compilação uma vez:
 
-A few resources to get you started if this is your first Flutter project:
+```sh
+sudo apt update
+sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev libmpv-dev libepoxy-dev libsecret-1-dev
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Depois execute:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```sh
+flutter pub get
+flutter run -d linux
+```
+
+`libmpv-dev` contém cabeçalhos e metadados necessários para compilar o aplicativo. Não é VLC. O pacote Linux de distribuição inclui o runtime libmpv junto com o aplicativo.
+
+## Validar
+
+```sh
+flutter analyze
+flutter test
+```
+
+## Releases
+
+Enviar uma tag no formato `v1.2.3` inicia a pipeline do GitHub Actions. Ela cria um instalador para Windows, um pacote `.deb` para Ubuntu e um APK Android, e anexa os três arquivos à release correspondente.
