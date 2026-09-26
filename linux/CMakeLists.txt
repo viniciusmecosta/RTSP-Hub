@@ -52,6 +52,10 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 
 # System-level dependencies.
 find_package(PkgConfig REQUIRED)
+pkg_check_modules(MPV QUIET mpv)
+if(NOT MPV_FOUND)
+  message(FATAL_ERROR "A compilação Linux precisa dos arquivos de desenvolvimento do libmpv. No Ubuntu/Debian, execute: sudo apt install libmpv-dev. Isso não instala VLC; o instalador final inclui o runtime do libmpv.")
+endif()
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 
 # Application build; see runner/CMakeLists.txt.
