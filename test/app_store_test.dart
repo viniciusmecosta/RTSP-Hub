@@ -115,6 +115,25 @@ void main() {
       containsPair('startupSection', 'monitor'),
     );
   });
+
+  test('starts with automatic destination for existing installations', () {
+    expect(const AppConfiguration().startupSection, 'auto');
+    expect(
+      AppConfiguration.fromJson(
+        const AppConfiguration().toJson().cast<String, Object?>(),
+      ).startupSection,
+      'auto',
+    );
+  });
+
+  test('preserves dashboard as an explicit startup destination', () {
+    final configuration = AppConfiguration.fromJson({
+      ...const AppConfiguration().toJson().cast<String, Object?>(),
+      'settings': {'startupSection': 'dashboard'},
+    });
+
+    expect(configuration.startupSection, 'dashboard');
+  });
 }
 
 class _MemoryRepository extends ConfigRepository {
