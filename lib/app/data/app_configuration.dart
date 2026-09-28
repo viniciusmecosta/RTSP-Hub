@@ -13,7 +13,7 @@ class AppConfiguration {
     this.resourceMode = 'eco',
     this.themeMode = 'system',
     this.autoFullscreen = true,
-    this.startupSection = 'dashboard',
+    this.startupSection = 'auto',
   });
 
   final int schemaVersion;
@@ -103,11 +103,13 @@ class AppConfiguration {
       themeMode: settings['themeMode'] as String? ?? 'system',
       autoFullscreen: settings['autoFullscreen'] as bool? ?? true,
       startupSection: switch (settings['startupSection']) {
+        'auto' => 'auto',
+        'dashboard' => 'dashboard',
         'monitor' ||
         'cameras' ||
         'layouts' ||
         'discovery' => settings['startupSection'] as String,
-        _ => 'dashboard',
+        _ => 'auto',
       },
     );
   }

@@ -1,11 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import '../shared/infrastructure/single_instance/single_instance_guard.dart';
 
 import 'state/app_store.dart';
 import '../shared/design_system/app_theme.dart';
 import 'app_shell.dart';
 
 class RtspViewApp extends StatefulWidget {
-  const RtspViewApp({super.key});
+  const RtspViewApp({
+    this.forceConfiguration = false,
+    this.desktopWindowManager = false,
+    this.instanceGuard,
+    super.key,
+  });
+
+  final bool forceConfiguration;
+  final bool desktopWindowManager;
+  final SingleInstanceGuard? instanceGuard;
 
   @override
   State<RtspViewApp> createState() => _RtspViewAppState();
@@ -24,6 +36,7 @@ class _RtspViewAppState extends State<RtspViewApp> {
   @override
   void dispose() {
     _store.dispose();
+    unawaited(widget.instanceGuard?.release() ?? Future<void>.value());
     super.dispose();
   }
 
@@ -39,7 +52,10 @@ class _RtspViewAppState extends State<RtspViewApp> {
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           themeMode: _store.themeMode,
-          home: const AppShell(),
+          home: AppShell(
+            forceConfiguration: widget.forceConfiguration,
+            desktopWindowManager: widget.desktopWindowManager,
+          ),
         ),
       ),
     );

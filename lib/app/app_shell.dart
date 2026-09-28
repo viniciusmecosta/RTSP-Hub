@@ -1,4 +1,9 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../features/camera_catalog/presentation/camera_catalog_page.dart';
 import '../features/dashboard/presentation/dashboard_page.dart';
@@ -11,7 +16,14 @@ import 'state/app_store.dart';
 enum AppSection { dashboard, cameras, discovery, layouts, monitor, settings }
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  const AppShell({
+    this.forceConfiguration = false,
+    this.desktopWindowManager = false,
+    super.key,
+  });
+
+  final bool forceConfiguration;
+  final bool desktopWindowManager;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -20,6 +32,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   AppSection _section = AppSection.dashboard;
   bool _startupApplied = false;
+  bool? _lastFullscreen;
 
   @override
   void didChangeDependencies() {
@@ -27,14 +40,23 @@ class _AppShellState extends State<AppShell> {
     final store = AppScope.of(context);
     if (!_startupApplied && !store.loading) {
       _startupApplied = true;
-      _section = switch (store.config.startupSection) {
-        'monitor' => AppSection.monitor,
-        'cameras' => AppSection.cameras,
-        'layouts' => AppSection.layouts,
-        'discovery' => AppSection.discovery,
-        _ => AppSection.dashboard,
-      };
+      _section = widget.forceConfiguration
+          ? AppSection.cameras
+          : switch (store.config.startupSection) {
+              'monitor' => AppSection.monitor,
+              'cameras' => AppSection.cameras,
+              'discovery' => AppSection.discovery,
+              'layouts' => AppSection.layouts,
+              'auto' =>
+                store.cameras.isEmpty
+                    ? AppSection.cameras
+                    : store.config.slotCameraIds.any((id) => id != null)
+                    ? AppSection.monitor
+                    : AppSection.layouts,
+              _ => AppSection.dashboard,
+            };
     }
+    if (_startupApplied) _syncDesktopWindow(store);
   }
 
   static const _destinations = <(AppSection, String, IconData, IconData)>[
@@ -71,10 +93,7 @@ class _AppShellState extends State<AppShell> {
                   ],
                 ),
               if (!compact && !rail && _section != AppSection.monitor)
-                _DesktopSidebar(
-                  section: _section,
-                  onSelected: (section) => setState(() => _section = section),
-                ),
+                _DesktopSidebar(section: _section, onSelected: _selectSection),
               Expanded(child: _pages[_selectedIndex]),
             ],
           ),
@@ -113,7 +132,37 @@ class _AppShellState extends State<AppShell> {
   ];
 
   void _selectIndex(int index) {
-    setState(() => _section = _destinations[index].$1);
+    _selectSection(_destinations[index].$1);
+  }
+
+  void _selectSection(AppSection section) {
+    setState(() => _section = section);
+    _syncDesktopWindow(AppScope.of(context));
+  }
+
+  void _syncDesktopWindow(AppStore store) {
+    if (!widget.desktopWindowManager ||
+        kIsWeb ||
+        (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS)) {
+      return;
+    }
+    final fullscreen =
+        _section == AppSection.monitor && store.config.autoFullscreen;
+    if (_lastFullscreen == fullscreen) return;
+    _lastFullscreen = fullscreen;
+    unawaited(_setDesktopFullscreen(fullscreen));
+  }
+
+  Future<void> _setDesktopFullscreen(bool fullscreen) async {
+    try {
+      await windowManager.setFullScreen(fullscreen);
+      if (!fullscreen) {
+        await windowManager.setSize(const Size(1280, 800));
+        await windowManager.center();
+      }
+    } on Object {
+      _lastFullscreen = null;
+    }
   }
 }
 

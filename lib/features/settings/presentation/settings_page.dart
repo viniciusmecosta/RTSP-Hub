@@ -48,11 +48,15 @@ class SettingsPage extends StatelessWidget {
                   leading: const Icon(Icons.start_outlined),
                   title: const Text('Ao abrir o aplicativo'),
                   subtitle: const Text(
-                    'Escolha a tela inicial deste dispositivo',
+                    'Automático abre o monitor quando há câmeras na grade.',
                   ),
                   trailing: DropdownButton<String>(
                     value: store.config.startupSection,
                     items: const [
+                      DropdownMenuItem(
+                        value: 'auto',
+                        child: Text('Automático'),
+                      ),
                       DropdownMenuItem(
                         value: 'dashboard',
                         child: Text('Início'),
@@ -80,6 +84,17 @@ class SettingsPage extends StatelessWidget {
                       }
                     },
                   ),
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.fullscreen_outlined),
+                  title: const Text('Abrir monitor em tela cheia'),
+                  subtitle: const Text(
+                    'Aplicado ao entrar no monitor em desktop.',
+                  ),
+                  value: store.config.autoFullscreen,
+                  onChanged: (value) =>
+                      store.updateSettings(autoFullscreen: value),
                 ),
                 const Divider(height: 1),
                 ListTile(
