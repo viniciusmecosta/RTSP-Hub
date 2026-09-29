@@ -7,6 +7,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../../../app/state/app_store.dart';
 import '../../../features/camera_catalog/domain/camera_device.dart';
 import '../../../features/layouts/domain/layout_preset.dart';
+import '../../../features/layouts/domain/layout_geometry.dart';
 import '../application/rtsp_session.dart';
 
 class MonitorPage extends StatefulWidget {
@@ -156,6 +157,39 @@ class _MonitorPageState extends State<MonitorPage> {
                               constraints.maxWidth,
                             );
                             final rows = (visibleCount / columns).ceil();
+                            if (layout.focusIndex != null &&
+                                constraints.maxWidth >= 600 &&
+                                focusedIndex < 0 &&
+                                from == 0 &&
+                                visibleCount == layout.cameraCount) {
+                              final size = Size(
+                                constraints.maxWidth,
+                                constraints.maxHeight,
+                              );
+                              final rectangles = LayoutGeometry.tiles(
+                                layout.id,
+                                size,
+                              );
+                              if (rectangles.length == visibleCount) {
+                                return Stack(
+                                  children: [
+                                    for (
+                                      var offset = 0;
+                                      offset < visibleCount;
+                                      offset++
+                                    )
+                                      Positioned.fromRect(
+                                        rect: rectangles[offset].deflate(1.5),
+                                        child: _cameraTile(
+                                          store,
+                                          slots,
+                                          offset,
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              }
+                            }
                             return GridView.builder(
                               padding: const EdgeInsets.all(3),
                               physics: const NeverScrollableScrollPhysics(),
@@ -173,36 +207,7 @@ class _MonitorPageState extends State<MonitorPage> {
                                   ),
                               itemBuilder: (context, offset) {
                                 final slotIndex = from + offset;
-                                final id = slots[slotIndex];
-                                final camera = id == null
-                                    ? null
-                                    : store.cameras
-                                          .where((item) => item.id == id)
-                                          .firstOrNull;
-                                final session = id == null
-                                    ? null
-                                    : _sessions[id];
-                                return _CameraTile(
-                                  camera: camera,
-                                  session: session,
-                                  onTap: () => setState(
-                                    () => _showControls = !_showControls,
-                                  ),
-                                  onFocus: camera == null
-                                      ? null
-                                      : () {
-                                          setState(() {
-                                            _focusedCameraId =
-                                                _focusedCameraId == camera.id
-                                                ? null
-                                                : camera.id;
-                                          });
-                                          _syncSessions();
-                                        },
-                                  onRetry: session == null
-                                      ? null
-                                      : () => session.start(),
-                                );
+                                return _cameraTile(store, slots, slotIndex);
                               },
                             );
                           },
@@ -213,6 +218,30 @@ class _MonitorPageState extends State<MonitorPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _cameraTile(AppStore store, List<String?> slots, int slotIndex) {
+    final id = slots[slotIndex];
+    final camera = id == null
+        ? null
+        : store.cameras.where((item) => item.id == id).firstOrNull;
+    final session = id == null ? null : _sessions[id];
+    return _CameraTile(
+      camera: camera,
+      session: session,
+      onTap: () => setState(() => _showControls = !_showControls),
+      onFocus: camera == null
+          ? null
+          : () {
+              setState(() {
+                _focusedCameraId = _focusedCameraId == camera.id
+                    ? null
+                    : camera.id;
+              });
+              _syncSessions();
+            },
+      onRetry: session == null ? null : () => session.start(),
     );
   }
 
