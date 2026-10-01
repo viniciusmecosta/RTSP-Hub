@@ -120,8 +120,9 @@ class AppStore extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+    final isNewCamera = id.isEmpty;
     final camera = CameraDevice(
-      id: id.isEmpty ? const Uuid().v4() : id,
+      id: isNewCamera ? const Uuid().v4() : id,
       name: name.trim().isEmpty ? normalizedHost : name.trim(),
       host: normalizedHost,
       port: port.trim().isEmpty ? null : parsedPort,
@@ -141,7 +142,14 @@ class AppStore extends ChangeNotifier {
         ..._config.cameras.where((item) => item.id != camera.id),
         camera,
       ];
-      if (!await _commit(_config.copyWith(cameras: cameras))) {
+      final slots = [..._config.slotCameraIds];
+      if (isNewCamera) {
+        final emptySlot = slots.indexOf(null);
+        if (emptySlot >= 0) slots[emptySlot] = camera.id;
+      }
+      if (!await _commit(
+        _config.copyWith(cameras: cameras, slotCameraIds: slots),
+      )) {
         if (password.isNotEmpty) {
           if (previousPassword == null) {
             await _credentials.delete(camera.id);

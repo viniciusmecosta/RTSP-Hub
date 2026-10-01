@@ -72,6 +72,7 @@ void main() {
     expect(saved, isTrue);
     expect(store.cameras, hasLength(1));
     expect(store.cameras.single.host, 'camera.local');
+    expect(store.config.slotCameraIds.first, store.cameras.single.id);
     expect(credentials.values.values.single, 'private-secret');
     expect(
       repository.saved.single.toJson().toString(),
@@ -104,6 +105,8 @@ void main() {
       isTrue,
     );
     expect(store.cameras, hasLength(2));
+    expect(store.config.slotCameraIds[0], store.cameras[0].id);
+    expect(store.config.slotCameraIds[1], store.cameras[1].id);
   });
 
   test('persists the selected startup section', () async {
