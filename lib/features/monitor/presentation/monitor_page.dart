@@ -11,9 +11,14 @@ import '../../../features/layouts/domain/layout_geometry.dart';
 import '../application/rtsp_session.dart';
 
 class MonitorPage extends StatefulWidget {
-  const MonitorPage({required this.onExit, super.key});
+  const MonitorPage({
+    required this.onExit,
+    required this.onConfigure,
+    super.key,
+  });
 
   final VoidCallback onExit;
+  final VoidCallback onConfigure;
 
   @override
   State<MonitorPage> createState() => _MonitorPageState();
@@ -24,6 +29,7 @@ class _MonitorPageState extends State<MonitorPage> {
   int _page = 0;
   bool _mainStreams = false;
   bool _showControls = true;
+  bool _showDiagnostics = false;
   String? _focusedCameraId;
   int _generation = 0;
 
@@ -71,10 +77,14 @@ class _MonitorPageState extends State<MonitorPage> {
     for (var index = start; index < end; index++) {
       final id = ids[index];
       if (id == null) continue;
+      if (_focusedCameraId != null && id != _focusedCameraId) continue;
       final camera = store.cameras.where((item) => item.id == id).firstOrNull;
       if (camera == null) continue;
       final existing = _sessions[id];
-      final mainStream = _mainStreams || camera.subPath.isEmpty;
+      final mainStream =
+          _mainStreams ||
+          store.config.resourceMode == 'quality' ||
+          camera.subPath.isEmpty;
       if (existing != null &&
           identical(existing.camera, camera) &&
           existing.bufferMs == store.config.bufferMs &&
@@ -126,10 +136,19 @@ class _MonitorPageState extends State<MonitorPage> {
       child: Focus(
         autofocus: true,
         onKeyEvent: (node, event) {
-          if (event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.escape) {
-            _handleBack();
-            return KeyEventResult.handled;
+          if (event is KeyDownEvent) {
+            if (event.logicalKey == LogicalKeyboardKey.escape) {
+              _handleBack();
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.f3) {
+              setState(() => _showDiagnostics = !_showDiagnostics);
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.f2) {
+              widget.onConfigure();
+              return KeyEventResult.handled;
+            }
           }
           return KeyEventResult.ignored;
         },
@@ -140,78 +159,101 @@ class _MonitorPageState extends State<MonitorPage> {
               children: [
                 if (_showControls) _toolbar(context, store, layout, pages),
                 Expanded(
-                  child: store.cameras.isEmpty
-                      ? const _MonitorEmpty(
-                          message:
-                              'Cadastre câmeras para começar a visualizar.',
-                        )
-                      : visibleCount == 0
-                      ? const _MonitorEmpty(
-                          message:
-                              'A grade está vazia. Associe câmeras em Layouts.',
-                        )
-                      : LayoutBuilder(
-                          builder: (context, constraints) {
-                            final columns = _columns(
-                              layout,
-                              constraints.maxWidth,
-                            );
-                            final rows = (visibleCount / columns).ceil();
-                            if (layout.focusIndex != null &&
-                                constraints.maxWidth >= 600 &&
-                                focusedIndex < 0 &&
-                                from == 0 &&
-                                visibleCount == layout.cameraCount) {
-                              final size = Size(
-                                constraints.maxWidth,
-                                constraints.maxHeight,
-                              );
-                              final rectangles = LayoutGeometry.tiles(
-                                layout.id,
-                                size,
-                              );
-                              if (rectangles.length == visibleCount) {
-                                return Stack(
-                                  children: [
-                                    for (
-                                      var offset = 0;
-                                      offset < visibleCount;
-                                      offset++
-                                    )
-                                      Positioned.fromRect(
-                                        rect: rectangles[offset].deflate(1.5),
-                                        child: _cameraTile(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Positioned.fill(
+                        child: store.cameras.isEmpty
+                            ? const _MonitorEmpty(
+                                message:
+                                    'Cadastre câmeras para começar a visualizar.',
+                              )
+                            : visibleCount == 0
+                            ? const _MonitorEmpty(
+                                message:
+                                    'A grade está vazia. Associe câmeras em Layouts.',
+                              )
+                            : LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final columns = _columns(
+                                    layout,
+                                    constraints.maxWidth,
+                                  );
+                                  final rows = (visibleCount / columns).ceil();
+                                  if (layout.focusIndex != null &&
+                                      constraints.maxWidth >= 600 &&
+                                      focusedIndex < 0 &&
+                                      from == 0 &&
+                                      visibleCount == layout.cameraCount) {
+                                    final rectangles = LayoutGeometry.tiles(
+                                      layout.id,
+                                      Size(
+                                        constraints.maxWidth,
+                                        constraints.maxHeight,
+                                      ),
+                                    );
+                                    if (rectangles.length == visibleCount) {
+                                      return Stack(
+                                        children: [
+                                          for (
+                                            var offset = 0;
+                                            offset < visibleCount;
+                                            offset++
+                                          )
+                                            Positioned.fromRect(
+                                              rect: rectangles[offset].deflate(
+                                                1.5,
+                                              ),
+                                              child: _cameraTile(
+                                                store,
+                                                slots,
+                                                offset,
+                                              ),
+                                            ),
+                                        ],
+                                      );
+                                    }
+                                  }
+                                  return GridView.builder(
+                                    padding: const EdgeInsets.all(3),
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    itemCount: visibleCount,
+                                    gridDelegate:
+                                        SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: columns,
+                                          mainAxisSpacing: 3,
+                                          crossAxisSpacing: 3,
+                                          childAspectRatio:
+                                              constraints.maxWidth < 600
+                                              ? 16 / 10
+                                              : (constraints.maxWidth /
+                                                        columns) /
+                                                    ((constraints.maxHeight /
+                                                            rows)
+                                                        .clamp(
+                                                          80,
+                                                          double.infinity,
+                                                        )),
+                                        ),
+                                    itemBuilder: (context, offset) =>
+                                        _cameraTile(
                                           store,
                                           slots,
-                                          offset,
+                                          from + offset,
                                         ),
-                                      ),
-                                  ],
-                                );
-                              }
-                            }
-                            return GridView.builder(
-                              padding: const EdgeInsets.all(3),
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: visibleCount,
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: columns,
-                                    mainAxisSpacing: 3,
-                                    crossAxisSpacing: 3,
-                                    childAspectRatio: constraints.maxWidth < 600
-                                        ? 16 / 10
-                                        : (constraints.maxWidth / columns) /
-                                              ((constraints.maxHeight / rows)
-                                                  .clamp(80, double.infinity)),
-                                  ),
-                              itemBuilder: (context, offset) {
-                                final slotIndex = from + offset;
-                                return _cameraTile(store, slots, slotIndex);
-                              },
-                            );
-                          },
+                                  );
+                                },
+                              ),
+                      ),
+                      if (_showDiagnostics)
+                        Positioned(
+                          top: 12,
+                          right: 12,
+                          child: _diagnostics(context, store, slots),
                         ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -245,10 +287,112 @@ class _MonitorPageState extends State<MonitorPage> {
     );
   }
 
+  Widget _diagnostics(
+    BuildContext context,
+    AppStore store,
+    List<String?> slots,
+  ) {
+    final width = MediaQuery.sizeOf(context).width;
+    return SizedBox(
+      width: width < 380 ? width - 24 : 340,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.65,
+        ),
+        child: Material(
+          color: const Color(0xF0121924),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Diagnósticos da sessão',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'Fechar diagnósticos',
+                        onPressed: () =>
+                            setState(() => _showDiagnostics = false),
+                        icon: const Icon(Icons.close, color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '${store.activeLayout.name} · buffer ${store.config.bufferMs} ms · ${store.config.resourceMode}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  const Divider(color: Color(0xFF344153)),
+                  for (var index = 0; index < slots.length; index++)
+                    if (slots[index] case final String id)
+                      _diagnosticCamera(store, id, index),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _diagnosticCamera(AppStore store, String id, int index) {
+    final camera = store.cameras.where((item) => item.id == id).firstOrNull;
+    final session = _sessions[id];
+    if (camera == null) return const SizedBox.shrink();
+    if (session == null) return _diagnosticRow(index, camera.name, 'Em espera');
+    return ValueListenableBuilder<CameraPlaybackStatus>(
+      valueListenable: session.status,
+      builder: (context, status, _) =>
+          _diagnosticRow(index, camera.name, switch (status) {
+            CameraPlaybackStatus.idle => 'Aguardando',
+            CameraPlaybackStatus.connecting => 'Conectando',
+            CameraPlaybackStatus.playing => 'Ao vivo',
+            CameraPlaybackStatus.reconnecting => 'Reconectando',
+            CameraPlaybackStatus.error => 'Falha',
+            CameraPlaybackStatus.paused => 'Pausada',
+          }),
+    );
+  }
+
+  Widget _diagnosticRow(int index, String name, String state) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 28,
+          child: Text(
+            '${index + 1}',
+            style: const TextStyle(color: Colors.white54),
+          ),
+        ),
+        Expanded(
+          child: Text(name, style: const TextStyle(color: Colors.white)),
+        ),
+        Text(
+          state,
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+      ],
+    ),
+  );
+
   void _handleBack() {
     if (_focusedCameraId != null) {
       setState(() => _focusedCameraId = null);
       _syncSessions();
+    } else if (_showDiagnostics) {
+      setState(() => _showDiagnostics = false);
     } else if (!_showControls) {
       setState(() => _showControls = true);
     } else {
@@ -427,6 +571,7 @@ class _CameraTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       onDoubleTap: onFocus,
+      onSecondaryTap: onFocus,
       child: ColoredBox(
         color: const Color(0xFF111821),
         child: Stack(
