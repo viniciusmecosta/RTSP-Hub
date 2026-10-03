@@ -32,6 +32,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   AppSection _section = AppSection.dashboard;
   bool _startupApplied = false;
+  bool _tutorialQueued = false;
   bool? _lastFullscreen;
 
   @override
@@ -56,7 +57,54 @@ class _AppShellState extends State<AppShell> {
               _ => AppSection.dashboard,
             };
     }
+    if (_startupApplied && !_tutorialQueued && !store.loading) {
+      _tutorialQueued = true;
+      if (!store.config.tutorialCompleted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showFirstRunTutorial();
+        });
+      }
+    }
     if (_startupApplied) _syncDesktopWindow(store);
+  }
+
+  Future<void> _showFirstRunTutorial() async {
+    final store = AppScope.of(context);
+    final openCameras = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.tips_and_updates_outlined),
+        title: const Text('Bem-vindo ao RTSP View'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('1. Cadastre a câmera e teste a conexão RTSP.'),
+            SizedBox(height: 12),
+            Text('2. Escolha um layout; câmeras novas ocupam espaços vazios.'),
+            SizedBox(height: 12),
+            Text(
+              '3. Abra o monitor. Use botão direito para focar, F3 para ver estados e Esc para voltar.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Entendi'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.videocam_outlined),
+            label: const Text('Cadastrar câmera'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    await store.updateSettings(tutorialCompleted: true);
+    if (openCameras == true && mounted) _selectIndex(1);
   }
 
   static const _destinations = <(AppSection, String, IconData, IconData)>[
@@ -229,14 +277,18 @@ class _DesktopSidebar extends StatelessWidget {
                   horizontal: 12,
                   vertical: 3,
                 ),
-                child: ListTile(
-                  selected: item.$1 == section,
-                  leading: Icon(item.$3),
-                  title: Text(item.$2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                  child: ListTile(
+                    selected: item.$1 == section,
+                    leading: Icon(item.$3),
+                    title: Text(item.$2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    onTap: () => onSelected(item.$1),
                   ),
-                  onTap: () => onSelected(item.$1),
                 ),
               ),
             const Spacer(),

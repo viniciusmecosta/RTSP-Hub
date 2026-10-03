@@ -12,12 +12,14 @@ class RtspViewApp extends StatefulWidget {
     this.forceConfiguration = false,
     this.desktopWindowManager = false,
     this.instanceGuard,
+    this.store,
     super.key,
   });
 
   final bool forceConfiguration;
   final bool desktopWindowManager;
   final SingleInstanceGuard? instanceGuard;
+  final AppStore? store;
 
   @override
   State<RtspViewApp> createState() => _RtspViewAppState();
@@ -29,7 +31,7 @@ class _RtspViewAppState extends State<RtspViewApp> {
   @override
   void initState() {
     super.initState();
-    _store = AppStore();
+    _store = widget.store ?? AppStore();
     _store.load();
   }
 
@@ -63,5 +65,5 @@ class _RtspViewAppState extends State<RtspViewApp> {
 }
 
 class MyApp extends RtspViewApp {
-  const MyApp({super.key});
+  const MyApp({super.store, super.key});
 }
