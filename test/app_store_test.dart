@@ -137,6 +137,18 @@ void main() {
 
     expect(configuration.startupSection, 'dashboard');
   });
+
+  test('persists completion of the first-run tutorial', () {
+    final configuration = const AppConfiguration().copyWith(
+      tutorialCompleted: true,
+    );
+    final restored = AppConfiguration.fromJson(
+      configuration.toJson().cast<String, Object?>(),
+    );
+
+    expect(const AppConfiguration().tutorialCompleted, isFalse);
+    expect(restored.tutorialCompleted, isTrue);
+  });
 }
 
 class _MemoryRepository extends ConfigRepository {

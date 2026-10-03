@@ -14,6 +14,7 @@ class AppConfiguration {
     this.themeMode = 'system',
     this.autoFullscreen = true,
     this.startupSection = 'auto',
+    this.tutorialCompleted = false,
   });
 
   final int schemaVersion;
@@ -28,6 +29,7 @@ class AppConfiguration {
   final String themeMode;
   final bool autoFullscreen;
   final String startupSection;
+  final bool tutorialCompleted;
 
   AppConfiguration copyWith({
     List<CameraDevice>? cameras,
@@ -41,6 +43,7 @@ class AppConfiguration {
     String? themeMode,
     bool? autoFullscreen,
     String? startupSection,
+    bool? tutorialCompleted,
   }) => AppConfiguration(
     schemaVersion: schemaVersion,
     cameras: cameras ?? this.cameras,
@@ -54,6 +57,7 @@ class AppConfiguration {
     themeMode: themeMode ?? this.themeMode,
     autoFullscreen: autoFullscreen ?? this.autoFullscreen,
     startupSection: startupSection ?? this.startupSection,
+    tutorialCompleted: tutorialCompleted ?? this.tutorialCompleted,
   );
 
   Map<String, Object?> toJson() => {
@@ -68,6 +72,7 @@ class AppConfiguration {
       'themeMode': themeMode,
       'autoFullscreen': autoFullscreen,
       'startupSection': startupSection,
+      'tutorialCompleted': tutorialCompleted,
     },
     'cameras': cameras.map((camera) => camera.toJson()).toList(),
     'layout': {'id': layoutId, 'slots': slotCameraIds},
@@ -111,6 +116,7 @@ class AppConfiguration {
         'discovery' => settings['startupSection'] as String,
         _ => 'auto',
       },
+      tutorialCompleted: settings['tutorialCompleted'] as bool? ?? false,
     );
   }
 }
