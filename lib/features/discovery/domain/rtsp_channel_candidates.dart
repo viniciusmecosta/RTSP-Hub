@@ -16,10 +16,28 @@ class RtspChannelCandidates {
     if (channel < 1 || channel > 255) return const [];
     return [
       '/Streaming/Channels/${channel}01',
-      '/Streaming/Channels/${channel}02',
       '/cam/realmonitor?channel=$channel&subtype=0',
-      '/cam/realmonitor?channel=$channel&subtype=1',
+      ...subForChannel(channel),
       ...paths.skip(4),
     ];
+  }
+
+  static List<String> mainForChannel(int channel, {String? preferredPath}) {
+    if (channel < 1 || channel > 255) return const [];
+    return {
+      if (preferredPath != null && preferredPath.isNotEmpty) preferredPath,
+      '/Streaming/Channels/${channel}01',
+      '/cam/realmonitor?channel=$channel&subtype=0',
+      if (channel == 1) ...paths.skip(4),
+    }.toList(growable: false);
+  }
+
+  static List<String> subForChannel(int channel, {String? preferredPath}) {
+    if (channel < 1 || channel > 255) return const [];
+    return {
+      if (preferredPath != null && preferredPath.isNotEmpty) preferredPath,
+      '/Streaming/Channels/${channel}02',
+      '/cam/realmonitor?channel=$channel&subtype=1',
+    }.toList(growable: false);
   }
 }
