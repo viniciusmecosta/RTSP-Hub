@@ -26,7 +26,7 @@ class _ChannelFinderPageState extends State<ChannelFinderPage> {
   final _port = TextEditingController(text: '554');
   final _username = TextEditingController(text: 'admin');
   final _password = TextEditingController();
-  final _channel = TextEditingController(text: '1');
+  final _lastChannel = TextEditingController(text: '16');
   final _interfaces = <NetworkInterface>[];
   final _openHosts = <String>[];
   bool _scanning = false;
@@ -34,8 +34,10 @@ class _ChannelFinderPageState extends State<ChannelFinderPage> {
   bool _cancel = false;
   int _completed = 0;
   int _total = 0;
-  int _candidateIndex = 0;
-  List<String> _paths = const [];
+  int _activeChannel = 1;
+  String? _selectedCameraId;
+  bool _cameraListInitialized = false;
+  List<_FoundChannel> _results = const [];
   RtspSession? _probe;
 
   @override
@@ -53,8 +55,38 @@ class _ChannelFinderPageState extends State<ChannelFinderPage> {
     _port.dispose();
     _username.dispose();
     _password.dispose();
-    _channel.dispose();
+    _lastChannel.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_cameraListInitialized) return;
+    _cameraListInitialized = true;
+    final cameras = AppScope.of(context).cameras;
+    if (cameras.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _selectCamera(cameras.first.id);
+      });
+    }
+  }
+
+  Future<void> _selectCamera(String? id) async {
+    if (id == null) return;
+    final store = AppScope.of(context);
+    final camera = store.cameras.where((item) => item.id == id).firstOrNull;
+    if (camera == null) return;
+    setState(() {
+      _selectedCameraId = id;
+      _host.text = camera.host;
+      _port.text = camera.effectivePort(store.config.defaultPort).toString();
+      _username.text = camera.username;
+      _password.clear();
+      _results = const [];
+    });
+    final secret = await store.passwordFor(camera);
+    if (mounted && _selectedCameraId == id) _password.text = secret ?? '';
   }
 
   Future<void> _loadInterfaces() async {
@@ -129,78 +161,174 @@ class _ChannelFinderPageState extends State<ChannelFinderPage> {
       _message(hostError);
       return;
     }
-    final channel = int.tryParse(_channel.text.trim());
-    if (channel == null || channel < 1 || channel > 255) {
-      _message('Informe um canal entre 1 e 255.');
+    final store = AppScope.of(context);
+    final selectedCamera = store.cameras
+        .where((camera) => camera.id == _selectedCameraId)
+        .firstOrNull;
+    final lastChannel = int.tryParse(_lastChannel.text.trim());
+    if (lastChannel == null || lastChannel < 1 || lastChannel > 64) {
+      _message('Escolha um limite de canal entre 1 e 64.');
       return;
     }
-    final paths = RtspChannelCandidates.forChannel(channel);
+    final reachable = await _scanner.isRtspPortOpen(
+      host,
+      port,
+      timeout: const Duration(milliseconds: 700),
+    );
+    if (!mounted) return;
+    if (!reachable) {
+      _message(
+        'A porta RTSP não respondeu. Confira o endereço, a porta e a rede.',
+      );
+      return;
+    }
     _cancel = false;
     setState(() {
       _finding = true;
-      _paths = paths;
-      _candidateIndex = 0;
+      _results = const [];
     });
-    String? foundPath;
-    for (var index = 0; index < paths.length && !_cancel; index++) {
+    for (var channel = 1; channel <= lastChannel && !_cancel; channel++) {
       if (!mounted) return;
-      setState(() => _candidateIndex = index);
-      final session = RtspSession(
-        camera: CameraDevice(
-          id: 'channel-finder',
-          name: host,
-          host: host,
-          port: port,
-          username: _username.text.trim(),
-          mainPath: paths[index],
-        ),
-        password: _password.text,
-        defaultPort: port,
-        bufferMs: 150,
-        useMainStream: true,
-        firstFrameTimeout: const Duration(seconds: 3),
-        retryEnabled: false,
-      );
-      setState(() => _probe = session);
-      await WidgetsBinding.instance.endOfFrame;
-      if (!mounted || _cancel) {
-        await session.disposeSession();
-        _probe = null;
-        break;
+      setState(() {
+        _activeChannel = channel;
+      });
+      String? mainPath;
+      String mainQuality = '';
+      for (final path in RtspChannelCandidates.mainForChannel(
+        channel,
+        preferredPath: channel == 1 ? selectedCamera?.mainPath : null,
+      )) {
+        final quality = await _probePath(host: host, port: port, path: path);
+        if (quality != null) {
+          mainPath = path;
+          mainQuality = quality;
+          break;
+        }
+        if (_cancel || !mounted) break;
       }
-      await session.start();
-      if (session.firstFrameRendered.value) foundPath = paths[index];
-      await session.disposeSession();
-      if (mounted) setState(() => _probe = null);
-      if (foundPath != null) break;
+      if (mainPath == null || _cancel || !mounted) continue;
+      String? subPath;
+      String? subQuality;
+      for (final path in RtspChannelCandidates.subForChannel(
+        channel,
+        preferredPath: channel == 1 ? selectedCamera?.subPath : null,
+      )) {
+        final quality = await _probePath(host: host, port: port, path: path);
+        if (quality != null) {
+          subPath = path;
+          subQuality = quality;
+          break;
+        }
+        if (_cancel || !mounted) break;
+      }
+      if (!_cancel && mounted) {
+        setState(() {
+          _results = [
+            ..._results,
+            _FoundChannel(
+              number: channel,
+              mainPath: mainPath!,
+              mainQuality: mainQuality,
+              subPath: subPath,
+              subQuality: subQuality,
+            ),
+          ];
+        });
+      }
     }
     if (!mounted) return;
     setState(() => _finding = false);
-    if (foundPath != null) {
-      setState(() => _paths = [foundPath!]);
-      _message('Canal validado: $foundPath');
+    if (!_cancel && _results.isEmpty) {
+      _message('Nenhum canal com vídeo foi encontrado até o número informado.');
     } else if (!_cancel) {
-      _message('Nenhum dos caminhos testados entregou um quadro de vídeo.');
+      _message('${_results.length} canal(is) com vídeo encontrados.');
     }
   }
 
-  Future<void> _saveFoundChannel() async {
-    if (_paths.length != 1 || _finding) return;
+  Future<String?> _probePath({
+    required String host,
+    required int port,
+    required String path,
+  }) async {
+    final session = RtspSession(
+      camera: CameraDevice(
+        id: 'channel-finder',
+        name: host,
+        host: host,
+        port: port,
+        username: _username.text.trim(),
+        mainPath: path,
+      ),
+      password: _password.text,
+      defaultPort: port,
+      bufferMs: 120,
+      useMainStream: true,
+      firstFrameTimeout: const Duration(milliseconds: 1800),
+      retryEnabled: false,
+    );
+    setState(() => _probe = session);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || _cancel) {
+      await session.disposeSession();
+      _probe = null;
+      return null;
+    }
+    await session.start();
+    final found = session.firstFrameRendered.value;
+    final quality = found ? _videoQuality(session) : null;
+    await session.disposeSession();
+    if (mounted) setState(() => _probe = null);
+    return quality;
+  }
+
+  String _videoQuality(RtspSession session) {
+    final player = session.player;
+    if (player == null) return 'Qualidade indisponível';
+    final track = player.state.tracks.video.firstWhere(
+      (item) => item.id != 'auto' && item.id != 'no',
+      orElse: () => player.state.track.video,
+    );
+    final width = track.w ?? player.state.videoParams.w;
+    final height = track.h ?? player.state.videoParams.h;
+    final codec = track.codec;
+    final fps = track.fps;
+    final details = <String>[
+      if (width != null && height != null) '$width×$height',
+      if (fps != null && fps > 0) '${fps.toStringAsFixed(1)} fps',
+      if (codec != null && codec.isNotEmpty) codec.toUpperCase(),
+      if (track.bitrate case final int bitrate when bitrate > 0)
+        '${(bitrate / 1000000).toStringAsFixed(1)} Mbps',
+    ];
+    return details.isEmpty ? 'Vídeo detectado' : details.join(' · ');
+  }
+
+  Future<void> _saveFoundChannel(_FoundChannel result) async {
+    if (_finding) return;
     final store = AppScope.of(context);
+    final original = store.cameras
+        .where((camera) => camera.id == _selectedCameraId)
+        .firstOrNull;
+    final updateOriginal =
+        original?.host == _host.text.trim() &&
+        original?.effectivePort(store.config.defaultPort) ==
+            int.tryParse(_port.text.trim()) &&
+        original?.mainPath == result.mainPath;
     final saved = await store.saveCamera(
-      id: '',
-      name: _host.text.trim(),
+      id: updateOriginal ? original!.id : '',
+      name: updateOriginal
+          ? original!.name
+          : '${_host.text.trim()} · Canal ${result.number}',
       host: _host.text.trim(),
       port: _port.text.trim(),
       username: _username.text.trim(),
       password: _password.text,
-      mainPath: _paths.single,
-      subPath: '',
+      mainPath: result.mainPath,
+      subPath: result.subPath ?? '',
     );
     if (!mounted) return;
     _message(
       saved
-          ? 'Canal salvo no catálogo de câmeras.'
+          ? 'Canal ${result.number} salvo no catálogo de câmeras.'
           : store.message ?? 'Não foi possível salvar o canal.',
     );
   }
@@ -233,7 +361,7 @@ class _ChannelFinderPageState extends State<ChannelFinderPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '1. Buscar dispositivos na rede',
+                    'Opcional · localizar endereços na rede',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
@@ -309,7 +437,11 @@ class _ChannelFinderPageState extends State<ChannelFinderPage> {
                     runSpacing: 10,
                     children: [
                       FilledButton.icon(
-                        onPressed: _scanning ? _cancelWork : _scanNetwork,
+                        onPressed: _scanning
+                            ? _cancelWork
+                            : _finding
+                            ? null
+                            : _scanNetwork,
                         icon: Icon(_scanning ? Icons.stop : Icons.radar),
                         label: Text(
                           _scanning ? 'Cancelar busca' : 'Buscar na rede',
@@ -361,15 +493,36 @@ class _ChannelFinderPageState extends State<ChannelFinderPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '2. Identificar o canal com vídeo',
+                    '1. Escolher canais da câmera',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Testa rotas comuns uma por vez e confirma o canal apenas quando o decodificador recebe um quadro real.',
+                    'Selecione uma câmera cadastrada. O achador testa cada canal em sequência, mede o vídeo e oferece os fluxos principal e secundário para você escolher.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 14),
+                  if (AppScope.of(context).cameras.isNotEmpty) ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedCameraId,
+                      decoration: const InputDecoration(
+                        labelText: 'Câmera cadastrada',
+                        prefixIcon: Icon(Icons.videocam_outlined),
+                      ),
+                      items: [
+                        for (final camera in AppScope.of(context).cameras)
+                          DropdownMenuItem(
+                            value: camera.id,
+                            child: Text(
+                              '${camera.name} · ${camera.host}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: _finding ? null : _selectCamera,
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   TextField(
                     controller: _host,
                     enabled: !_finding,
@@ -381,14 +534,14 @@ class _ChannelFinderPageState extends State<ChannelFinderPage> {
                   ),
                   const SizedBox(height: 10),
                   TextField(
-                    controller: _channel,
+                    controller: _lastChannel,
                     enabled: !_finding,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Número do canal no gravador',
-                      hintText: '1',
+                      labelText: 'Buscar canais do 1 até',
+                      hintText: '16',
                       helperText:
-                          'Usado ao montar caminhos comuns de gravadores',
+                          'Limite de 64; apenas um fluxo é testado por vez.',
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -430,32 +583,88 @@ class _ChannelFinderPageState extends State<ChannelFinderPage> {
                     runSpacing: 10,
                     children: [
                       FilledButton.icon(
-                        onPressed: _finding ? _cancelWork : _findChannels,
+                        onPressed: _finding
+                            ? _cancelWork
+                            : _scanning
+                            ? null
+                            : _findChannels,
                         icon: Icon(_finding ? Icons.stop : Icons.manage_search),
                         label: Text(
                           _finding ? 'Cancelar teste' : 'Achar canal',
                         ),
                       ),
-                      if (_paths.length == 1 && !_finding)
-                        OutlinedButton.icon(
-                          onPressed: _saveFoundChannel,
-                          icon: const Icon(Icons.save_outlined),
-                          label: const Text('Salvar câmera'),
-                        ),
-                      if (_finding)
-                        Text(
-                          'Testando rota ${_candidateIndex + 1} de ${_paths.length}…',
-                        ),
-                      if (_paths.length == 1 && !_finding)
-                        Chip(
-                          avatar: Icon(
-                            Icons.check_circle,
-                            color: colorScheme.primary,
+                      if (_finding) ...[
+                        SizedBox(
+                          width: 140,
+                          child: LinearProgressIndicator(
+                            value:
+                                _activeChannel /
+                                (int.tryParse(_lastChannel.text) ?? 16),
                           ),
-                          label: Text(_paths.single),
                         ),
+                        Text('Canal $_activeChannel de ${_lastChannel.text}'),
+                      ],
                     ],
                   ),
+                  if (_results.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    for (final result in _results)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: colorScheme.primary,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Canal ${result.number}',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: _finding
+                                        ? null
+                                        : () => _saveFoundChannel(result),
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Adicionar'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text('Principal · ${result.mainQuality}'),
+                              Text(
+                                result.subPath == null
+                                    ? 'Fluxo secundário não detectado'
+                                    : 'Secundário · ${result.subQuality}',
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                result.mainPath,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              if (result.subPath case final String subPath)
+                                Text(
+                                  subPath,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                   const SizedBox(height: 8),
                   Text(
                     'O usuário e a senha são usados apenas para testar e são gravados no cofre seguro se você salvar a câmera.',
@@ -480,4 +689,20 @@ class _ChannelFinderPageState extends State<ChannelFinderPage> {
       ),
     );
   }
+}
+
+class _FoundChannel {
+  const _FoundChannel({
+    required this.number,
+    required this.mainPath,
+    required this.mainQuality,
+    required this.subPath,
+    required this.subQuality,
+  });
+
+  final int number;
+  final String mainPath;
+  final String mainQuality;
+  final String? subPath;
+  final String? subQuality;
 }
