@@ -66,6 +66,29 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('pesquisa de rede fica dentro da página de câmeras', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Entendi'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Encontrar câmeras na rede'), findsOneWidget);
+    expect(find.text('Achador de canais'), findsNothing);
+    await tester.tap(find.text('Encontrar câmeras na rede'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Usuário global'), findsOneWidget);
+    expect(find.text('Senha global'), findsOneWidget);
+    expect(find.text('Buscar câmeras'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 MyApp _app() => MyApp(

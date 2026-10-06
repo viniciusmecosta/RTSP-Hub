@@ -7,13 +7,12 @@ import 'package:window_manager/window_manager.dart';
 
 import '../features/camera_catalog/presentation/camera_catalog_page.dart';
 import '../features/dashboard/presentation/dashboard_page.dart';
-import '../features/discovery/presentation/channel_finder_page.dart';
 import '../features/layouts/presentation/layouts_page.dart';
 import '../features/monitor/presentation/monitor_page.dart';
 import '../features/settings/presentation/settings_page.dart';
 import 'state/app_store.dart';
 
-enum AppSection { dashboard, cameras, discovery, layouts, monitor, settings }
+enum AppSection { dashboard, cameras, layouts, monitor, settings }
 
 class AppShell extends StatefulWidget {
   const AppShell({
@@ -46,7 +45,6 @@ class _AppShellState extends State<AppShell> {
           : switch (store.config.startupSection) {
               'monitor' => AppSection.monitor,
               'cameras' => AppSection.cameras,
-              'discovery' => AppSection.discovery,
               'layouts' => AppSection.layouts,
               'auto' =>
                 store.cameras.isEmpty
@@ -110,7 +108,6 @@ class _AppShellState extends State<AppShell> {
   static const _destinations = <(AppSection, String, IconData, IconData)>[
     (AppSection.dashboard, 'Início', Icons.home_outlined, Icons.home),
     (AppSection.cameras, 'Câmeras', Icons.videocam_outlined, Icons.videocam),
-    (AppSection.discovery, 'Encontrar', Icons.radar_outlined, Icons.radar),
     (AppSection.layouts, 'Layouts', Icons.grid_view_outlined, Icons.grid_view),
     (AppSection.monitor, 'Monitor', Icons.monitor_outlined, Icons.monitor),
     (AppSection.settings, 'Ajustes', Icons.tune_outlined, Icons.tune),
@@ -170,10 +167,9 @@ class _AppShellState extends State<AppShell> {
   List<Widget> get _pages => [
     DashboardPage(
       onAddCamera: () => _selectIndex(1),
-      onOpenMonitor: () => _selectIndex(4),
+      onOpenMonitor: () => _selectIndex(3),
     ),
     const CameraCatalogPage(),
-    const ChannelFinderPage(),
     const LayoutsPage(),
     MonitorPage(
       onExit: () => _selectIndex(0),
@@ -226,7 +222,6 @@ class _DesktopSidebar extends StatelessWidget {
   static const _items = <(AppSection, String, IconData)>[
     (AppSection.dashboard, 'Visão geral', Icons.space_dashboard_outlined),
     (AppSection.cameras, 'Câmeras', Icons.videocam_outlined),
-    (AppSection.discovery, 'Achador de canais', Icons.radar_outlined),
     (AppSection.layouts, 'Layouts', Icons.grid_view_outlined),
     (AppSection.monitor, 'Monitor', Icons.monitor_outlined),
     (AppSection.settings, 'Ajustes', Icons.tune_outlined),

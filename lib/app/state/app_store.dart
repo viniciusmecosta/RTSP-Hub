@@ -10,6 +10,7 @@ import '../../shared/infrastructure/storage/config_repository.dart';
 import '../data/app_configuration.dart';
 
 class AppStore extends ChangeNotifier {
+  static const _networkDiscoveryCredentialId = '__network_discovery__';
   AppStore({ConfigRepository? repository, CredentialStore? credentials})
     : _repository = repository ?? ConfigRepository(),
       _credentials = credentials ?? CredentialStore();
@@ -214,6 +215,60 @@ class AppStore extends ChangeNotifier {
           'O cofre está indisponível. Desbloqueie o armazenamento seguro e tente novamente.';
       notifyListeners();
       return null;
+    }
+  }
+
+  Future<String?> networkDiscoveryPassword() async {
+    final memory = _passwords[_networkDiscoveryCredentialId];
+    if (memory != null) return memory;
+    try {
+      final password = await _credentials.read(_networkDiscoveryCredentialId);
+      if (password != null) {
+        _passwords[_networkDiscoveryCredentialId] = password;
+      }
+      return password;
+    } on Object {
+      _message = 'O cofre seguro está indisponível neste dispositivo.';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<bool> saveNetworkDiscoveryCredentials({
+    required String username,
+    required String password,
+  }) async {
+    try {
+      final previousPassword = await _credentials.read(
+        _networkDiscoveryCredentialId,
+      );
+      if (password.isEmpty) {
+        await _credentials.delete(_networkDiscoveryCredentialId);
+        _passwords.remove(_networkDiscoveryCredentialId);
+      } else {
+        await _credentials.write(_networkDiscoveryCredentialId, password);
+        _passwords[_networkDiscoveryCredentialId] = password;
+      }
+      final saved = await _commit(
+        _config.copyWith(defaultUser: username.trim()),
+      );
+      if (!saved) {
+        if (previousPassword == null) {
+          await _credentials.delete(_networkDiscoveryCredentialId);
+          _passwords.remove(_networkDiscoveryCredentialId);
+        } else {
+          await _credentials.write(
+            _networkDiscoveryCredentialId,
+            previousPassword,
+          );
+          _passwords[_networkDiscoveryCredentialId] = previousPassword;
+        }
+      }
+      return saved;
+    } on Object {
+      _message = 'Não foi possível salvar as credenciais globais no cofre.';
+      notifyListeners();
+      return false;
     }
   }
 

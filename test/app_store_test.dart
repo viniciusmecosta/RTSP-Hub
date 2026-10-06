@@ -80,6 +80,22 @@ void main() {
     );
   });
 
+  test('stores network discovery credentials globally and securely', () async {
+    final saved = await store.saveNetworkDiscoveryCredentials(
+      username: 'monitor',
+      password: 'shared-secret',
+    );
+
+    expect(saved, isTrue);
+    expect(store.config.defaultUser, 'monitor');
+    expect(credentials.values['__network_discovery__'], 'shared-secret');
+    expect(
+      repository.saved.last.toJson().toString(),
+      isNot(contains('shared-secret')),
+    );
+    expect(await store.networkDiscoveryPassword(), 'shared-secret');
+  });
+
   test(
     'rejects duplicate camera addresses regardless of letter case',
     () async {
@@ -136,6 +152,15 @@ void main() {
     });
 
     expect(configuration.startupSection, 'dashboard');
+  });
+
+  test('moves the removed discovery startup destination to automatic', () {
+    final configuration = AppConfiguration.fromJson({
+      ...const AppConfiguration().toJson().cast<String, Object?>(),
+      'settings': {'startupSection': 'discovery'},
+    });
+
+    expect(configuration.startupSection, 'auto');
   });
 
   test('persists completion of the first-run tutorial', () {

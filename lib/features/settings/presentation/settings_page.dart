@@ -73,10 +73,6 @@ class SettingsPage extends StatelessWidget {
                         value: 'layouts',
                         child: Text('Layouts'),
                       ),
-                      DropdownMenuItem(
-                        value: 'discovery',
-                        child: Text('Achador'),
-                      ),
                     ],
                     onChanged: (value) {
                       if (value != null) {
