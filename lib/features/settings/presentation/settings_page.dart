@@ -1,10 +1,56 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../../shared/design_system/page_frame.dart';
+import '../../../shared/platform/windows_startup_service.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  final _windowsStartup = WindowsStartupService();
+  bool _startupEnabled = false;
+  bool _startupLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadStartupState());
+  }
+
+  Future<void> _loadStartupState() async {
+    final enabled = await _windowsStartup.isEnabled();
+    if (!mounted) return;
+    setState(() {
+      _startupEnabled = enabled;
+      _startupLoading = false;
+    });
+  }
+
+  Future<void> _setStartupState(bool enabled) async {
+    setState(() => _startupLoading = true);
+    final saved = await _windowsStartup.setEnabled(enabled);
+    if (!mounted) return;
+    setState(() {
+      _startupEnabled = saved ? enabled : _startupEnabled;
+      _startupLoading = false;
+    });
+    if (!saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível alterar a inicialização do Windows.'),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +127,23 @@ class SettingsPage extends StatelessWidget {
                     },
                   ),
                 ),
+                if (!kIsWeb && Platform.isWindows) ...[
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    secondary: _startupLoading
+                        ? const SizedBox.square(
+                            dimension: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.power_settings_new_outlined),
+                    title: const Text('Iniciar com o Windows'),
+                    subtitle: const Text(
+                      'Abre automaticamente na tela escolhida acima.',
+                    ),
+                    value: _startupEnabled,
+                    onChanged: _startupLoading ? null : _setStartupState,
+                  ),
+                ],
                 const Divider(height: 1),
                 SwitchListTile(
                   secondary: const Icon(Icons.fullscreen_outlined),

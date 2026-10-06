@@ -21,6 +21,7 @@ UninstallDisplayIcon={app}\rtsp_view.exe
 
 [Tasks]
 Name: "desktopicon"; Description: "Criar atalho na área de trabalho"; GroupDescription: "Atalhos:"; Flags: unchecked
+Name: "startup"; Description: "Iniciar automaticamente com o Windows"; GroupDescription: "Inicialização:"; Flags: unchecked
 
 [Files]
 Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
@@ -28,6 +29,9 @@ Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: recursesu
 [Icons]
 Name: "{group}\RTSP View"; Filename: "{app}\rtsp_view.exe"
 Name: "{autodesktop}\RTSP View"; Filename: "{app}\rtsp_view.exe"; Tasks: desktopicon
+
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "RTSP View"; ValueData: """{app}\rtsp_view.exe"""; Tasks: startup; Flags: uninsdeletevalue
 
 [Run]
 Filename: "{app}\rtsp_view.exe"; Description: "Abrir RTSP View"; Flags: postinstall nowait skipifsilent
