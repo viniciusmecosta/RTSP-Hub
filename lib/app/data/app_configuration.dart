@@ -112,8 +112,7 @@ class AppConfiguration {
         'dashboard' => 'dashboard',
         'monitor' ||
         'cameras' ||
-        'layouts' ||
-        'discovery' => settings['startupSection'] as String,
+        'layouts' => settings['startupSection'] as String,
         _ => 'auto',
       },
       tutorialCompleted: settings['tutorialCompleted'] as bool? ?? false,

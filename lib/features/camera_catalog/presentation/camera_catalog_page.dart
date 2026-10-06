@@ -9,6 +9,7 @@ import '../../monitor/application/rtsp_session.dart';
 import '../domain/camera_device.dart';
 import '../domain/camera_field_validation.dart';
 import '../../../shared/design_system/page_frame.dart';
+import 'network_camera_discovery.dart';
 
 class CameraCatalogPage extends StatelessWidget {
   const CameraCatalogPage({super.key});
@@ -26,8 +27,13 @@ class CameraCatalogPage extends StatelessWidget {
           label: const Text('Adicionar câmera'),
         ),
       ],
-      child: store.cameras.isEmpty
-          ? EmptyPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const NetworkCameraDiscovery(),
+          const SizedBox(height: 16),
+          if (store.cameras.isEmpty)
+            EmptyPanel(
               icon: Icons.videocam_outlined,
               title: 'Nenhuma câmera cadastrada',
               description:
@@ -38,7 +44,8 @@ class CameraCatalogPage extends StatelessWidget {
                 label: const Text('Adicionar câmera'),
               ),
             )
-          : LayoutBuilder(
+          else
+            LayoutBuilder(
               builder: (context, constraints) {
                 final columns = constraints.maxWidth >= 900
                     ? 3
@@ -64,12 +71,16 @@ class CameraCatalogPage extends StatelessWidget {
                 );
               },
             ),
+        ],
+      ),
     );
   }
 
   Future<void> _edit(BuildContext context, [CameraDevice? camera]) async {
     final store = AppScope.of(context);
-    final password = camera == null ? null : await store.passwordFor(camera);
+    final password = camera == null
+        ? await store.networkDiscoveryPassword()
+        : await store.passwordFor(camera);
     if (!context.mounted) return;
     final saved = await showDialog<bool>(
       context: context,
@@ -265,10 +276,14 @@ class _CameraEditorState extends State<_CameraEditor> {
             hintText: 'Ex.: Entrada principal',
           ),
           maxLength: 80,
+          buildCounter:
+              (_, {required currentLength, required isFocused, maxLength}) =>
+                  null,
           validator: (value) => (value?.trim().length ?? 0) > 80
               ? 'Use até 80 caracteres.'
               : null,
         ),
+        const SizedBox(height: 12),
         TextFormField(
           controller: _host,
           decoration: const InputDecoration(
@@ -302,6 +317,7 @@ class _CameraEditorState extends State<_CameraEditor> {
                 : null;
           },
         ),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
@@ -312,6 +328,13 @@ class _CameraEditorState extends State<_CameraEditor> {
                   hintText: '554',
                 ),
                 keyboardType: TextInputType.number,
+                buildCounter:
+                    (
+                      _, {
+                      required currentLength,
+                      required isFocused,
+                      maxLength,
+                    }) => null,
                 validator: (value) =>
                     CameraFieldValidation.portError(value ?? ''),
               ),
@@ -322,6 +345,13 @@ class _CameraEditorState extends State<_CameraEditor> {
                 controller: _username,
                 decoration: const InputDecoration(labelText: 'Usuário'),
                 maxLength: 128,
+                buildCounter:
+                    (
+                      _, {
+                      required currentLength,
+                      required isFocused,
+                      maxLength,
+                    }) => null,
                 validator: (value) => (value?.length ?? 0) > 128
                     ? 'Use até 128 caracteres.'
                     : null,
@@ -330,6 +360,7 @@ class _CameraEditorState extends State<_CameraEditor> {
             ),
           ],
         ),
+        const SizedBox(height: 12),
         TextFormField(
           controller: _password,
           decoration: InputDecoration(
@@ -348,11 +379,15 @@ class _CameraEditorState extends State<_CameraEditor> {
           ),
           obscureText: _obscure,
           maxLength: 1024,
+          buildCounter:
+              (_, {required currentLength, required isFocused, maxLength}) =>
+                  null,
           validator: (value) =>
               (value?.length ?? 0) > 1024 ? 'Use até 1024 caracteres.' : null,
           enableSuggestions: false,
           autocorrect: false,
         ),
+        const SizedBox(height: 12),
         TextFormField(
           controller: _mainPath,
           decoration: const InputDecoration(
@@ -361,6 +396,7 @@ class _CameraEditorState extends State<_CameraEditor> {
           ),
           validator: (value) => CameraFieldValidation.pathError(value ?? ''),
         ),
+        const SizedBox(height: 12),
         TextFormField(
           controller: _subPath,
           decoration: const InputDecoration(
@@ -372,6 +408,10 @@ class _CameraEditorState extends State<_CameraEditor> {
       ],
     );
     return Dialog(
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560, maxHeight: 760),
         child: Padding(
