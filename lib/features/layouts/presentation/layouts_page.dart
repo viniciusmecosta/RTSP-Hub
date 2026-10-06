@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../../shared/design_system/page_frame.dart';
+import '../domain/layout_geometry.dart';
 import '../domain/layout_preset.dart';
 
 class LayoutsPage extends StatelessWidget {
@@ -35,6 +36,14 @@ class LayoutsPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
+          _MonitorPreview(
+            layout: layout,
+            slotCameraIds: store.config.slotCameraIds,
+            cameraNames: {
+              for (final camera in store.cameras) camera.id: camera.name,
+            },
+          ),
+          const SizedBox(height: 24),
           Text(
             'Câmeras na grade',
             style: Theme.of(context).textTheme.titleLarge,
@@ -117,6 +126,190 @@ class LayoutsPage extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MonitorPreview extends StatelessWidget {
+  const _MonitorPreview({
+    required this.layout,
+    required this.slotCameraIds,
+    required this.cameraNames,
+  });
+
+  final LayoutPreset layout;
+  final List<String?> slotCameraIds;
+  final Map<String, String> cameraNames;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.monitor, color: colors.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Prévia do monitor',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      Text(
+                        'Visualização aproximada da grade. Não inicia transmissões.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '${layout.cameraCount} posições',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final size = Size(
+                        constraints.maxWidth,
+                        constraints.maxHeight,
+                      );
+                      final customTiles = LayoutGeometry.tiles(layout.id, size);
+                      return DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF080D16),
+                          border: Border.all(color: colors.outlineVariant),
+                        ),
+                        child: Stack(
+                          children: [
+                            for (
+                              var index = 0;
+                              index < layout.cameraCount;
+                              index++
+                            )
+                              Positioned.fromRect(
+                                rect: _tileRect(
+                                  index,
+                                  size,
+                                  customTiles,
+                                ).deflate(1.5),
+                                child: _MonitorPreviewTile(
+                                  number: index + 1,
+                                  cameraName: _cameraName(index),
+                                  emphasized: layout.focusIndex == index,
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String? _cameraName(int index) {
+    if (index >= slotCameraIds.length) return null;
+    final id = slotCameraIds[index];
+    return id == null ? null : cameraNames[id];
+  }
+
+  Rect _tileRect(int index, Size size, List<Rect> customTiles) {
+    if (customTiles.length == layout.cameraCount) return customTiles[index];
+    final width = size.width / layout.columns;
+    final height = size.height / layout.rows;
+    final row = index ~/ layout.columns;
+    final column = index % layout.columns;
+    return Rect.fromLTWH(column * width, row * height, width, height);
+  }
+}
+
+class _MonitorPreviewTile extends StatelessWidget {
+  const _MonitorPreviewTile({
+    required this.number,
+    required this.cameraName,
+    required this.emphasized,
+  });
+
+  final int number;
+  final String? cameraName;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF111A28),
+        border: Border.all(
+          color: emphasized ? colors.primary : const Color(0xFF293548),
+          width: emphasized ? 2 : 1,
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              constraints.maxWidth < 90 || constraints.maxHeight < 46;
+          return Stack(
+            children: [
+              if (!compact)
+                Center(
+                  child: Icon(
+                    cameraName == null
+                        ? Icons.videocam_off_outlined
+                        : Icons.videocam_outlined,
+                    color: Colors.white.withValues(alpha: 0.28),
+                    size: 24,
+                  ),
+                ),
+              Positioned(
+                left: 5,
+                top: 4,
+                right: 4,
+                child: Text(
+                  cameraName == null
+                      ? '$number · Vazia'
+                      : '$number · $cameraName',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cameraName == null ? Colors.white60 : Colors.white,
+                    fontSize: compact ? 8 : 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (emphasized && constraints.maxHeight > 46)
+                Positioned(
+                  right: 5,
+                  bottom: 4,
+                  child: Icon(Icons.star, color: colors.primary, size: 12),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
