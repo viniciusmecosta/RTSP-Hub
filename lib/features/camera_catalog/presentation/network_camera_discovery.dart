@@ -6,6 +6,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../discovery/data/local_network_scanner.dart';
+import '../../discovery/data/onvif_discovery_service.dart';
 import '../../discovery/domain/rtsp_channel_candidates.dart';
 import '../../monitor/application/rtsp_session.dart';
 import '../domain/camera_device.dart';
@@ -19,6 +20,7 @@ class NetworkCameraDiscovery extends StatefulWidget {
 
 class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
   final _scanner = LocalNetworkScanner();
+  final _onvif = OnvifDiscoveryService();
   final _range = TextEditingController();
   final _port = TextEditingController(text: '554');
   final _username = TextEditingController();
@@ -27,6 +29,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
   final _interfaces = <NetworkInterface>[];
   final _hosts = <String>[];
   final _portsByHost = <String, int>{};
+  final _hostLabels = <String, String>{};
   final _channels = <_DetectedChannel>[];
   final _selected = <String>{};
   bool _expanded = false;
@@ -121,6 +124,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
       _cancel = false;
       _hosts.clear();
       _portsByHost.clear();
+      _hostLabels.clear();
       _channels.clear();
       _selected.clear();
       _completed = 0;
@@ -141,6 +145,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
       return;
     }
     try {
+      await _discoverOnvif();
       var scannedHosts = 0;
       for (final candidatePort in ports) {
         if (_cancel) break;
@@ -154,6 +159,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
             _completed = scannedHosts + progress.completed;
             for (final host in progress.openHosts) {
               _portsByHost.putIfAbsent(host, () => candidatePort);
+              _hostLabels.putIfAbsent(host, () => host);
             }
             _hosts
               ..clear()
@@ -187,6 +193,77 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
     }
   }
 
+  Future<void> _discoverOnvif() async {
+    if (_interfaces.isEmpty) return;
+    setState(() => _stage = 'Procurando dispositivos ONVIF');
+    final probes = await _onvif.discover(_interfaces);
+    for (final probe in probes) {
+      if (!mounted || _cancel) return;
+      setState(() => _stage = 'Lendo canais ONVIF em ${probe.sourceAddress}');
+      final device = await _onvif.loadProfiles(
+        probe,
+        username: _username.text.trim(),
+        password: _password.text,
+      );
+      if (device == null) continue;
+      final groups = <String, List<OnvifProfile>>{};
+      for (final profile in device.profiles) {
+        final source = profile.sourceToken?.trim();
+        final group = source == null || source.isEmpty ? profile.name : source;
+        groups.putIfAbsent(group, () => []).add(profile);
+      }
+      var groupIndex = 0;
+      for (final entry in groups.entries) {
+        if (!mounted || _cancel) return;
+        groupIndex++;
+        final profiles = [...entry.value]
+          ..sort((left, right) => right.pixelCount.compareTo(left.pixelCount));
+        final main = profiles.first;
+        final sub = profiles.length > 1 ? profiles.last : null;
+        final stream = main.streamUri;
+        final host = stream.host;
+        final port = stream.hasPort ? stream.port : 554;
+        final number =
+            int.tryParse(
+              RegExp(r'\d+').firstMatch(entry.key)?.group(0) ?? '',
+            ) ??
+            groupIndex;
+        final mainPath = _rtspPath(stream);
+        if (mainPath.isEmpty) continue;
+        _portsByHost.putIfAbsent(host, () => port);
+        _hostLabels[host] = device.name?.isNotEmpty == true
+            ? '${device.name} · $host'
+            : host;
+        final result = _DetectedChannel(
+          host: host,
+          port: port,
+          number: number,
+          username: _username.text.trim(),
+          password: _password.text,
+          mainPath: mainPath,
+          mainQuality: main.quality.isEmpty
+              ? 'Vídeo ONVIF detectado'
+              : main.quality,
+          subPath: sub == null ? null : _rtspPath(sub.streamUri),
+          subQuality: sub?.quality,
+        );
+        if (_channels.any((item) => item.key == result.key)) continue;
+        setState(() {
+          _channels.add(result);
+          _selected.add(result.key);
+          _hosts
+            ..clear()
+            ..addAll(_portsByHost.keys);
+        });
+      }
+    }
+  }
+
+  String _rtspPath(Uri uri) {
+    final path = uri.path.isEmpty ? '/' : uri.path;
+    return uri.hasQuery ? '$path?${uri.query}' : path;
+  }
+
   Future<void> _inspectHosts({required int lastChannel}) async {
     final username = _username.text.trim();
     final password = _password.text;
@@ -198,6 +275,11 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
     for (final host in List<String>.of(_hosts)) {
       for (var channel = 1; channel <= lastChannel; channel++) {
         if (!mounted || _cancel) return;
+        if (_channels.any(
+          (item) => item.host == host && item.number == channel,
+        )) {
+          continue;
+        }
         setState(() {
           _completed++;
           _stage = 'Testando $host · canal $channel de $lastChannel';
@@ -338,6 +420,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
         password: channel.password,
         mainPath: channel.mainPath,
         subPath: channel.subPath ?? '',
+        useGlobalCredentials: true,
       );
       if (ok) saved++;
     }
@@ -582,6 +665,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
                     for (final host in _hosts)
                       _DiscoveredHostGroup(
                         host: host,
+                        displayName: _hostLabels[host] ?? host,
                         channels: _channels
                             .where((item) => item.host == host)
                             .toList(),
@@ -641,12 +725,14 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
 class _DiscoveredHostGroup extends StatelessWidget {
   const _DiscoveredHostGroup({
     required this.host,
+    required this.displayName,
     required this.channels,
     required this.selected,
     required this.onChanged,
   });
 
   final String host;
+  final String displayName;
   final List<_DetectedChannel> channels;
   final Set<String> selected;
   final void Function(_DetectedChannel channel, bool selected) onChanged;
@@ -661,7 +747,10 @@ class _DiscoveredHostGroup extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: Text(host, style: Theme.of(context).textTheme.titleSmall),
+              child: Text(
+                displayName,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
             ),
             for (final channel in channels)
               CheckboxListTile(
