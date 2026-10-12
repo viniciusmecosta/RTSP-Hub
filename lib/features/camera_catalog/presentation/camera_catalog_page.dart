@@ -81,9 +81,7 @@ class CameraCatalogPage extends StatelessWidget {
     final password = camera == null
         ? await store.networkDiscoveryPassword()
         : await store.passwordFor(camera);
-    final globalPassword = camera?.useGlobalCredentials == false
-        ? null
-        : await store.networkDiscoveryPassword();
+    final globalPassword = await store.networkDiscoveryPassword();
     if (!context.mounted) return;
     final saved = await showDialog<bool>(
       context: context,
@@ -261,6 +259,7 @@ class _CameraEditorState extends State<_CameraEditor> {
   void dispose() {
     final probe = _probe;
     if (probe != null) {
+      probe.removeListener(_refreshProbe);
       probe.firstFrameRendered.removeListener(_checkProbe);
       probe.error.removeListener(_checkProbe);
       unawaited(probe.disposeSession());
@@ -567,6 +566,7 @@ class _CameraEditorState extends State<_CameraEditor> {
     _probeSucceeded = null;
     session.firstFrameRendered.addListener(_checkProbe);
     session.error.addListener(_checkProbe);
+    session.addListener(_refreshProbe);
     setState(() => _testing = true);
     unawaited(session.start());
     final succeeded = await completer.future.timeout(
@@ -588,7 +588,12 @@ class _CameraEditorState extends State<_CameraEditor> {
     await WidgetsBinding.instance.endOfFrame;
     session.firstFrameRendered.removeListener(_checkProbe);
     session.error.removeListener(_checkProbe);
+    session.removeListener(_refreshProbe);
     await session.disposeSession();
+  }
+
+  void _refreshProbe() {
+    if (mounted) setState(() {});
   }
 
   void _checkProbe() {

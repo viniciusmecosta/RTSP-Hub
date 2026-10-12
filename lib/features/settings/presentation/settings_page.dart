@@ -185,7 +185,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   leading: const Icon(Icons.memory_outlined),
                   title: const Text('Perfil de desempenho'),
                   subtitle: const Text(
-                    'Baixa latência usa menos buffer; fluxo secundário reduz o trabalho do computador.',
+                    'O fluxo secundário reduz o trabalho do computador. O cache varia conforme a taxa do vídeo.',
                   ),
                   trailing: DropdownButton<String>(
                     value: store.config.resourceMode,
@@ -209,9 +209,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.high_quality_outlined),
-                  title: const Text('Buffer de reprodução'),
+                  title: const Text('Cache de reprodução estimado'),
                   subtitle: Text(
-                    '${store.config.bufferMs} ms · menor valor reduz atraso e memória, mas pode causar interrupções em redes instáveis.',
+                    'Nível ${store.config.bufferMs} · valores menores usam menos memória, mas podem interromper em redes instáveis.',
                   ),
                 ),
                 const Divider(height: 1),

@@ -255,10 +255,11 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
           password: _password.text,
           mainPath: mainPath,
           mainQuality: main.quality.isEmpty
-              ? 'Vídeo ONVIF detectado'
+              ? 'Perfil ONVIF informado'
               : main.quality,
           subPath: sub == null ? null : _rtspPath(sub.streamUri),
           subQuality: sub?.quality,
+          verified: false,
         );
         if (_channels.any((item) => item.key == result.key)) continue;
         setState(() {
@@ -339,6 +340,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
           mainQuality: mainQuality!,
           subPath: subPath,
           subQuality: subQuality,
+          verified: true,
         );
         setState(() {
           _channels.add(result);
@@ -372,9 +374,11 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
       retryEnabled: false,
     );
     _probe = session;
+    session.addListener(_refreshProbe);
     if (mounted) setState(() {});
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted || _cancel) {
+      session.removeListener(_refreshProbe);
       await session.disposeSession();
       if (identical(_probe, session)) _probe = null;
       return null;
@@ -383,12 +387,17 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
     final quality = session.firstFrameRendered.value
         ? _videoQuality(session)
         : null;
+    session.removeListener(_refreshProbe);
     await session.disposeSession();
     if (identical(_probe, session)) {
       _probe = null;
       if (mounted) setState(() {});
     }
     return quality;
+  }
+
+  void _refreshProbe() {
+    if (mounted) setState(() {});
   }
 
   String _videoQuality(RtspSession session) {
@@ -819,8 +828,8 @@ class _DiscoveredHostGroup extends StatelessWidget {
                 controlAffinity: ListTileControlAffinity.leading,
                 title: Text('Canal ${channel.number} · ${channel.mainQuality}'),
                 subtitle: Text(
-                  'Principal: ${channel.mainPath}${channel.subPath == null ? '' : '\nSecundário: ${channel.subPath} · ${channel.subQuality}'}',
-                  maxLines: 3,
+                  '${channel.verified ? 'Vídeo confirmado' : 'Informado por ONVIF · vídeo ainda não testado'}\nPrincipal: ${channel.mainPath}${channel.subPath == null ? '' : '\nSecundário: ${channel.subPath} · ${channel.subQuality}'}',
+                  maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -842,6 +851,7 @@ class _DetectedChannel {
     required this.mainQuality,
     required this.subPath,
     required this.subQuality,
+    required this.verified,
   });
 
   final String host;
@@ -853,5 +863,6 @@ class _DetectedChannel {
   final String mainQuality;
   final String? subPath;
   final String? subQuality;
+  final bool verified;
   String get key => '$host:$port:$number';
 }
