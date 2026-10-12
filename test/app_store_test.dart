@@ -223,6 +223,27 @@ void main() {
     );
   });
 
+  test('keeps settings from concurrent updates', () async {
+    await Future.wait([
+      store.updateSettings(lastSection: 'monitor'),
+      store.updateSettings(lastMonitorPage: 3),
+      store.updateSettings(resourceMode: 'balanced'),
+    ]);
+
+    expect(store.config.lastSection, 'monitor');
+    expect(store.config.lastMonitorPage, 3);
+    expect(store.config.resourceMode, 'balanced');
+  });
+
+  test('removes assignments to cameras missing from saved data', () async {
+    repository.initial = const AppConfiguration(
+      slotCameraIds: ['missing', null, null, null],
+    );
+    await store.load();
+
+    expect(store.config.slotCameraIds, [null, null, null, null]);
+  });
+
   test('starts with automatic destination for existing installations', () {
     expect(const AppConfiguration().startupSection, 'auto');
     expect(
@@ -266,9 +287,10 @@ void main() {
 
 class _MemoryRepository extends ConfigRepository {
   final List<AppConfiguration> saved = [];
+  AppConfiguration initial = const AppConfiguration();
 
   @override
-  Future<AppConfiguration> load() async => const AppConfiguration();
+  Future<AppConfiguration> load() async => initial;
 
   @override
   Future<void> save(AppConfiguration config) async {

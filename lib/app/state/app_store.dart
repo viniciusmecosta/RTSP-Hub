@@ -20,6 +20,7 @@ class AppStore extends ChangeNotifier {
   final ConfigRepository _repository;
   final CredentialStore _credentials;
   final Map<String, String> _passwords = {};
+  Future<void> _settingsQueue = Future.value();
   AppConfiguration _config = const AppConfiguration();
   bool _loading = true;
   String? _message;
@@ -44,7 +45,8 @@ class AppStore extends ChangeNotifier {
       final slots = _config.slotCameraIds
           .map((id) => id != null && validIds.contains(id) ? id : null)
           .toList();
-      if (slots.length != activeLayout.cameraCount) {
+      if (slots.length != activeLayout.cameraCount ||
+          !_sameSlots(slots, _config.slotCameraIds)) {
         slots
           ..removeRange(
             activeLayout.cameraCount.clamp(0, slots.length),
@@ -407,20 +409,24 @@ class AppStore extends ChangeNotifier {
     String? lastSection,
     int? lastMonitorPage,
   }) async {
-    await _commit(
-      _config.copyWith(
-        defaultPort: defaultPort,
-        defaultUser: defaultUser,
-        defaultPath: defaultPath,
-        bufferMs: bufferMs,
-        resourceMode: resourceMode,
-        autoFullscreen: autoFullscreen,
-        startupSection: startupSection,
-        tutorialCompleted: tutorialCompleted,
-        lastSection: lastSection,
-        lastMonitorPage: lastMonitorPage,
+    final operation = _settingsQueue.then(
+      (_) => _commit(
+        _config.copyWith(
+          defaultPort: defaultPort,
+          defaultUser: defaultUser,
+          defaultPath: defaultPath,
+          bufferMs: bufferMs,
+          resourceMode: resourceMode,
+          autoFullscreen: autoFullscreen,
+          startupSection: startupSection,
+          tutorialCompleted: tutorialCompleted,
+          lastSection: lastSection,
+          lastMonitorPage: lastMonitorPage,
+        ),
       ),
     );
+    _settingsQueue = operation.then<void>((_) {});
+    await operation;
   }
 
   String exportConfiguration() =>
@@ -542,6 +548,14 @@ class AppStore extends ChangeNotifier {
     final path = value.trim();
     if (path.isEmpty) return '';
     return path.startsWith('/') ? path : '/$path';
+  }
+
+  bool _sameSlots(List<String?> left, List<String?> right) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (left[index] != right[index]) return false;
+    }
+    return true;
   }
 }
 
