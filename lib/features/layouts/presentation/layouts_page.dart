@@ -140,36 +140,71 @@ class LayoutsPage extends StatelessWidget {
 
   Future<void> _saveProfile(BuildContext context, AppStore store) async {
     final controller = TextEditingController();
-    final name = await showDialog<String>(
+    var startupSection = store.config.startupSection;
+    final selection = await showDialog<(String, String)?>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Salvar perfil do monitor'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 60,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (value) => Navigator.pop(context, value),
-          decoration: const InputDecoration(
-            labelText: 'Nome do perfil',
-            hintText: 'Ex.: Loja · horário comercial',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Salvar perfil do monitor'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                maxLength: 60,
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(
+                  labelText: 'Nome do perfil',
+                  hintText: 'Ex.: Portaria · noite',
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: startupSection,
+                decoration: const InputDecoration(
+                  labelText: 'Tela ao iniciar o aplicativo',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'auto', child: Text('Automático')),
+                  DropdownMenuItem(
+                    value: 'last',
+                    child: Text('Última tela usada'),
+                  ),
+                  DropdownMenuItem(value: 'dashboard', child: Text('Início')),
+                  DropdownMenuItem(value: 'monitor', child: Text('Monitor')),
+                  DropdownMenuItem(value: 'cameras', child: Text('Câmeras')),
+                  DropdownMenuItem(value: 'layouts', child: Text('Layouts')),
+                  DropdownMenuItem(value: 'settings', child: Text('Ajustes')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setDialogState(() => startupSection = value);
+                  }
+                },
+              ),
+            ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.pop(context, (controller.text, startupSection)),
+              child: const Text('Salvar'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Salvar'),
-          ),
-        ],
       ),
     );
     controller.dispose();
-    if (name == null) return;
-    final saved = await store.saveMonitorProfile(name: name);
+    if (selection == null) return;
+    final saved = await store.saveMonitorProfile(
+      name: selection.$1,
+      startupSection: selection.$2,
+    );
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -243,7 +278,7 @@ class _SavedProfiles extends StatelessWidget {
                   leading: const Icon(Icons.dashboard_customize_outlined),
                   title: Text(profile.name),
                   subtitle: Text(
-                    '${LayoutPreset.byId(profile.layoutId).name} · ${profile.slotCameraIds.whereType<String>().length} câmeras',
+                    '${LayoutPreset.byId(profile.layoutId).name} · ${profile.slotCameraIds.whereType<String>().length} câmeras · início: ${_startupLabel(profile.startupSection)}',
                   ),
                   trailing: Wrap(
                     spacing: 4,
@@ -276,6 +311,16 @@ class _SavedProfiles extends StatelessWidget {
       ),
     );
   }
+
+  String _startupLabel(String value) => switch (value) {
+    'last' => 'última tela',
+    'monitor' => 'monitor',
+    'cameras' => 'câmeras',
+    'layouts' => 'layouts',
+    'settings' => 'ajustes',
+    'dashboard' => 'início',
+    _ => 'automático',
+  };
 }
 
 class _MonitorPreview extends StatelessWidget {
