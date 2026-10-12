@@ -23,6 +23,8 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter build apk --release
+      - name: Validar APK Android
+        run: test -s build/app/outputs/flutter-apk/app-release.apk
       - uses: actions/upload-artifact@v4
         with:
           name: android-apk
@@ -47,6 +49,19 @@ jobs:
         env:
           RELEASE_VERSION: ${{ github.ref_name }}
         run: RELEASE_VERSION="${RELEASE_VERSION#v}" tool/package_linux_deb.sh
+      - name: Validar pacote Debian
+        shell: bash
+        run: |
+          set -euo pipefail
+          package=(dist/*.deb)
+          test -f "${package[0]}"
+          test "$(dpkg-deb -f "${package[0]}" Package)" = "rtsp-view"
+          install_root="$(mktemp -d)"
+          dpkg-deb -x "${package[0]}" "$install_root"
+          test -x "$install_root/opt/rtsp-view/RTSPView"
+          test -x "$install_root/usr/bin/rtsp-view"
+          test -f "$install_root/usr/share/applications/rtsp-view.desktop"
+          rm -rf "$install_root"
       - uses: actions/upload-artifact@v4
         with:
           name: ubuntu-installer
@@ -65,6 +80,10 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter build windows --release
+      - name: Validar executável Windows
+        shell: pwsh
+        run: |
+          if (!(Test-Path build\windows\x64\runner\Release\rtsp_view.exe)) { throw "Executável Windows ausente" }
       - name: Instalar Inno Setup
         run: choco install innosetup --no-progress -y
       - name: Criar instalador Windows
@@ -73,6 +92,11 @@ jobs:
           $version = $env:GITHUB_REF_NAME -replace '^v', ''
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" tool/windows-installer.iss
+      - name: Validar instalador Windows
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem dist\RTSP-View-Setup-*-x64.exe | Select-Object -First 1
+          if ($null -eq $installer -or $installer.Length -lt 1000000) { throw "Instalador inválido ou vazio" }
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
@@ -89,6 +113,14 @@ jobs:
         with:
           path: release-assets
           merge-multiple: true
+      - name: Conferir artefatos e gerar checksums
+        run: |
+          set -euo pipefail
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -eq 3
+          test -n "$(find release-assets -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$(find release-assets -maxdepth 1 -name '*.deb' -print -quit)"
+          test -n "$(find release-assets -maxdepth 1 -name '*.exe' -print -quit)"
+          (cd release-assets && sha256sum *.apk *.deb *.exe > SHA256SUMS)
       - name: Criar release e anexar instaladores
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
