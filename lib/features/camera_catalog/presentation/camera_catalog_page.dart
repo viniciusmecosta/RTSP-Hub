@@ -229,6 +229,7 @@ class _CameraEditorState extends State<_CameraEditor> {
   bool _busy = false;
   bool _testing = false;
   String? _probeMessage;
+  bool? _probeSucceeded;
   RtspSession? _probe;
   Completer<bool>? _probeCompleter;
 
@@ -487,25 +488,13 @@ class _CameraEditorState extends State<_CameraEditor> {
                     ),
                   ),
                 Flexible(child: SingleChildScrollView(child: fields)),
-                if (_probeMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _probeMessage!.startsWith('Fluxo validado')
-                              ? Icons.check_circle_outline
-                              : Icons.info_outline,
-                          size: 18,
-                          color: _probeMessage!.startsWith('Fluxo validado')
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(_probeMessage!)),
-                      ],
-                    ),
+                if (_probeMessage != null) ...[
+                  const SizedBox(height: 12),
+                  _ProbeResult(
+                    message: _probeMessage!,
+                    succeeded: _probeSucceeded,
                   ),
+                ],
                 const SizedBox(height: 16),
                 Wrap(
                   alignment: WrapAlignment.end,
@@ -548,6 +537,7 @@ class _CameraEditorState extends State<_CameraEditor> {
 
   Future<void> _testStream() async {
     if (!_formKey.currentState!.validate()) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     final host = _host.text.trim();
     final enteredPath = _mainPath.text.trim().isEmpty
         ? widget.store.config.defaultPath
@@ -568,11 +558,13 @@ class _CameraEditorState extends State<_CameraEditor> {
       defaultPort: widget.store.config.defaultPort,
       bufferMs: widget.store.config.bufferMs,
       useMainStream: true,
+      retryEnabled: false,
     );
     final completer = Completer<bool>();
     _probe = session;
     _probeCompleter = completer;
     _probeMessage = 'Conectando e aguardando o primeiro quadro…';
+    _probeSucceeded = null;
     session.firstFrameRendered.addListener(_checkProbe);
     session.error.addListener(_checkProbe);
     setState(() => _testing = true);
@@ -586,9 +578,9 @@ class _CameraEditorState extends State<_CameraEditor> {
     setState(() {
       _probeMessage = succeeded
           ? 'Fluxo validado: primeiro quadro recebido.'
-          : failure == null
-          ? 'Tempo esgotado. Confira a rota, a rede e as credenciais.'
-          : 'Não foi possível abrir o fluxo: $failure';
+          : failure ??
+                'A câmera não respondeu a tempo. Confira a rede, a porta e se o fluxo está ativo.';
+      _probeSucceeded = succeeded;
       _testing = false;
       _probe = null;
       _probeCompleter = null;
@@ -636,5 +628,62 @@ class _CameraEditorState extends State<_CameraEditor> {
       ).showSnackBar(SnackBar(content: Text(message)));
     }
     setState(() => _busy = false);
+  }
+}
+
+class _ProbeResult extends StatelessWidget {
+  const _ProbeResult({required this.message, required this.succeeded});
+
+  final String message;
+  final bool? succeeded;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final testing = succeeded == null;
+    final background = testing
+        ? colors.surfaceContainerHighest
+        : succeeded!
+        ? colors.primaryContainer
+        : colors.errorContainer;
+    final foreground = testing
+        ? colors.onSurfaceVariant
+        : succeeded!
+        ? colors.onPrimaryContainer
+        : colors.onErrorContainer;
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              testing
+                  ? Icons.pending_outlined
+                  : succeeded!
+                  ? Icons.check_circle_outline
+                  : Icons.error_outline,
+              size: 20,
+              color: foreground,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: foreground),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
