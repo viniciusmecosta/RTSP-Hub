@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
@@ -311,7 +312,11 @@ class AppStore extends ChangeNotifier {
     );
   }
 
-  Future<bool> saveMonitorProfile({String? id, required String name}) async {
+  Future<bool> saveMonitorProfile({
+    String? id,
+    required String name,
+    String? startupSection,
+  }) async {
     final normalizedName = name.trim();
     if (normalizedName.isEmpty || normalizedName.length > 60) {
       _message = 'O nome do perfil deve ter entre 1 e 60 caracteres.';
@@ -337,6 +342,7 @@ class AppStore extends ChangeNotifier {
       name: normalizedName,
       layoutId: _config.layoutId,
       slotCameraIds: List.unmodifiable(_config.slotCameraIds),
+      startupSection: startupSection ?? _config.startupSection,
     );
     final profiles = [
       ..._config.monitorProfiles.where((item) => item.id != profile.id),
@@ -361,7 +367,13 @@ class AppStore extends ChangeNotifier {
             }
           : null,
     );
-    await _commit(_config.copyWith(layoutId: layout.id, slotCameraIds: slots));
+    await _commit(
+      _config.copyWith(
+        layoutId: layout.id,
+        slotCameraIds: slots,
+        startupSection: profile.startupSection,
+      ),
+    );
   }
 
   Future<void> removeMonitorProfile(String id) async {
@@ -392,6 +404,8 @@ class AppStore extends ChangeNotifier {
     bool? autoFullscreen,
     String? startupSection,
     bool? tutorialCompleted,
+    String? lastSection,
+    int? lastMonitorPage,
   }) async {
     await _commit(
       _config.copyWith(
@@ -403,8 +417,106 @@ class AppStore extends ChangeNotifier {
         autoFullscreen: autoFullscreen,
         startupSection: startupSection,
         tutorialCompleted: tutorialCompleted,
+        lastSection: lastSection,
+        lastMonitorPage: lastMonitorPage,
       ),
     );
+  }
+
+  String exportConfiguration() =>
+      const JsonEncoder.withIndent('  ').convert(_config.toJson());
+
+  Future<bool> importConfiguration(String source) async {
+    if (source.length > 5 * 1024 * 1024) {
+      _message = 'O arquivo de backup excede o limite de 5 MB.';
+      notifyListeners();
+      return false;
+    }
+    try {
+      final decoded = jsonDecode(source);
+      if (decoded is! Map) throw const FormatException();
+      final configuration = AppConfiguration.fromJson(
+        Map<String, Object?>.from(decoded),
+      );
+      if (configuration.schemaVersion > _config.schemaVersion) {
+        throw const FormatException();
+      }
+      final cameraIds = <String>{};
+      final cameraAddresses = <String>{};
+      for (final camera in configuration.cameras) {
+        final addressKey =
+            '${camera.host.toLowerCase()}:${camera.effectivePort(configuration.defaultPort)}:${camera.mainPath}';
+        if (camera.id.isEmpty ||
+            camera.id.length > 80 ||
+            camera.name.trim().length > 80 ||
+            camera.username.length > 128 ||
+            CameraFieldValidation.hostError(camera.host) != null ||
+            camera.effectivePort(configuration.defaultPort) < 1 ||
+            camera.effectivePort(configuration.defaultPort) > 65535 ||
+            CameraFieldValidation.pathError(camera.mainPath) != null ||
+            CameraFieldValidation.pathError(camera.subPath, optional: true) !=
+                null ||
+            !cameraIds.add(camera.id) ||
+            !cameraAddresses.add(addressKey)) {
+          throw const FormatException();
+        }
+      }
+      final layouts = LayoutPreset.all.map((layout) => layout.id).toSet();
+      final profileNames = <String>{};
+      final profileIds = <String>{};
+      if (!layouts.contains(configuration.layoutId) ||
+          configuration.schemaVersion < 1 ||
+          configuration.defaultPort < 1 ||
+          configuration.defaultPort > 65535 ||
+          configuration.defaultUser.length > 128 ||
+          CameraFieldValidation.pathError(configuration.defaultPath) != null ||
+          configuration.bufferMs < 100 ||
+          configuration.bufferMs > 2000 ||
+          configuration.lastMonitorPage < 0 ||
+          configuration.lastMonitorPage > 100 ||
+          !{
+            'light',
+            'eco',
+            'balanced',
+            'quality',
+          }.contains(configuration.resourceMode) ||
+          configuration.slotCameraIds.length !=
+              LayoutPreset.byId(configuration.layoutId).cameraCount ||
+          configuration.monitorProfiles.length > 20) {
+        throw const FormatException();
+      }
+      for (final profile in configuration.monitorProfiles) {
+        if (profile.id.isEmpty ||
+            !profileIds.add(profile.id) ||
+            profile.name.trim().isEmpty ||
+            profile.name.length > 60 ||
+            !profileNames.add(profile.name.toLowerCase()) ||
+            !layouts.contains(profile.layoutId) ||
+            profile.slotCameraIds.length !=
+                LayoutPreset.byId(profile.layoutId).cameraCount) {
+          throw const FormatException();
+        }
+      }
+      if (configuration.slotCameraIds.any(
+            (id) => id != null && !cameraIds.contains(id),
+          ) ||
+          configuration.slotCameraIds.whereType<String>().toSet().length !=
+              configuration.slotCameraIds.whereType<String>().length) {
+        throw const FormatException();
+      }
+      return _commit(
+        configuration.copyWith(
+          resourceMode: configuration.resourceMode == 'eco'
+              ? 'light'
+              : configuration.resourceMode,
+        ),
+      );
+    } on Object {
+      _message =
+          'Backup inválido. Confira se é um arquivo do RTSP View e tente novamente.';
+      notifyListeners();
+      return false;
+    }
   }
 
   void clearMessage() {

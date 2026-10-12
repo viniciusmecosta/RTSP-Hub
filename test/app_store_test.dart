@@ -157,7 +157,10 @@ void main() {
       await saveCamera(host: 'cam-a.local', mainPath: '/channel/1');
       await saveCamera(host: 'cam-b.local', mainPath: '/channel/2');
       await store.setLayout('GRID_2H');
-      final saved = await store.saveMonitorProfile(name: 'Portaria');
+      final saved = await store.saveMonitorProfile(
+        name: 'Portaria',
+        startupSection: 'monitor',
+      );
       await store.setLayout('SINGLE');
       await store.applyMonitorProfile(store.config.monitorProfiles.single.id);
 
@@ -168,6 +171,7 @@ void main() {
         store.cameras.last.id,
       ]);
       expect(repository.saved.last.monitorProfiles.single.name, 'Portaria');
+      expect(store.config.startupSection, 'monitor');
     },
   );
 
@@ -178,13 +182,44 @@ void main() {
     expect(store.config.monitorProfiles, hasLength(1));
   });
 
-  test('persists the selected startup section', () async {
-    await store.updateSettings(startupSection: 'monitor');
+  test('configuration backups exclude secrets and can be restored', () async {
+    await saveCamera(password: 'private-secret');
+    final backup = store.exportConfiguration();
+    expect(backup, isNot(contains('private-secret')));
+    await store.removeCamera(store.cameras.single.id);
 
-    expect(store.config.startupSection, 'monitor');
+    final imported = await store.importConfiguration(backup);
+
+    expect(imported, isTrue);
+    expect(store.cameras, hasLength(1));
+    expect(store.cameras.single.host, '192.168.1.10');
+    expect(await store.passwordFor(store.cameras.single), isNull);
+  });
+
+  test(
+    'rejects malformed configuration backups without replacing settings',
+    () async {
+      await saveCamera(host: 'cam-keep.local');
+      final imported = await store.importConfiguration('{invalid');
+
+      expect(imported, isFalse);
+      expect(store.cameras.single.host, 'cam-keep.local');
+    },
+  );
+
+  test('persists the selected startup section', () async {
+    await store.updateSettings(
+      startupSection: 'last',
+      lastSection: 'monitor',
+      lastMonitorPage: 2,
+    );
+
+    expect(store.config.startupSection, 'last');
+    expect(store.config.lastSection, 'monitor');
+    expect(store.config.lastMonitorPage, 2);
     expect(
       repository.saved.last.toJson()['settings'],
-      containsPair('startupSection', 'monitor'),
+      containsPair('startupSection', 'last'),
     );
   });
 

@@ -46,6 +46,8 @@ class _AppShellState extends State<AppShell> {
               'monitor' => AppSection.monitor,
               'cameras' => AppSection.cameras,
               'layouts' => AppSection.layouts,
+              'settings' => AppSection.settings,
+              'last' => _sectionFromName(store.config.lastSection),
               'auto' =>
                 store.cameras.isEmpty
                     ? AppSection.cameras
@@ -184,8 +186,17 @@ class _AppShellState extends State<AppShell> {
 
   void _selectSection(AppSection section) {
     setState(() => _section = section);
+    unawaited(AppScope.of(context).updateSettings(lastSection: section.name));
     _syncDesktopWindow(AppScope.of(context));
   }
+
+  AppSection _sectionFromName(String name) => switch (name) {
+    'monitor' => AppSection.monitor,
+    'cameras' => AppSection.cameras,
+    'layouts' => AppSection.layouts,
+    'settings' => AppSection.settings,
+    _ => AppSection.dashboard,
+  };
 
   void _syncDesktopWindow(AppStore store) {
     if (!widget.desktopWindowManager ||

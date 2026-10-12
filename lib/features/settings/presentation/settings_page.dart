@@ -3,10 +3,14 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:file_selector/file_selector.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../../shared/design_system/page_frame.dart';
 import '../../../shared/platform/windows_startup_service.dart';
+import '../../../shared/platform/linux_startup_service.dart';
+import '../domain/performance_preset.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -17,6 +21,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final _windowsStartup = WindowsStartupService();
+  final _linuxStartup = LinuxStartupService();
   bool _startupEnabled = false;
   bool _startupLoading = true;
 
@@ -27,8 +32,12 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _loadStartupState() async {
-    final enabled = await _windowsStartup.isEnabled();
-    if (!mounted) return;
+    final enabled = Platform.isWindows
+        ? await _windowsStartup.isEnabled()
+        : Platform.isLinux
+        ? await _linuxStartup.isEnabled()
+        : false;
+    if (!context.mounted) return;
     setState(() {
       _startupEnabled = enabled;
       _startupLoading = false;
@@ -37,7 +46,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _setStartupState(bool enabled) async {
     setState(() => _startupLoading = true);
-    final saved = await _windowsStartup.setEnabled(enabled);
+    final saved = Platform.isWindows
+        ? await _windowsStartup.setEnabled(enabled)
+        : Platform.isLinux
+        ? await _linuxStartup.setEnabled(enabled)
+        : false;
     if (!mounted) return;
     setState(() {
       _startupEnabled = saved ? enabled : _startupEnabled;
@@ -46,7 +59,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!saved) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Não foi possível alterar a inicialização do Windows.'),
+          content: Text('Não foi possível alterar a inicialização do sistema.'),
         ),
       );
     }
@@ -94,7 +107,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   leading: const Icon(Icons.start_outlined),
                   title: const Text('Ao abrir o aplicativo'),
                   subtitle: const Text(
-                    'Automático abre o monitor quando há câmeras na grade.',
+                    'Automático escolhe o monitor quando há câmeras na grade; Última tela usada retoma onde você saiu.',
                   ),
                   trailing: DropdownButton<String>(
                     value: store.config.startupSection,
@@ -102,6 +115,10 @@ class _SettingsPageState extends State<SettingsPage> {
                       DropdownMenuItem(
                         value: 'auto',
                         child: Text('Automático'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'last',
+                        child: Text('Última tela usada'),
                       ),
                       DropdownMenuItem(
                         value: 'dashboard',
@@ -119,6 +136,10 @@ class _SettingsPageState extends State<SettingsPage> {
                         value: 'layouts',
                         child: Text('Layouts'),
                       ),
+                      DropdownMenuItem(
+                        value: 'settings',
+                        child: Text('Ajustes'),
+                      ),
                     ],
                     onChanged: (value) {
                       if (value != null) {
@@ -127,7 +148,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                 ),
-                if (!kIsWeb && Platform.isWindows) ...[
+                if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) ...[
                   const Divider(height: 1),
                   SwitchListTile(
                     secondary: _startupLoading
@@ -136,7 +157,11 @@ class _SettingsPageState extends State<SettingsPage> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.power_settings_new_outlined),
-                    title: const Text('Iniciar com o Windows'),
+                    title: Text(
+                      Platform.isWindows
+                          ? 'Iniciar com o Windows'
+                          : 'Iniciar com o Linux',
+                    ),
                     subtitle: const Text(
                       'Abre automaticamente na tela escolhida acima.',
                     ),
@@ -164,26 +189,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   trailing: DropdownButton<String>(
                     value: store.config.resourceMode,
-                    items: const [
-                      DropdownMenuItem(value: 'eco', child: Text('Econômico')),
-                      DropdownMenuItem(
-                        value: 'balanced',
-                        child: Text('Equilibrado'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'quality',
-                        child: Text('Qualidade'),
-                      ),
+                    items: [
+                      for (final preset in PerformancePreset.values)
+                        DropdownMenuItem(
+                          value: preset.id,
+                          child: Text(preset.label),
+                        ),
                     ],
                     onChanged: (value) {
                       if (value != null) {
                         store.updateSettings(
                           resourceMode: value,
-                          bufferMs: value == 'eco'
-                              ? 250
-                              : value == 'balanced'
-                              ? 500
-                              : 900,
+                          bufferMs: PerformancePreset.fromId(value).bufferMs,
                         );
                       }
                     },
@@ -212,8 +229,44 @@ class _SettingsPageState extends State<SettingsPage> {
           Card(
             child: Padding(
               padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Backup e restauração',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'O backup contém câmeras, layouts e preferências. Senhas são excluídas e permanecem apenas no cofre deste dispositivo.',
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => _exportBackup(context, store),
+                        icon: const Icon(Icons.save_alt_outlined),
+                        label: const Text('Exportar backup'),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: () => _importBackup(context, store),
+                        icon: const Icon(Icons.restore_outlined),
+                        label: const Text('Importar backup'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
               child: Text(
-                'Em computadores com pouca memória, prefira o fluxo secundário da câmera e o perfil Econômico. O número de transmissões simultâneas também depende da câmera, da rede e do decodificador disponível.',
+                '${PerformancePreset.fromId(store.config.resourceMode).description} Até ${PerformancePreset.fromId(store.config.resourceMode).maxConcurrentStreams} decodificadores são mantidos ativos; ao focar uma câmera, ela recebe prioridade.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
@@ -221,5 +274,125 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _importBackup(BuildContext context, AppStore store) async {
+    String source;
+    try {
+      final backup = await openFile(
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'Backup RTSP View', extensions: ['json']),
+        ],
+      );
+      if (backup == null) return;
+      if (await backup.length() > 5 * 1024 * 1024) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('O backup excede o limite de 5 MB.')),
+          );
+        }
+        return;
+      }
+      source = await backup.readAsString();
+    } on Object {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível abrir o arquivo de backup.'),
+          ),
+        );
+      }
+      return;
+    }
+    if (!context.mounted) return;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Substituir configurações?'),
+        content: const Text(
+          'Câmeras, layouts e preferências atuais serão substituídos. As senhas salvas neste dispositivo não serão exportadas nem apagadas.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Importar'),
+          ),
+        ],
+      ),
+    );
+    if (accepted != true) return;
+    final imported = await store.importConfiguration(source);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          imported
+              ? 'Configurações importadas. Senhas ausentes devem ser informadas novamente.'
+              : store.message ?? 'O backup não pôde ser importado.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportBackup(BuildContext context, AppStore store) async {
+    final content = store.exportConfiguration();
+    final now = DateTime.now();
+    final filename =
+        'rtsp-view-backup-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}.json';
+    try {
+      String? path;
+      if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+        if (Platform.isAndroid) {
+          final directory = await getDirectoryPath(
+            confirmButtonText: 'Salvar backup nesta pasta',
+          );
+          if (directory == null) return;
+          path =
+              '${Directory(directory).path}${Platform.pathSeparator}$filename';
+        } else {
+          await Clipboard.setData(ClipboardData(text: content));
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Backup copiado para a área de transferência.'),
+              ),
+            );
+          }
+          return;
+        }
+      } else if (!kIsWeb &&
+          (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
+        final location = await getSaveLocation(
+          acceptedTypeGroups: const [
+            XTypeGroup(label: 'Arquivo JSON', extensions: ['json']),
+          ],
+          suggestedName: filename,
+        );
+        path = location?.path;
+      }
+      if (path == null) return;
+      await File(path).writeAsString(content, flush: true);
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Backup salvo em $path.')));
+      }
+    } on Object {
+      if (context.mounted) {
+        await Clipboard.setData(ClipboardData(text: content));
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Não foi possível salvar o arquivo; o backup foi copiado.',
+            ),
+          ),
+        );
+      }
+    }
   }
 }

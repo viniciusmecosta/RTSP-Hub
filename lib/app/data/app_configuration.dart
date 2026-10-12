@@ -1,5 +1,6 @@
 import '../../features/camera_catalog/domain/camera_device.dart';
 import '../../features/layouts/domain/saved_monitor_profile.dart';
+import '../../features/settings/domain/performance_preset.dart';
 
 class AppConfiguration {
   const AppConfiguration({
@@ -12,10 +13,12 @@ class AppConfiguration {
     this.defaultUser = 'admin',
     this.defaultPath = '/Streaming/Channels/101',
     this.bufferMs = 300,
-    this.resourceMode = 'eco',
+    this.resourceMode = 'light',
     this.themeMode = 'system',
     this.autoFullscreen = true,
     this.startupSection = 'auto',
+    this.lastSection = 'dashboard',
+    this.lastMonitorPage = 0,
     this.tutorialCompleted = false,
   });
 
@@ -32,6 +35,8 @@ class AppConfiguration {
   final String themeMode;
   final bool autoFullscreen;
   final String startupSection;
+  final String lastSection;
+  final int lastMonitorPage;
   final bool tutorialCompleted;
 
   AppConfiguration copyWith({
@@ -47,6 +52,8 @@ class AppConfiguration {
     String? themeMode,
     bool? autoFullscreen,
     String? startupSection,
+    String? lastSection,
+    int? lastMonitorPage,
     bool? tutorialCompleted,
   }) => AppConfiguration(
     schemaVersion: schemaVersion,
@@ -62,6 +69,8 @@ class AppConfiguration {
     themeMode: themeMode ?? this.themeMode,
     autoFullscreen: autoFullscreen ?? this.autoFullscreen,
     startupSection: startupSection ?? this.startupSection,
+    lastSection: lastSection ?? this.lastSection,
+    lastMonitorPage: lastMonitorPage ?? this.lastMonitorPage,
     tutorialCompleted: tutorialCompleted ?? this.tutorialCompleted,
   );
 
@@ -77,6 +86,8 @@ class AppConfiguration {
       'themeMode': themeMode,
       'autoFullscreen': autoFullscreen,
       'startupSection': startupSection,
+      'lastSection': lastSection,
+      'lastMonitorPage': lastMonitorPage,
       'tutorialCompleted': tutorialCompleted,
     },
     'cameras': cameras.map((camera) => camera.toJson()).toList(),
@@ -120,7 +131,9 @@ class AppConfiguration {
       defaultPath:
           settings['defaultPath'] as String? ?? '/Streaming/Channels/101',
       bufferMs: (settings['bufferMs'] as num?)?.toInt() ?? 300,
-      resourceMode: settings['resourceMode'] as String? ?? 'eco',
+      resourceMode: PerformancePreset.fromId(
+        settings['resourceMode'] as String?,
+      ).id,
       themeMode: settings['themeMode'] as String? ?? 'system',
       autoFullscreen: settings['autoFullscreen'] as bool? ?? true,
       startupSection: switch (settings['startupSection']) {
@@ -129,8 +142,19 @@ class AppConfiguration {
         'monitor' ||
         'cameras' ||
         'layouts' => settings['startupSection'] as String,
+        'settings' || 'last' => settings['startupSection'] as String,
         _ => 'auto',
       },
+      lastSection: switch (settings['lastSection']) {
+        'dashboard' ||
+        'monitor' ||
+        'cameras' ||
+        'layouts' ||
+        'settings' => settings['lastSection'] as String,
+        _ => 'dashboard',
+      },
+      lastMonitorPage: ((settings['lastMonitorPage'] as num?)?.toInt() ?? 0)
+          .clamp(0, 100),
       tutorialCompleted: settings['tutorialCompleted'] as bool? ?? false,
     );
   }
