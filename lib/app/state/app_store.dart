@@ -504,7 +504,7 @@ class AppStore extends ChangeNotifier {
               configuration.slotCameraIds.whereType<String>().length) {
         throw const FormatException();
       }
-      return _commit(
+      return await _commit(
         configuration.copyWith(
           resourceMode: configuration.resourceMode == 'eco'
               ? 'light'
