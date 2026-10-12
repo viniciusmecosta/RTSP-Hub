@@ -97,6 +97,32 @@ void main() {
   });
 
   test(
+    'camera can reference global credentials without duplicating secrets',
+    () async {
+      await store.saveNetworkDiscoveryCredentials(
+        username: 'shared-user',
+        password: 'shared-secret',
+      );
+      final saved = await store.saveCamera(
+        id: '',
+        name: 'Câmera global',
+        host: 'camera-global.local',
+        port: '554',
+        username: 'shared-user',
+        password: 'shared-secret',
+        mainPath: '/stream',
+        subPath: '',
+        useGlobalCredentials: true,
+      );
+
+      expect(saved, isTrue);
+      expect(store.cameras.single.useGlobalCredentials, isTrue);
+      expect(await store.passwordFor(store.cameras.single), 'shared-secret');
+      expect(credentials.values.keys, ['__network_discovery__']);
+    },
+  );
+
+  test(
     'rejects duplicate camera addresses regardless of letter case',
     () async {
       expect(
@@ -123,6 +149,33 @@ void main() {
     expect(store.cameras, hasLength(2));
     expect(store.config.slotCameraIds[0], store.cameras[0].id);
     expect(store.config.slotCameraIds[1], store.cameras[1].id);
+  });
+
+  test(
+    'saves and restores a monitor profile with its camera assignments',
+    () async {
+      await saveCamera(host: 'cam-a.local', mainPath: '/channel/1');
+      await saveCamera(host: 'cam-b.local', mainPath: '/channel/2');
+      await store.setLayout('GRID_2H');
+      final saved = await store.saveMonitorProfile(name: 'Portaria');
+      await store.setLayout('SINGLE');
+      await store.applyMonitorProfile(store.config.monitorProfiles.single.id);
+
+      expect(saved, isTrue);
+      expect(store.activeLayout.id, 'GRID_2H');
+      expect(store.config.slotCameraIds, [
+        store.cameras.first.id,
+        store.cameras.last.id,
+      ]);
+      expect(repository.saved.last.monitorProfiles.single.name, 'Portaria');
+    },
+  );
+
+  test('rejects empty and duplicate monitor profile names', () async {
+    expect(await store.saveMonitorProfile(name: '  '), isFalse);
+    expect(await store.saveMonitorProfile(name: 'Noite'), isTrue);
+    expect(await store.saveMonitorProfile(name: 'noite'), isFalse);
+    expect(store.config.monitorProfiles, hasLength(1));
   });
 
   test('persists the selected startup section', () async {

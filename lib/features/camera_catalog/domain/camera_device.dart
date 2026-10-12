@@ -7,6 +7,7 @@ class CameraDevice {
     this.port,
     this.username = '',
     this.subPath = '',
+    this.useGlobalCredentials = false,
   });
 
   final String id;
@@ -16,6 +17,7 @@ class CameraDevice {
   final String username;
   final String mainPath;
   final String subPath;
+  final bool useGlobalCredentials;
 
   int effectivePort(int defaultPort) => port ?? defaultPort;
 
@@ -27,6 +29,7 @@ class CameraDevice {
     String? username,
     String? mainPath,
     String? subPath,
+    bool? useGlobalCredentials,
   }) {
     return CameraDevice(
       id: id,
@@ -36,6 +39,7 @@ class CameraDevice {
       username: username ?? this.username,
       mainPath: mainPath ?? this.mainPath,
       subPath: subPath ?? this.subPath,
+      useGlobalCredentials: useGlobalCredentials ?? this.useGlobalCredentials,
     );
   }
 
@@ -47,6 +51,7 @@ class CameraDevice {
     'username': username,
     'mainPath': mainPath,
     'subPath': subPath,
+    'useGlobalCredentials': useGlobalCredentials,
   };
 
   factory CameraDevice.fromJson(Map<String, Object?> json) {
@@ -58,6 +63,7 @@ class CameraDevice {
       username: json['username'] as String? ?? '',
       mainPath: json['mainPath'] as String? ?? '/Streaming/Channels/101',
       subPath: json['subPath'] as String? ?? '',
+      useGlobalCredentials: json['useGlobalCredentials'] as bool? ?? false,
     );
   }
 }

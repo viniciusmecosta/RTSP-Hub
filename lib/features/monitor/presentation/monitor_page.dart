@@ -91,13 +91,19 @@ class _MonitorPageState extends State<MonitorPage> {
       if (_focusedCameraId != null && id != _focusedCameraId) continue;
       final camera = store.cameras.where((item) => item.id == id).firstOrNull;
       if (camera == null) continue;
+      final secret = await store.passwordFor(camera);
+      if (!mounted || generation != _generation) return;
+      final effectiveCamera = camera.useGlobalCredentials
+          ? camera.copyWith(username: store.config.defaultUser)
+          : camera;
       final existing = _sessions[id];
       final mainStream =
           _mainStreams ||
           store.config.resourceMode == 'quality' ||
           camera.subPath.isEmpty;
       if (existing != null &&
-          identical(existing.camera, camera) &&
+          _sameCamera(existing.camera, effectiveCamera) &&
+          existing.password == secret &&
           existing.bufferMs == store.config.bufferMs &&
           existing.useMainStream == mainStream) {
         continue;
@@ -106,10 +112,8 @@ class _MonitorPageState extends State<MonitorPage> {
         _sessions.remove(id);
         unawaited(existing.disposeSession());
       }
-      final secret = await store.passwordFor(camera);
-      if (!mounted || generation != _generation) return;
       final session = RtspSession(
-        camera: camera,
+        camera: effectiveCamera,
         password: secret,
         defaultPort: store.config.defaultPort,
         bufferMs: store.config.bufferMs,
@@ -122,6 +126,17 @@ class _MonitorPageState extends State<MonitorPage> {
       }
     }
     if (mounted) setState(() {});
+  }
+
+  bool _sameCamera(CameraDevice left, CameraDevice right) {
+    return left.id == right.id &&
+        left.name == right.name &&
+        left.host == right.host &&
+        left.port == right.port &&
+        left.username == right.username &&
+        left.mainPath == right.mainPath &&
+        left.subPath == right.subPath &&
+        left.useGlobalCredentials == right.useGlobalCredentials;
   }
 
   @override

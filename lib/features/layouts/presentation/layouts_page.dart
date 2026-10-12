@@ -4,6 +4,7 @@ import '../../../app/state/app_store.dart';
 import '../../../shared/design_system/page_frame.dart';
 import '../domain/layout_geometry.dart';
 import '../domain/layout_preset.dart';
+import '../domain/saved_monitor_profile.dart';
 
 class LayoutsPage extends StatelessWidget {
   const LayoutsPage({super.key});
@@ -34,6 +35,13 @@ class LayoutsPage extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: 18),
+          _SavedProfiles(
+            profiles: store.config.monitorProfiles,
+            onSave: () => _saveProfile(context, store),
+            onApply: store.applyMonitorProfile,
+            onRemove: store.removeMonitorProfile,
           ),
           const SizedBox(height: 18),
           _MonitorPreview(
@@ -126,6 +134,145 @@ class LayoutsPage extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _saveProfile(BuildContext context, AppStore store) async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Salvar perfil do monitor'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 60,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (value) => Navigator.pop(context, value),
+          decoration: const InputDecoration(
+            labelText: 'Nome do perfil',
+            hintText: 'Ex.: Loja · horário comercial',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null) return;
+    final saved = await store.saveMonitorProfile(name: name);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          saved ? 'Perfil salvo.' : store.message ?? 'Não foi possível salvar.',
+        ),
+      ),
+    );
+  }
+}
+
+class _SavedProfiles extends StatelessWidget {
+  const _SavedProfiles({
+    required this.profiles,
+    required this.onSave,
+    required this.onApply,
+    required this.onRemove,
+  });
+
+  final List<SavedMonitorProfile> profiles;
+  final VoidCallback onSave;
+  final ValueChanged<String> onApply;
+  final ValueChanged<String> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = AppScope.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.bookmarks_outlined),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Perfis do monitor',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      Text(
+                        'Salve combinações de layout e câmeras para abrir depois.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: onSave,
+                  icon: const Icon(Icons.bookmark_add_outlined),
+                  label: const Text('Salvar perfil atual'),
+                ),
+              ],
+            ),
+            if (profiles.isEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Ainda não há perfis salvos. Atribua as câmeras abaixo e salve esta visualização.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              for (final profile in profiles)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.dashboard_customize_outlined),
+                  title: Text(profile.name),
+                  subtitle: Text(
+                    '${LayoutPreset.byId(profile.layoutId).name} · ${profile.slotCameraIds.whereType<String>().length} câmeras',
+                  ),
+                  trailing: Wrap(
+                    spacing: 4,
+                    children: [
+                      IconButton.filledTonal(
+                        tooltip: 'Abrir perfil',
+                        onPressed: () => onApply(profile.id),
+                        icon: const Icon(Icons.play_arrow),
+                      ),
+                      IconButton(
+                        tooltip: 'Remover perfil',
+                        onPressed: () => onRemove(profile.id),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
+                  onTap: () => onApply(profile.id),
+                ),
+            ],
+            if (store.message != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  store.message!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

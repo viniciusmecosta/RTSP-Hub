@@ -1,9 +1,11 @@
 import '../../features/camera_catalog/domain/camera_device.dart';
+import '../../features/layouts/domain/saved_monitor_profile.dart';
 
 class AppConfiguration {
   const AppConfiguration({
     this.schemaVersion = 1,
     this.cameras = const [],
+    this.monitorProfiles = const [],
     this.layoutId = 'GRID_4',
     this.slotCameraIds = const [null, null, null, null],
     this.defaultPort = 554,
@@ -19,6 +21,7 @@ class AppConfiguration {
 
   final int schemaVersion;
   final List<CameraDevice> cameras;
+  final List<SavedMonitorProfile> monitorProfiles;
   final String layoutId;
   final List<String?> slotCameraIds;
   final int defaultPort;
@@ -33,6 +36,7 @@ class AppConfiguration {
 
   AppConfiguration copyWith({
     List<CameraDevice>? cameras,
+    List<SavedMonitorProfile>? monitorProfiles,
     String? layoutId,
     List<String?>? slotCameraIds,
     int? defaultPort,
@@ -47,6 +51,7 @@ class AppConfiguration {
   }) => AppConfiguration(
     schemaVersion: schemaVersion,
     cameras: cameras ?? this.cameras,
+    monitorProfiles: monitorProfiles ?? this.monitorProfiles,
     layoutId: layoutId ?? this.layoutId,
     slotCameraIds: slotCameraIds ?? this.slotCameraIds,
     defaultPort: defaultPort ?? this.defaultPort,
@@ -75,6 +80,9 @@ class AppConfiguration {
       'tutorialCompleted': tutorialCompleted,
     },
     'cameras': cameras.map((camera) => camera.toJson()).toList(),
+    'monitorProfiles': monitorProfiles
+        .map((profile) => profile.toJson())
+        .toList(),
     'layout': {'id': layoutId, 'slots': slotCameraIds},
   };
 
@@ -91,12 +99,20 @@ class AppConfiguration {
               CameraDevice.fromJson(Map<String, Object?>.from(item as Map)),
         )
         .toList(growable: false);
+    final monitorProfiles = (json['monitorProfiles'] as List? ?? const [])
+        .map(
+          (item) => SavedMonitorProfile.fromJson(
+            Map<String, Object?>.from(item as Map),
+          ),
+        )
+        .toList(growable: false);
     final slots = (layout['slots'] as List? ?? const [])
         .map((item) => item as String?)
         .toList(growable: false);
     return AppConfiguration(
       schemaVersion: (json['schemaVersion'] as num?)?.toInt() ?? 1,
       cameras: cameras,
+      monitorProfiles: monitorProfiles,
       layoutId: layout['id'] as String? ?? 'GRID_4',
       slotCameraIds: slots.isEmpty ? const [null, null, null, null] : slots,
       defaultPort: (settings['defaultPort'] as num?)?.toInt() ?? 554,

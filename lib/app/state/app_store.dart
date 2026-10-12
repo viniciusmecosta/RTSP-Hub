@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../../features/camera_catalog/domain/camera_device.dart';
 import '../../features/camera_catalog/domain/camera_field_validation.dart';
 import '../../features/layouts/domain/layout_preset.dart';
+import '../../features/layouts/domain/saved_monitor_profile.dart';
 import '../../shared/infrastructure/secure_store/credential_store.dart';
 import '../../shared/infrastructure/storage/config_repository.dart';
 import '../data/app_configuration.dart';
@@ -71,6 +72,7 @@ class AppStore extends ChangeNotifier {
     required String password,
     required String mainPath,
     required String subPath,
+    bool useGlobalCredentials = false,
   }) async {
     final normalizedHost = host.trim();
     final parsedPort = port.trim().isEmpty
@@ -128,6 +130,7 @@ class AppStore extends ChangeNotifier {
       host: normalizedHost,
       port: port.trim().isEmpty ? null : parsedPort,
       username: username.trim(),
+      useGlobalCredentials: useGlobalCredentials,
       mainPath: mainPath.trim().isEmpty
           ? _config.defaultPath
           : _normalizePath(mainPath),
@@ -135,9 +138,12 @@ class AppStore extends ChangeNotifier {
     );
     final previousPassword = await _credentials.read(camera.id);
     try {
-      if (password.isNotEmpty) {
+      if (!useGlobalCredentials && password.isNotEmpty) {
         await _credentials.write(camera.id, password);
         _passwords[camera.id] = password;
+      } else if (useGlobalCredentials) {
+        await _credentials.delete(camera.id);
+        _passwords.remove(camera.id);
       }
       final cameras = [
         ..._config.cameras.where((item) => item.id != camera.id),
@@ -151,11 +157,13 @@ class AppStore extends ChangeNotifier {
       if (!await _commit(
         _config.copyWith(cameras: cameras, slotCameraIds: slots),
       )) {
-        if (password.isNotEmpty) {
+        if (useGlobalCredentials || password.isNotEmpty) {
           if (previousPassword == null) {
             await _credentials.delete(camera.id);
+            _passwords.remove(camera.id);
           } else {
             await _credentials.write(camera.id, previousPassword);
+            _passwords[camera.id] = previousPassword;
           }
         }
         return false;
@@ -163,12 +171,14 @@ class AppStore extends ChangeNotifier {
       _message = 'Câmera salva neste dispositivo.';
       return true;
     } on Object {
-      if (password.isNotEmpty) {
+      if (useGlobalCredentials || password.isNotEmpty) {
         try {
           if (previousPassword == null) {
             await _credentials.delete(camera.id);
+            _passwords.remove(camera.id);
           } else {
             await _credentials.write(camera.id, previousPassword);
+            _passwords[camera.id] = previousPassword;
           }
         } on Object {
           _message = 'Falha ao salvar. O cofre não pôde ser restaurado.';
@@ -204,6 +214,7 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<String?> passwordFor(CameraDevice camera) async {
+    if (camera.useGlobalCredentials) return networkDiscoveryPassword();
     final memory = _passwords[camera.id];
     if (memory != null) return memory;
     try {
@@ -298,6 +309,66 @@ class AppStore extends ChangeNotifier {
         slotCameraIds: List<String?>.filled(activeLayout.cameraCount, null),
       ),
     );
+  }
+
+  Future<bool> saveMonitorProfile({String? id, required String name}) async {
+    final normalizedName = name.trim();
+    if (normalizedName.isEmpty || normalizedName.length > 60) {
+      _message = 'O nome do perfil deve ter entre 1 e 60 caracteres.';
+      notifyListeners();
+      return false;
+    }
+    if (_config.monitorProfiles.any(
+      (profile) =>
+          profile.id != id &&
+          profile.name.toLowerCase() == normalizedName.toLowerCase(),
+    )) {
+      _message = 'Já existe um perfil com esse nome.';
+      notifyListeners();
+      return false;
+    }
+    if (id == null && _config.monitorProfiles.length >= 20) {
+      _message = 'O limite de 20 perfis salvos foi atingido.';
+      notifyListeners();
+      return false;
+    }
+    final profile = SavedMonitorProfile(
+      id: id ?? const Uuid().v4(),
+      name: normalizedName,
+      layoutId: _config.layoutId,
+      slotCameraIds: List.unmodifiable(_config.slotCameraIds),
+    );
+    final profiles = [
+      ..._config.monitorProfiles.where((item) => item.id != profile.id),
+      profile,
+    ];
+    return _commit(_config.copyWith(monitorProfiles: profiles));
+  }
+
+  Future<void> applyMonitorProfile(String id) async {
+    final profile = _config.monitorProfiles
+        .where((item) => item.id == id)
+        .firstOrNull;
+    if (profile == null) return;
+    final layout = LayoutPreset.byId(profile.layoutId);
+    final validIds = _config.cameras.map((camera) => camera.id).toSet();
+    final slots = List<String?>.generate(
+      layout.cameraCount,
+      (index) => index < profile.slotCameraIds.length
+          ? switch (profile.slotCameraIds[index]) {
+              final cameraId? when validIds.contains(cameraId) => cameraId,
+              _ => null,
+            }
+          : null,
+    );
+    await _commit(_config.copyWith(layoutId: layout.id, slotCameraIds: slots));
+  }
+
+  Future<void> removeMonitorProfile(String id) async {
+    final profiles = _config.monitorProfiles
+        .where((profile) => profile.id != id)
+        .toList(growable: false);
+    await _commit(_config.copyWith(monitorProfiles: profiles));
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {

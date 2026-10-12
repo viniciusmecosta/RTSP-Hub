@@ -81,11 +81,18 @@ class CameraCatalogPage extends StatelessWidget {
     final password = camera == null
         ? await store.networkDiscoveryPassword()
         : await store.passwordFor(camera);
+    final globalPassword = camera?.useGlobalCredentials == false
+        ? null
+        : await store.networkDiscoveryPassword();
     if (!context.mounted) return;
     final saved = await showDialog<bool>(
       context: context,
-      builder: (_) =>
-          _CameraEditor(camera: camera, password: password, store: store),
+      builder: (_) => _CameraEditor(
+        camera: camera,
+        password: password,
+        globalPassword: globalPassword,
+        store: store,
+      ),
     );
     if (saved == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -196,10 +203,12 @@ class _CameraEditor extends StatefulWidget {
   const _CameraEditor({
     required this.camera,
     required this.password,
+    required this.globalPassword,
     required this.store,
   });
   final CameraDevice? camera;
   final String? password;
+  final String? globalPassword;
   final AppStore store;
 
   @override
@@ -216,6 +225,7 @@ class _CameraEditorState extends State<_CameraEditor> {
   late final TextEditingController _mainPath;
   late final TextEditingController _subPath;
   bool _obscure = true;
+  late bool _useGlobalCredentials;
   bool _busy = false;
   bool _testing = false;
   String? _probeMessage;
@@ -226,13 +236,20 @@ class _CameraEditorState extends State<_CameraEditor> {
   void initState() {
     super.initState();
     final camera = widget.camera;
+    _useGlobalCredentials = camera?.useGlobalCredentials ?? true;
     _name = TextEditingController(text: camera?.name ?? '');
     _host = TextEditingController(text: camera?.host ?? '');
     _port = TextEditingController(text: camera?.port?.toString() ?? '');
     _username = TextEditingController(
-      text: camera?.username ?? widget.store.config.defaultUser,
+      text: _useGlobalCredentials
+          ? widget.store.config.defaultUser
+          : camera?.username ?? widget.store.config.defaultUser,
     );
-    _password = TextEditingController(text: widget.password ?? '');
+    _password = TextEditingController(
+      text: _useGlobalCredentials
+          ? widget.globalPassword ?? ''
+          : widget.password ?? '',
+    );
     _mainPath = TextEditingController(
       text: camera?.mainPath ?? widget.store.config.defaultPath,
     );
@@ -269,6 +286,24 @@ class _CameraEditorState extends State<_CameraEditor> {
     final compact = MediaQuery.sizeOf(context).width < 600;
     final fields = Column(
       children: [
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Usar credenciais globais'),
+          subtitle: const Text('Compartilha o usuário e a senha padrão.'),
+          value: _useGlobalCredentials,
+          onChanged: _busy || _testing
+              ? null
+              : (enabled) => setState(() {
+                  _useGlobalCredentials = enabled;
+                  if (enabled) {
+                    _username.text = widget.store.config.defaultUser;
+                    _password.text = widget.globalPassword ?? '';
+                  } else {
+                    _username.text = widget.camera?.username ?? '';
+                    _password.text = widget.password ?? '';
+                  }
+                }),
+        ),
         TextFormField(
           controller: _name,
           decoration: const InputDecoration(
@@ -343,6 +378,7 @@ class _CameraEditorState extends State<_CameraEditor> {
             Expanded(
               child: TextFormField(
                 controller: _username,
+                enabled: !_useGlobalCredentials,
                 decoration: const InputDecoration(labelText: 'Usuário'),
                 maxLength: 128,
                 buildCounter:
@@ -363,6 +399,7 @@ class _CameraEditorState extends State<_CameraEditor> {
         const SizedBox(height: 12),
         TextFormField(
           controller: _password,
+          enabled: !_useGlobalCredentials,
           decoration: InputDecoration(
             labelText: widget.camera == null ? 'Senha (opcional)' : 'Senha',
             helperText: widget.camera != null && widget.password == null
@@ -523,6 +560,7 @@ class _CameraEditorState extends State<_CameraEditor> {
       username: _username.text.trim(),
       mainPath: enteredPath.startsWith('/') ? enteredPath : '/$enteredPath',
       subPath: _subPath.text.trim(),
+      useGlobalCredentials: _useGlobalCredentials,
     );
     final session = RtspSession(
       camera: camera,
@@ -584,6 +622,7 @@ class _CameraEditorState extends State<_CameraEditor> {
       password: _password.text,
       mainPath: _mainPath.text,
       subPath: _subPath.text,
+      useGlobalCredentials: _useGlobalCredentials,
     );
     if (!mounted) return;
     if (saved) {
