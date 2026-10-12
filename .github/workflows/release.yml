@@ -62,6 +62,18 @@ jobs:
           test -x "$install_root/usr/bin/rtsp-view"
           test -f "$install_root/usr/share/applications/rtsp-view.desktop"
           rm -rf "$install_root"
+      - name: Testar instalação e abertura no Ubuntu
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y xvfb
+          sudo dpkg -i dist/*.deb
+          test -x /opt/rtsp-view/RTSPView
+          set +e
+          timeout 12s xvfb-run -a rtsp-view --config
+          exit_code=$?
+          set -e
+          test "$exit_code" -eq 124
       - uses: actions/upload-artifact@v4
         with:
           name: ubuntu-installer
@@ -97,6 +109,20 @@ jobs:
         run: |
           $installer = Get-ChildItem dist\RTSP-View-Setup-*-x64.exe | Select-Object -First 1
           if ($null -eq $installer -or $installer.Length -lt 1000000) { throw "Instalador inválido ou vazio" }
+      - name: Testar instalação e abertura no Windows
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem dist\RTSP-View-Setup-*-x64.exe | Select-Object -First 1
+          $installDir = Join-Path $env:RUNNER_TEMP 'rtsp-view-smoke'
+          $result = Start-Process -FilePath $installer.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$installDir" -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw "Instalação Windows falhou: $($result.ExitCode)" }
+          $application = Join-Path $installDir 'rtsp_view.exe'
+          if (!(Test-Path $application)) { throw 'Executável instalado ausente' }
+          $process = Start-Process -FilePath $application -WorkingDirectory $installDir -PassThru
+          Start-Sleep -Seconds 8
+          $process.Refresh()
+          if ($process.HasExited) { throw "Aplicativo Windows encerrou ao abrir: $($process.ExitCode)" }
+          Stop-Process -Id $process.Id -Force
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
