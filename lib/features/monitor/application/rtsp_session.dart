@@ -6,6 +6,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../camera_catalog/domain/camera_device.dart';
+import '../domain/reconnect_policy.dart';
 
 enum CameraPlaybackStatus {
   idle,
@@ -46,15 +47,57 @@ class RtspSession extends ChangeNotifier {
   Timer? _retryTimer;
   int _generation = 0;
   int _failures = 0;
+  int _totalReconnectAttempts = 0;
   bool _disposed = false;
+  int? _firstFrameLatencyMs;
+  Duration? _nextRetryDelay;
 
   Player? get player => _player;
   VideoController? get videoController => _videoController;
+  int get reconnectAttempts => _totalReconnectAttempts;
+  int? get firstFrameLatencyMs => _firstFrameLatencyMs;
+  Duration? get nextRetryDelay => _nextRetryDelay;
+  String? get currentResolution {
+    final player = _player;
+    if (player == null) return null;
+    final track = player.state.tracks.video.firstWhere(
+      (item) => item.id != 'auto' && item.id != 'no',
+      orElse: () => player.state.track.video,
+    );
+    final width = track.w ?? player.state.videoParams.w;
+    final height = track.h ?? player.state.videoParams.h;
+    return width == null || height == null ? null : '$width×$height';
+  }
+
+  double? get currentFramesPerSecond {
+    final player = _player;
+    if (player == null) return null;
+    final track = player.state.tracks.video.firstWhere(
+      (item) => item.id != 'auto' && item.id != 'no',
+      orElse: () => player.state.track.video,
+    );
+    final fps = track.fps;
+    return fps == null || fps <= 0 ? null : fps;
+  }
+
+  int? get currentBitrate {
+    final player = _player;
+    if (player == null) return null;
+    final bitrate = player.state.tracks.video
+        .firstWhere(
+          (item) => item.id != 'auto' && item.id != 'no',
+          orElse: () => player.state.track.video,
+        )
+        .bitrate;
+    return bitrate == null || bitrate <= 0 ? null : bitrate;
+  }
 
   Future<void> start() async {
     if (_disposed || status.value == CameraPlaybackStatus.connecting) return;
     _retryTimer?.cancel();
+    _nextRetryDelay = null;
     final generation = ++_generation;
+    final started = Stopwatch()..start();
     status.value = _failures == 0
         ? CameraPlaybackStatus.connecting
         : CameraPlaybackStatus.reconnecting;
@@ -90,12 +133,11 @@ class RtspSession extends ChangeNotifier {
       );
       _errorSubscription = player.stream.error.listen((message) {
         if (generation != _generation || _disposed) return;
-        _markFailure(message);
+        _markFailure(_safeMessage(message));
       });
       _playingSubscription = player.stream.playing.listen((playing) {
         if (generation != _generation || _disposed) return;
         if (playing) {
-          _failures = 0;
           status.value = CameraPlaybackStatus.playing;
           error.value = null;
         }
@@ -111,6 +153,7 @@ class RtspSession extends ChangeNotifier {
       if (controller == null || generation != _generation || _disposed) return;
       await controller.waitUntilFirstFrameRendered.timeout(firstFrameTimeout);
       if (generation == _generation && !_disposed) {
+        _firstFrameLatencyMs = started.elapsedMilliseconds;
         _failures = 0;
         firstFrameRendered.value = true;
         status.value = CameraPlaybackStatus.playing;
@@ -194,21 +237,27 @@ class RtspSession extends ChangeNotifier {
     _playingSubscription = null;
     if (oldPlayer != null) unawaited(_disposePlayer(oldPlayer));
     _failures++;
+    _totalReconnectAttempts++;
     error.value = message;
-    status.value = CameraPlaybackStatus.reconnecting;
-    notifyListeners();
+    status.value = retryEnabled
+        ? CameraPlaybackStatus.reconnecting
+        : CameraPlaybackStatus.error;
     if (retryEnabled) _scheduleRetry();
+    notifyListeners();
   }
 
   void _scheduleRetry() {
     _retryTimer?.cancel();
-    final base = min(30.0, 2 * pow(1.5, _failures - 1)).toDouble();
-    final jitter = Random.secure().nextDouble() * min(1.0, base * 0.2);
-    _retryTimer = Timer(
-      Duration(milliseconds: ((base + jitter) * 1000).round()),
-      () {
-        if (!_disposed) start();
-      },
+    _nextRetryDelay = _retryDelay();
+    _retryTimer = Timer(_nextRetryDelay!, () {
+      if (!_disposed) start();
+    });
+  }
+
+  Duration _retryDelay() {
+    return ReconnectPolicy.delayFor(
+      _failures,
+      jitterFactor: Random.secure().nextDouble(),
     );
   }
 

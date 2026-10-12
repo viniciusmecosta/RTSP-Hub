@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../../features/camera_catalog/domain/camera_device.dart';
 import '../../../features/layouts/domain/layout_preset.dart';
 import '../../../features/layouts/domain/layout_geometry.dart';
+import '../../../features/settings/domain/performance_preset.dart';
 import '../application/rtsp_session.dart';
 
 class MonitorPage extends StatefulWidget {
@@ -27,12 +29,15 @@ class MonitorPage extends StatefulWidget {
 class _MonitorPageState extends State<MonitorPage> {
   final Map<String, RtspSession> _sessions = {};
   Timer? _controlsTimer;
+  Timer? _diagnosticTimer;
   int _page = 0;
   bool _mainStreams = false;
   bool _showControls = true;
   bool _showDiagnostics = false;
   String? _focusedCameraId;
   int _generation = 0;
+  bool _restoreMonitorPage = true;
+  String? _lastLayoutId;
 
   @override
   void initState() {
@@ -49,6 +54,7 @@ class _MonitorPageState extends State<MonitorPage> {
   @override
   void dispose() {
     _controlsTimer?.cancel();
+    _diagnosticTimer?.cancel();
     for (final session in _sessions.values) {
       unawaited(session.disposeSession());
     }
@@ -60,6 +66,15 @@ class _MonitorPageState extends State<MonitorPage> {
     final generation = ++_generation;
     final store = AppScope.of(context);
     final ids = store.config.slotCameraIds;
+    if (_restoreMonitorPage) {
+      _page = store.config.lastMonitorPage;
+      _restoreMonitorPage = false;
+    } else if (_lastLayoutId != null &&
+        _lastLayoutId != store.config.layoutId) {
+      _page = 0;
+      unawaited(store.updateSettings(lastMonitorPage: 0));
+    }
+    _lastLayoutId = store.config.layoutId;
     final pageSize = _pageSize(
       store.activeLayout,
       MediaQuery.sizeOf(context).width,
@@ -72,10 +87,13 @@ class _MonitorPageState extends State<MonitorPage> {
     final start = _page * pageSize;
     final end = (start + pageSize).clamp(0, ids.length);
     final pageSlots = ids.sublist(start, end);
-    final visibleIds =
+    final requestedIds =
         (_focusedCameraId == null ? pageSlots : <String?>[_focusedCameraId])
-            .whereType<String>()
-            .toSet();
+            .whereType<String>();
+    final playbackLimit = PerformancePreset.fromId(
+      store.config.resourceMode,
+    ).maxConcurrentStreams;
+    final visibleIds = requestedIds.take(playbackLimit).toSet();
     final staleSessions = <RtspSession>[];
     for (final id in _sessions.keys.toList()) {
       if (!visibleIds.contains(id)) {
@@ -88,6 +106,7 @@ class _MonitorPageState extends State<MonitorPage> {
     for (var index = start; index < end; index++) {
       final id = ids[index];
       if (id == null) continue;
+      if (!visibleIds.contains(id)) continue;
       if (_focusedCameraId != null && id != _focusedCameraId) continue;
       final camera = store.cameras.where((item) => item.id == id).firstOrNull;
       if (camera == null) continue;
@@ -139,6 +158,39 @@ class _MonitorPageState extends State<MonitorPage> {
         left.useGlobalCredentials == right.useGlobalCredentials;
   }
 
+  Future<void> _toggleWindowFullscreen() async {
+    try {
+      final fullscreen = await windowManager.isFullScreen();
+      await windowManager.setFullScreen(!fullscreen);
+    } on Object {
+      return;
+    }
+  }
+
+  void _changePage(int page, AppStore store) {
+    setState(() => _page = page);
+    unawaited(store.updateSettings(lastMonitorPage: page));
+    _syncSessions();
+  }
+
+  Set<String> _activePlaybackIds(AppStore store, List<String?> slots) {
+    final pageSize = _pageSize(
+      store.activeLayout,
+      MediaQuery.sizeOf(context).width,
+    );
+    final requested = _focusedCameraId == null
+        ? slots.skip(_page * pageSize).take(pageSize)
+        : <String?>[_focusedCameraId];
+    return requested
+        .whereType<String>()
+        .take(
+          PerformancePreset.fromId(
+            store.config.resourceMode,
+          ).maxConcurrentStreams,
+        )
+        .toSet();
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
@@ -169,11 +221,49 @@ class _MonitorPageState extends State<MonitorPage> {
             }
             if (event.logicalKey == LogicalKeyboardKey.f3) {
               setState(() => _showDiagnostics = !_showDiagnostics);
+              _syncDiagnosticRefresh();
               if (!_showDiagnostics) _scheduleControlsHide();
               return KeyEventResult.handled;
             }
             if (event.logicalKey == LogicalKeyboardKey.f2) {
               widget.onConfigure();
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.pageUp ||
+                event.logicalKey == LogicalKeyboardKey.pageDown) {
+              final pageSize = _pageSize(
+                AppScope.of(context).activeLayout,
+                MediaQuery.sizeOf(context).width,
+              );
+              final pageCount =
+                  ((AppScope.of(context).config.slotCameraIds.length +
+                              pageSize -
+                              1) ~/
+                          pageSize)
+                      .clamp(1, 100);
+              final delta = event.logicalKey == LogicalKeyboardKey.pageUp
+                  ? -1
+                  : 1;
+              final next = (_page + delta).clamp(0, pageCount - 1);
+              if (next != _page) {
+                _changePage(next, AppScope.of(context));
+              }
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.f11) {
+              unawaited(_toggleWindowFullscreen());
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.f4) {
+              final layouts = LayoutPreset.all;
+              final current = layouts.indexWhere(
+                (item) => item.id == layout.id,
+              );
+              unawaited(
+                AppScope.of(
+                  context,
+                ).setLayout(layouts[(current + 1) % layouts.length].id),
+              );
               return KeyEventResult.handled;
             }
           }
@@ -302,9 +392,11 @@ class _MonitorPageState extends State<MonitorPage> {
         ? null
         : store.cameras.where((item) => item.id == id).firstOrNull;
     final session = id == null ? null : _sessions[id];
+    final activeIds = _activePlaybackIds(store, slots);
     return _CameraTile(
       camera: camera,
       session: session,
+      waitingForResources: camera != null && !activeIds.contains(camera.id),
       onTap: _revealControls,
       onFocus: camera == null
           ? null
@@ -382,42 +474,86 @@ class _MonitorPageState extends State<MonitorPage> {
     final camera = store.cameras.where((item) => item.id == id).firstOrNull;
     final session = _sessions[id];
     if (camera == null) return const SizedBox.shrink();
-    if (session == null) return _diagnosticRow(index, camera.name, 'Em espera');
+    if (session == null) {
+      return _diagnosticRow(
+        index,
+        camera.name,
+        'Em espera',
+        'Pausada para respeitar o limite do perfil de desempenho.',
+      );
+    }
     return ValueListenableBuilder<CameraPlaybackStatus>(
       valueListenable: session.status,
-      builder: (context, status, _) =>
-          _diagnosticRow(index, camera.name, switch (status) {
-            CameraPlaybackStatus.idle => 'Aguardando',
-            CameraPlaybackStatus.connecting => 'Conectando',
-            CameraPlaybackStatus.playing => 'Ao vivo',
-            CameraPlaybackStatus.reconnecting => 'Reconectando',
-            CameraPlaybackStatus.error => 'Falha',
-            CameraPlaybackStatus.paused => 'Pausada',
-          }),
+      builder: (context, status, _) => _diagnosticRow(
+        index,
+        camera.name,
+        switch (status) {
+          CameraPlaybackStatus.idle => 'Aguardando',
+          CameraPlaybackStatus.connecting => 'Conectando',
+          CameraPlaybackStatus.playing => 'Ao vivo',
+          CameraPlaybackStatus.reconnecting => 'Reconectando',
+          CameraPlaybackStatus.error => 'Falha',
+          CameraPlaybackStatus.paused => 'Pausada',
+        },
+        [
+          if (session.currentResolution != null) session.currentResolution!,
+          if (session.currentFramesPerSecond != null)
+            '${session.currentFramesPerSecond!.toStringAsFixed(1)} fps',
+          if (session.currentBitrate != null)
+            '${(session.currentBitrate! / 1000000).toStringAsFixed(1)} Mbps',
+          if (session.firstFrameLatencyMs != null)
+            'Primeiro quadro ${session.firstFrameLatencyMs} ms',
+          if (session.reconnectAttempts > 0)
+            '${session.reconnectAttempts} tentativas de reconexão',
+          if (session.nextRetryDelay case final delay?)
+            'Nova tentativa em ${delay.inSeconds} s',
+          if (session.error.value case final error? when error.isNotEmpty)
+            error,
+        ].join(' · '),
+      ),
     );
   }
 
-  Widget _diagnosticRow(int index, String name, String state) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 5),
-    child: Row(
-      children: [
-        SizedBox(
-          width: 28,
-          child: Text(
-            '${index + 1}',
-            style: const TextStyle(color: Colors.white54),
-          ),
+  Widget _diagnosticRow(int index, String name, String state, String details) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 28,
+              child: Text(
+                '${index + 1}',
+                style: const TextStyle(color: Colors.white54),
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: const TextStyle(color: Colors.white)),
+                  if (details.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        details,
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              state,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ],
         ),
-        Expanded(
-          child: Text(name, style: const TextStyle(color: Colors.white)),
-        ),
-        Text(
-          state,
-          style: const TextStyle(color: Colors.white70, fontSize: 12),
-        ),
-      ],
-    ),
-  );
+      );
 
   void _handleBack() {
     if (_focusedCameraId != null) {
@@ -449,7 +585,17 @@ class _MonitorPageState extends State<MonitorPage> {
 
   void _closeDiagnostics() {
     setState(() => _showDiagnostics = false);
+    _syncDiagnosticRefresh();
     _scheduleControlsHide();
+  }
+
+  void _syncDiagnosticRefresh() {
+    _diagnosticTimer?.cancel();
+    if (_showDiagnostics) {
+      _diagnosticTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   Widget _toolbar(
@@ -513,10 +659,7 @@ class _MonitorPageState extends State<MonitorPage> {
             if (pages > 1 && _focusedCameraId == null)
               IconButton(
                 onPressed: _page > 0
-                    ? () {
-                        setState(() => _page--);
-                        _syncSessions();
-                      }
+                    ? () => _changePage(_page - 1, store)
                     : null,
                 icon: const Icon(Icons.chevron_left, color: Colors.white),
               ),
@@ -528,10 +671,7 @@ class _MonitorPageState extends State<MonitorPage> {
             if (pages > 1 && _focusedCameraId == null)
               IconButton(
                 onPressed: _page + 1 < pages
-                    ? () {
-                        setState(() => _page++);
-                        _syncSessions();
-                      }
+                    ? () => _changePage(_page + 1, store)
                     : null,
                 icon: const Icon(Icons.chevron_right, color: Colors.white),
               ),
@@ -556,6 +696,8 @@ class _MonitorPageState extends State<MonitorPage> {
                   store.setLayout(value.substring(7));
                 } else if (value == 'hide') {
                   setState(() => _showControls = false);
+                } else if (value == 'shortcuts') {
+                  _showKeyboardShortcuts(context);
                 }
               },
               itemBuilder: (_) => [
@@ -575,6 +717,10 @@ class _MonitorPageState extends State<MonitorPage> {
                   value: 'hide',
                   child: Text('Ocultar controles'),
                 ),
+                const PopupMenuItem(
+                  value: 'shortcuts',
+                  child: Text('Atalhos do teclado'),
+                ),
               ],
             ),
           ],
@@ -590,6 +736,33 @@ class _MonitorPageState extends State<MonitorPage> {
     _sessions.clear();
     _syncSessions();
   }
+
+  Future<void> _showKeyboardShortcuts(BuildContext context) => showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Atalhos do monitor'),
+      content: const Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('F11 · alternar tela cheia'),
+          Text('F4 · trocar layout'),
+          Text('Page Up / Page Down · trocar página'),
+          Text('F3 · abrir ou fechar diagnósticos'),
+          Text('F2 · configurar câmeras'),
+          Text('Esc · voltar à grade ou sair do monitor'),
+          SizedBox(height: 12),
+          Text('Clique duplo em uma câmera para focá-la.'),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Fechar'),
+        ),
+      ],
+    ),
+  );
 
   int _columns(LayoutPreset layout, double width) {
     if (width < 600) return layout.cameraCount == 1 ? 1 : 2;
@@ -608,12 +781,14 @@ class _CameraTile extends StatelessWidget {
   const _CameraTile({
     required this.camera,
     required this.session,
+    required this.waitingForResources,
     required this.onTap,
     required this.onFocus,
     required this.onRetry,
   });
   final CameraDevice? camera;
   final RtspSession? session;
+  final bool waitingForResources;
   final VoidCallback onTap;
   final VoidCallback? onFocus;
   final VoidCallback? onRetry;
@@ -636,12 +811,37 @@ class _CameraTile extends StatelessWidget {
                 fill: Colors.black,
                 controls: NoVideoControls,
               )
-            else
+            else if (camera != null && waitingForResources)
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.memory_outlined, color: Colors.white70),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Em espera para poupar recursos',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    TextButton(
+                      onPressed: onFocus,
+                      child: const Text('Focar câmera'),
+                    ),
+                  ],
+                ),
+              )
+            else if (camera == null)
               const Center(
                 child: Icon(
                   Icons.videocam_off_outlined,
                   size: 32,
                   color: Color(0xFF526174),
+                ),
+              )
+            else
+              const Center(
+                child: Text(
+                  'Preparando câmera…',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ),
             if (camera == null)
@@ -651,7 +851,9 @@ class _CameraTile extends StatelessWidget {
                   style: TextStyle(color: Color(0xFF8A98AA)),
                 ),
               ),
-            if (camera != null && session?.videoController == null)
+            if (camera != null &&
+                session != null &&
+                session!.videoController == null)
               Center(
                 child: ValueListenableBuilder<CameraPlaybackStatus>(
                   valueListenable: session!.status,
