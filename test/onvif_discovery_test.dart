@@ -42,4 +42,20 @@ void main() {
       isNull,
     );
   });
+
+  test('reads manufacturer and model from device information', () {
+    const response = '''
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Body><tds:GetDeviceInformationResponse xmlns:tds="http://www.onvif.org/ver10/device/wsdl">
+    <tds:Manufacturer>Fabricante</tds:Manufacturer>
+    <tds:Model>Modelo X</tds:Model>
+  </tds:GetDeviceInformationResponse></s:Body>
+</s:Envelope>
+''';
+
+    expect(OnvifDiscoveryService.parseDeviceInformation(response), (
+      'Fabricante',
+      'Modelo X',
+    ));
+  });
 }

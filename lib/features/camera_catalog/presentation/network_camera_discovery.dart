@@ -26,6 +26,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
   final _username = TextEditingController();
   final _password = TextEditingController();
   final _lastChannel = TextEditingController(text: '16');
+  final _resultFilter = TextEditingController();
   final _interfaces = <NetworkInterface>[];
   final _hosts = <String>[];
   final _portsByHost = <String, int>{};
@@ -65,6 +66,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
     _username.dispose();
     _password.dispose();
     _lastChannel.dispose();
+    _resultFilter.dispose();
     super.dispose();
   }
 
@@ -196,14 +198,20 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
   Future<void> _discoverOnvif() async {
     if (_interfaces.isEmpty) return;
     setState(() => _stage = 'Procurando dispositivos ONVIF');
-    final probes = await _onvif.discover(_interfaces);
+    final probes = await _onvif.discover(
+      _interfaces,
+      isCancelled: () => _cancel,
+    );
     for (final probe in probes) {
       if (!mounted || _cancel) return;
-      setState(() => _stage = 'Lendo canais ONVIF em ${probe.sourceAddress}');
+      setState(
+        () => _stage = 'Lendo canais de ${probe.name ?? probe.sourceAddress}',
+      );
       final device = await _onvif.loadProfiles(
         probe,
         username: _username.text.trim(),
         password: _password.text,
+        isCancelled: () => _cancel,
       );
       if (device == null) continue;
       final groups = <String, List<OnvifProfile>>{};
@@ -231,9 +239,14 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
         final mainPath = _rtspPath(stream);
         if (mainPath.isEmpty) continue;
         _portsByHost.putIfAbsent(host, () => port);
-        _hostLabels[host] = device.name?.isNotEmpty == true
-            ? '${device.name} · $host'
-            : host;
+        final identity = [
+          device.manufacturer,
+          device.model,
+          device.name,
+        ].whereType<String>().where((value) => value.trim().isNotEmpty).toSet();
+        _hostLabels[host] = identity.isEmpty
+            ? host
+            : '${identity.join(' · ')} · $host';
         final result = _DetectedChannel(
           host: host,
           port: port,
@@ -444,9 +457,29 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
       ..showSnackBar(SnackBar(content: Text(text)));
   }
 
+  List<_DetectedChannel> _matchingChannels([String? host]) {
+    final query = _resultFilter.text.trim().toLowerCase();
+    return _channels
+        .where((channel) {
+          if (host != null && channel.host != host) return false;
+          if (query.isEmpty) return true;
+          final searchable = [
+            _hostLabels[channel.host] ?? channel.host,
+            '${channel.number}',
+            channel.mainPath,
+            channel.subPath ?? '',
+            channel.mainQuality,
+            channel.subQuality ?? '',
+          ].join(' ').toLowerCase();
+          return searchable.contains(query);
+        })
+        .toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final visibleChannels = _matchingChannels();
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -631,11 +664,22 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
                   ),
                   if (_channels.isNotEmpty) ...[
                     const SizedBox(height: 18),
+                    TextField(
+                      controller: _resultFilter,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText:
+                            'Filtrar por fabricante, modelo, câmera ou canal',
+                        prefixIcon: Icon(Icons.filter_alt_outlined),
+                        hintText: 'Ex.: Hikvision, Portaria ou 3',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
                           child: Text(
-                            '${_hosts.length} dispositivos · ${_channels.length} canais com vídeo',
+                            '${_hosts.length} dispositivos · ${visibleChannels.length} canais encontrados',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                         ),
@@ -643,41 +687,57 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
                           onPressed: _busy
                               ? null
                               : () => setState(() {
-                                  if (_selected.length == _channels.length) {
-                                    _selected.clear();
-                                  } else {
-                                    _selected
-                                      ..clear()
-                                      ..addAll(
-                                        _channels.map((item) => item.key),
+                                  final allVisibleSelected = visibleChannels
+                                      .every(
+                                        (channel) =>
+                                            _selected.contains(channel.key),
                                       );
+                                  if (allVisibleSelected) {
+                                    _selected.removeAll(
+                                      visibleChannels.map(
+                                        (channel) => channel.key,
+                                      ),
+                                    );
+                                  } else {
+                                    _selected.addAll(
+                                      visibleChannels.map(
+                                        (channel) => channel.key,
+                                      ),
+                                    );
                                   }
                                 }),
                           child: Text(
-                            _selected.length == _channels.length
-                                ? 'Desmarcar todos'
-                                : 'Selecionar todos',
+                            visibleChannels.isNotEmpty &&
+                                    visibleChannels.every(
+                                      (channel) =>
+                                          _selected.contains(channel.key),
+                                    )
+                                ? 'Desmarcar filtrados'
+                                : 'Selecionar filtrados',
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
                     for (final host in _hosts)
-                      _DiscoveredHostGroup(
-                        host: host,
-                        displayName: _hostLabels[host] ?? host,
-                        channels: _channels
-                            .where((item) => item.host == host)
-                            .toList(),
-                        selected: _selected,
-                        onChanged: (item, value) => setState(() {
-                          if (value) {
-                            _selected.add(item.key);
-                          } else {
-                            _selected.remove(item.key);
-                          }
-                        }),
-                      ),
+                      if (visibleChannels.any(
+                        (channel) => channel.host == host,
+                      ))
+                        _DiscoveredHostGroup(
+                          host: host,
+                          displayName: _hostLabels[host] ?? host,
+                          channels: visibleChannels
+                              .where((channel) => channel.host == host)
+                              .toList(growable: false),
+                          selected: _selected,
+                          onChanged: (item, value) => setState(() {
+                            if (value) {
+                              _selected.add(item.key);
+                            } else {
+                              _selected.remove(item.key);
+                            }
+                          }),
+                        ),
                     const SizedBox(height: 10),
                     Align(
                       alignment: Alignment.centerRight,

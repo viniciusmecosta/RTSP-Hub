@@ -10,6 +10,8 @@ class OnvifDiscoveryService {
   static final _multicastAddress = InternetAddress('239.255.255.250');
   static const _deviceAction =
       'http://www.onvif.org/ver10/device/wsdl/GetCapabilities';
+  static const _deviceInformationAction =
+      'http://www.onvif.org/ver10/device/wsdl/GetDeviceInformation';
   static const _mediaProfilesAction =
       'http://www.onvif.org/ver10/media/wsdl/GetProfiles';
   static const _streamUriAction =
@@ -18,12 +20,15 @@ class OnvifDiscoveryService {
   Future<List<OnvifProbeDevice>> discover(
     List<NetworkInterface> interfaces, {
     Duration listenDuration = const Duration(milliseconds: 1800),
+    bool Function()? isCancelled,
   }) async {
     final devices = <String, OnvifProbeDevice>{};
     for (final interface in interfaces) {
+      if (isCancelled?.call() ?? false) break;
       for (final address in interface.addresses.where(
         (item) => item.type == InternetAddressType.IPv4 && !item.isLoopback,
       )) {
+        if (isCancelled?.call() ?? false) break;
         RawDatagramSocket? socket;
         StreamSubscription<RawSocketEvent>? subscription;
         try {
@@ -42,7 +47,12 @@ class OnvifDiscoveryService {
             if (parsed != null) devices[parsed.key] = parsed;
           });
           socket.send(utf8.encode(_probeMessage()), _multicastAddress, 3702);
-          await Future<void>.delayed(listenDuration);
+          var elapsed = Duration.zero;
+          while (elapsed < listenDuration && !(isCancelled?.call() ?? false)) {
+            const interval = Duration(milliseconds: 100);
+            await Future<void>.delayed(interval);
+            elapsed += interval;
+          }
         } on Object {
           continue;
         } finally {
@@ -59,8 +69,9 @@ class OnvifDiscoveryService {
     required String username,
     required String password,
     Duration timeout = const Duration(seconds: 3),
+    bool Function()? isCancelled,
   }) async {
-    final capabilityResponse = await _soapRequest(
+    final capabilityFuture = _soapRequest(
       device.deviceServiceUri,
       _deviceAction,
       '<tds:GetCapabilities><tds:Category>Media</tds:Category></tds:GetCapabilities>',
@@ -68,7 +79,19 @@ class OnvifDiscoveryService {
       password: password,
       timeout: timeout,
     );
+    final informationFuture = _soapRequest(
+      device.deviceServiceUri,
+      _deviceInformationAction,
+      '<tds:GetDeviceInformation/>',
+      username: username,
+      password: password,
+      timeout: timeout,
+    );
+    final capabilityResponse = await capabilityFuture;
+    final informationResponse = await informationFuture;
+    if (isCancelled?.call() ?? false) return null;
     if (capabilityResponse == null) return null;
+    final information = parseDeviceInformation(informationResponse ?? '');
     final mediaUri =
         _mediaServiceUri(capabilityResponse) ?? device.deviceServiceUri;
     final profilesResponse = await _soapRequest(
@@ -86,6 +109,7 @@ class OnvifDiscoveryService {
         .toList(growable: false);
     final profiles = <OnvifProfile>[];
     for (final profile in profileElements) {
+      if (isCancelled?.call() ?? false) return null;
       final token = _attribute(profile, 'token');
       if (token == null || token.isEmpty) continue;
       final video = _firstDescendant(profile, 'VideoEncoderConfiguration');
@@ -132,8 +156,22 @@ class OnvifDiscoveryService {
       host: device.sourceAddress,
       deviceServiceUri: device.deviceServiceUri,
       name: device.name,
+      manufacturer: information.$1,
+      model: information.$2,
       profiles: profiles,
     );
+  }
+
+  static (String?, String?) parseDeviceInformation(String xml) {
+    try {
+      final document = XmlDocument.parse(xml);
+      return (
+        _textElement(document, 'Manufacturer'),
+        _textElement(document, 'Model'),
+      );
+    } on Object {
+      return (null, null);
+    }
   }
 
   static OnvifProbeDevice? parseProbeResponse(
@@ -282,11 +320,15 @@ class OnvifProbeDevice {
     required this.sourceAddress,
     required this.deviceServiceUri,
     required this.name,
+    this.manufacturer,
+    this.model,
   });
 
   final String sourceAddress;
   final Uri deviceServiceUri;
   final String? name;
+  final String? manufacturer;
+  final String? model;
   String get key => '${deviceServiceUri.host}:${deviceServiceUri.port}';
 }
 
@@ -295,12 +337,16 @@ class OnvifDevice {
     required this.host,
     required this.deviceServiceUri,
     required this.name,
+    this.manufacturer,
+    this.model,
     required this.profiles,
   });
 
   final String host;
   final Uri deviceServiceUri;
   final String? name;
+  final String? manufacturer;
+  final String? model;
   final List<OnvifProfile> profiles;
 }
 
