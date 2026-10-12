@@ -47,6 +47,9 @@ class RtspSession extends ChangeNotifier {
   StreamSubscription<String>? _errorSubscription;
   StreamSubscription<bool>? _playingSubscription;
   Timer? _retryTimer;
+  Timer? _stallTimer;
+  Future<void>? _starting;
+  Future<void>? _closing;
   int _generation = 0;
   int _failures = 0;
   int _totalReconnectAttempts = 0;
@@ -94,8 +97,27 @@ class RtspSession extends ChangeNotifier {
     return bitrate == null || bitrate <= 0 ? null : bitrate;
   }
 
-  Future<void> start() async {
-    if (_disposed || status.value == CameraPlaybackStatus.connecting) return;
+  Future<void> start() {
+    if (_disposed) return Future.value();
+    if (status.value == CameraPlaybackStatus.playing && _player != null) {
+      return Future.value();
+    }
+    final pending = _starting;
+    if (pending != null) {
+      return status.value == CameraPlaybackStatus.paused
+          ? pending.then((_) => start())
+          : pending;
+    }
+    final operation = _start();
+    late final Future<void> tracked;
+    tracked = operation.whenComplete(() {
+      if (identical(_starting, tracked)) _starting = null;
+    });
+    _starting = tracked;
+    return tracked;
+  }
+
+  Future<void> _start() async {
     _retryTimer?.cancel();
     _nextRetryDelay = null;
     final generation = ++_generation;
@@ -107,10 +129,16 @@ class RtspSession extends ChangeNotifier {
     firstFrameRendered.value = false;
     notifyListeners();
     try {
+      final closing = _closing;
+      if (closing != null) await closing;
+      if (generation != _generation || _disposed) return;
       MediaKit.ensureInitialized();
       final player = Player(
         configuration: PlayerConfiguration(
-          bufferSize: bufferMs.clamp(100, 2000) * 4096,
+          bufferSize: (bufferMs.clamp(100, 2000) * 512).clamp(
+            64 * 1024,
+            1024 * 1024,
+          ),
           muted: true,
           logLevel: MPVLogLevel.error,
           protocolWhitelist: const [
@@ -133,6 +161,7 @@ class RtspSession extends ChangeNotifier {
           enableHardwareAcceleration: true,
         ),
       );
+      notifyListeners();
       _errorSubscription = player.stream.error.listen((message) {
         if (generation != _generation || _disposed) return;
         _markFailure(RtspFailureMessage.describe(message));
@@ -140,8 +169,20 @@ class RtspSession extends ChangeNotifier {
       _playingSubscription = player.stream.playing.listen((playing) {
         if (generation != _generation || _disposed) return;
         if (playing) {
+          _stallTimer?.cancel();
           status.value = CameraPlaybackStatus.playing;
           error.value = null;
+        } else if (firstFrameRendered.value) {
+          _stallTimer?.cancel();
+          _stallTimer = Timer(const Duration(seconds: 10), () {
+            if (!_disposed &&
+                generation == _generation &&
+                _player?.state.playing == false) {
+              _markFailure(
+                'O vídeo parou de responder. Tentando restabelecer a conexão.',
+              );
+            }
+          });
         }
         notifyListeners();
       });
@@ -149,7 +190,10 @@ class RtspSession extends ChangeNotifier {
         await _disposePlayer(player);
         return;
       }
-      await player.open(Media(_streamUri.toString()), play: true);
+      await player
+          .open(Media(_streamUri.toString()), play: true)
+          .timeout(firstFrameTimeout);
+      if (generation != _generation || _disposed) return;
       await player.setAudioTrack(AudioTrack.no());
       final controller = _videoController;
       if (controller == null || generation != _generation || _disposed) return;
@@ -172,13 +216,17 @@ class RtspSession extends ChangeNotifier {
   Future<void> pause() async {
     ++_generation;
     _retryTimer?.cancel();
+    _stallTimer?.cancel();
+    _nextRetryDelay = null;
     final player = _player;
+    _player = null;
+    _videoController = null;
+    await _errorSubscription?.cancel();
+    await _playingSubscription?.cancel();
+    _errorSubscription = null;
+    _playingSubscription = null;
     if (player != null) {
-      try {
-        await player.pause();
-      } on Object {
-        debugPrint('Falha ao pausar a sessão RTSP.');
-      }
+      await _closePlayer(player);
     }
     status.value = CameraPlaybackStatus.paused;
     notifyListeners();
@@ -191,12 +239,15 @@ class RtspSession extends ChangeNotifier {
     _disposed = true;
     ++_generation;
     _retryTimer?.cancel();
+    _stallTimer?.cancel();
     await _errorSubscription?.cancel();
     await _playingSubscription?.cancel();
     final player = _player;
     _player = null;
     _videoController = null;
-    if (player != null) await _disposePlayer(player);
+    if (player != null) await _closePlayer(player);
+    final closing = _closing;
+    if (closing != null) await closing;
     status.value = CameraPlaybackStatus.idle;
     notifyListeners();
     status.dispose();
@@ -221,13 +272,14 @@ class RtspSession extends ChangeNotifier {
   void _markFailure(String message) {
     ++_generation;
     final oldPlayer = _player;
+    _stallTimer?.cancel();
     _player = null;
     _videoController = null;
     _errorSubscription?.cancel();
     _playingSubscription?.cancel();
     _errorSubscription = null;
     _playingSubscription = null;
-    if (oldPlayer != null) unawaited(_disposePlayer(oldPlayer));
+    if (oldPlayer != null) unawaited(_closePlayer(oldPlayer));
     _failures++;
     _totalReconnectAttempts++;
     error.value = message;
@@ -264,5 +316,15 @@ class RtspSession extends ChangeNotifier {
     } on Object {
       debugPrint('Falha ao liberar o player RTSP.');
     }
+  }
+
+  Future<void> _closePlayer(Player player) {
+    final previous = _closing;
+    final closing = () async {
+      if (previous != null) await previous;
+      await _disposePlayer(player);
+    }();
+    _closing = closing;
+    return closing;
   }
 }

@@ -26,7 +26,7 @@ class MonitorPage extends StatefulWidget {
   State<MonitorPage> createState() => _MonitorPageState();
 }
 
-class _MonitorPageState extends State<MonitorPage> {
+class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   final Map<String, RtspSession> _sessions = {};
   Timer? _controlsTimer;
   Timer? _diagnosticTimer;
@@ -38,11 +38,37 @@ class _MonitorPageState extends State<MonitorPage> {
   int _generation = 0;
   bool _restoreMonitorPage = true;
   String? _lastLayoutId;
+  bool _appActive = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scheduleControlsHide();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (!_appActive) {
+        _appActive = true;
+        unawaited(_syncSessions());
+      }
+      return;
+    }
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      if (!_appActive) return;
+      _appActive = false;
+      ++_generation;
+      final sessions = _sessions.values.toList();
+      _sessions.clear();
+      for (final session in sessions) {
+        unawaited(session.disposeSession());
+      }
+      if (mounted) setState(() {});
+    }
   }
 
   @override
@@ -53,6 +79,8 @@ class _MonitorPageState extends State<MonitorPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    ++_generation;
     _controlsTimer?.cancel();
     _diagnosticTimer?.cancel();
     for (final session in _sessions.values) {
@@ -63,6 +91,7 @@ class _MonitorPageState extends State<MonitorPage> {
   }
 
   Future<void> _syncSessions() async {
+    if (!_appActive || !mounted) return;
     final generation = ++_generation;
     final store = AppScope.of(context);
     final ids = store.config.slotCameraIds;
@@ -118,6 +147,7 @@ class _MonitorPageState extends State<MonitorPage> {
       final existing = _sessions[id];
       final mainStream =
           _mainStreams ||
+          _focusedCameraId == id ||
           store.config.resourceMode == 'quality' ||
           camera.subPath.isEmpty;
       if (existing != null &&
@@ -129,7 +159,8 @@ class _MonitorPageState extends State<MonitorPage> {
       }
       if (existing != null) {
         _sessions.remove(id);
-        unawaited(existing.disposeSession());
+        await existing.disposeSession();
+        if (!mounted || generation != _generation || !_appActive) return;
       }
       final session = RtspSession(
         camera: effectiveCamera,
@@ -454,7 +485,7 @@ class _MonitorPageState extends State<MonitorPage> {
                     ],
                   ),
                   Text(
-                    '${store.activeLayout.name} · buffer ${store.config.bufferMs} ms · ${store.config.resourceMode}',
+                    '${store.activeLayout.name} · cache ${store.config.bufferMs} · ${store.config.resourceMode}',
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                   const Divider(color: Color(0xFF344153)),
@@ -498,7 +529,7 @@ class _MonitorPageState extends State<MonitorPage> {
         [
           if (session.currentResolution != null) session.currentResolution!,
           if (session.currentFramesPerSecond != null)
-            '${session.currentFramesPerSecond!.toStringAsFixed(1)} fps',
+            '${session.currentFramesPerSecond!.toStringAsFixed(1)} fps nominal',
           if (session.currentBitrate != null)
             '${(session.currentBitrate! / 1000000).toStringAsFixed(1)} Mbps',
           if (session.firstFrameLatencyMs != null)
