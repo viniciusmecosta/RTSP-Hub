@@ -7,6 +7,8 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../camera_catalog/domain/camera_device.dart';
 import '../domain/reconnect_policy.dart';
+import '../domain/rtsp_failure_message.dart';
+import '../domain/rtsp_stream_uri.dart';
 
 enum CameraPlaybackStatus {
   idle,
@@ -133,7 +135,7 @@ class RtspSession extends ChangeNotifier {
       );
       _errorSubscription = player.stream.error.listen((message) {
         if (generation != _generation || _disposed) return;
-        _markFailure(_safeMessage(message));
+        _markFailure(RtspFailureMessage.describe(message));
       });
       _playingSubscription = player.stream.playing.listen((playing) {
         if (generation != _generation || _disposed) return;
@@ -147,7 +149,7 @@ class RtspSession extends ChangeNotifier {
         await _disposePlayer(player);
         return;
       }
-      await player.open(Media(_mediaUri().toString()), play: true);
+      await player.open(Media(_streamUri.toString()), play: true);
       await player.setAudioTrack(AudioTrack.no());
       final controller = _videoController;
       if (controller == null || generation != _generation || _disposed) return;
@@ -162,7 +164,7 @@ class RtspSession extends ChangeNotifier {
       }
     } on Object catch (exception) {
       if (generation == _generation && !_disposed) {
-        _markFailure(_safeMessage(exception));
+        _markFailure(RtspFailureMessage.describe(exception));
       }
     }
   }
@@ -203,26 +205,16 @@ class RtspSession extends ChangeNotifier {
     dispose();
   }
 
-  Uri _mediaUri() {
+  Uri get _streamUri {
     final path = useMainStream || camera.subPath.trim().isEmpty
         ? camera.mainPath
         : camera.subPath;
-    final pathParts = path.split('?');
-    final username = camera.username.isEmpty ? null : camera.username;
-    final userInfo = username == null
-        ? null
-        : password == null || password!.isEmpty
-        ? username
-        : '$username:$password';
-    return Uri(
-      scheme: 'rtsp',
-      userInfo: userInfo,
+    return RtspStreamUri.build(
       host: camera.host,
       port: camera.effectivePort(defaultPort),
-      path: pathParts.first.startsWith('/')
-          ? pathParts.first
-          : '/${pathParts.first}',
-      query: pathParts.length > 1 ? pathParts.skip(1).join('?') : null,
+      path: path,
+      username: camera.username,
+      password: password,
     );
   }
 
@@ -272,21 +264,5 @@ class RtspSession extends ChangeNotifier {
     } on Object {
       debugPrint('Falha ao liberar o player RTSP.');
     }
-  }
-
-  String _safeMessage(Object exception) {
-    var message = exception.toString().replaceAll(
-      RegExp(r'rtsp://\S+'),
-      'rtsp://[oculto]',
-    );
-    if (password != null && password!.isNotEmpty) {
-      message = message
-          .replaceAll(password!, '[oculto]')
-          .replaceAll(Uri.encodeComponent(password!), '[oculto]');
-    }
-    if (camera.host.isNotEmpty) {
-      message = message.replaceAll(camera.host, '[endereço]');
-    }
-    return message;
   }
 }
