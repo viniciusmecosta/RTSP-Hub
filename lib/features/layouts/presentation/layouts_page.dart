@@ -82,43 +82,17 @@ class LayoutsPage extends StatelessWidget {
                     final selected = index < store.config.slotCameraIds.length
                         ? store.config.slotCameraIds[index]
                         : null;
-                    return Card(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 15,
-                              child: Text('${index + 1}'),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String?>(
-                                  isExpanded: true,
-                                  value: selected,
-                                  hint: const Text('Posição vazia'),
-                                  items: [
-                                    const DropdownMenuItem<String?>(
-                                      value: null,
-                                      child: Text('Não atribuir câmera'),
-                                    ),
-                                    for (final camera in store.cameras)
-                                      DropdownMenuItem(
-                                        value: camera.id,
-                                        child: Text(
-                                          camera.name,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                  ],
-                                  onChanged: (id) => store.setSlot(index, id),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    final camera = store.cameras
+                        .where((item) => item.id == selected)
+                        .firstOrNull;
+                    return _CameraSlotCard(
+                      position: index + 1,
+                      cameraName: camera?.name,
+                      cameraDetail: camera == null
+                          ? null
+                          : '${camera.host}:${camera.effectivePort(store.config.defaultPort)} · ${camera.mainPath}',
+                      onTap: () =>
+                          _selectCamera(context, store, index, selected),
                     );
                   },
                 );
@@ -135,6 +109,98 @@ class LayoutsPage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _selectCamera(
+    BuildContext context,
+    AppStore store,
+    int slotIndex,
+    String? selectedId,
+  ) async {
+    final selection = await showModalBottomSheet<_SlotSelection>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.78,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Câmera da posição ${slotIndex + 1}',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Toque em uma câmera para exibi-la nesta posição.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                  children: [
+                    ListTile(
+                      leading: const CircleAvatar(
+                        child: Icon(Icons.videocam_off_outlined),
+                      ),
+                      title: const Text('Deixar posição vazia'),
+                      selected: selectedId == null,
+                      trailing: selectedId == null
+                          ? const Icon(Icons.check_circle)
+                          : null,
+                      onTap: () =>
+                          Navigator.pop(context, const _SlotSelection(null)),
+                    ),
+                    for (final camera in store.cameras)
+                      ListTile(
+                        leading: CircleAvatar(
+                          child: Text('${store.cameras.indexOf(camera) + 1}'),
+                        ),
+                        title: Text(camera.name),
+                        subtitle: Text(
+                          '${camera.host}:${camera.effectivePort(store.config.defaultPort)}\n${camera.mainPath}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        isThreeLine: true,
+                        selected: camera.id == selectedId,
+                        trailing: camera.id == selectedId
+                            ? const Icon(Icons.check_circle)
+                            : _assignedPosition(store, camera.id, slotIndex),
+                        onTap: () =>
+                            Navigator.pop(context, _SlotSelection(camera.id)),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selection != null) await store.setSlot(slotIndex, selection.cameraId);
+  }
+
+  Widget? _assignedPosition(AppStore store, String cameraId, int currentSlot) {
+    final index = store.config.slotCameraIds.indexOf(cameraId);
+    if (index < 0 || index == currentSlot) return null;
+    return Tooltip(
+      message: 'Atualmente na posição ${index + 1}; será movida',
+      child: Chip(label: Text('Pos. ${index + 1}')),
     );
   }
 
@@ -216,6 +282,76 @@ class LayoutsPage extends StatelessWidget {
   }
 }
 
+class _SlotSelection {
+  const _SlotSelection(this.cameraId);
+
+  final String? cameraId;
+}
+
+class _CameraSlotCard extends StatelessWidget {
+  const _CameraSlotCard({
+    required this.position,
+    required this.cameraName,
+    required this.cameraDetail,
+    required this.onTap,
+  });
+
+  final int position;
+  final String? cameraName;
+  final String? cameraDetail;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              CircleAvatar(radius: 16, child: Text('$position')),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      cameraName ?? 'Selecionar câmera',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: cameraName == null
+                            ? colors.primary
+                            : colors.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      cameraDetail ?? 'Posição vazia',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SavedProfiles extends StatelessWidget {
   const _SavedProfiles({
     required this.profiles,
@@ -238,31 +374,48 @@ class _SavedProfiles extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.bookmarks_outlined),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Perfis do monitor',
-                        style: Theme.of(context).textTheme.titleLarge,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final heading = Row(
+                  children: [
+                    const Icon(Icons.bookmarks_outlined),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Perfis do monitor',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          Text(
+                            'Salve combinações de layout e câmeras para abrir depois.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                       ),
-                      Text(
-                        'Salve combinações de layout e câmeras para abrir depois.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                FilledButton.tonalIcon(
+                    ),
+                  ],
+                );
+                final saveButton = FilledButton.tonalIcon(
                   onPressed: onSave,
                   icon: const Icon(Icons.bookmark_add_outlined),
                   label: const Text('Salvar perfil atual'),
-                ),
-              ],
+                );
+                if (constraints.maxWidth < 500) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [heading, const SizedBox(height: 12), saveButton],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: heading),
+                    const SizedBox(width: 12),
+                    saveButton,
+                  ],
+                );
+              },
             ),
             if (profiles.isEmpty) ...[
               const SizedBox(height: 12),
