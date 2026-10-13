@@ -30,3 +30,5 @@ flutter test
 ## Releases
 
 Enviar uma tag no formato `v1.2.3` inicia a pipeline do GitHub Actions. Ela cria um instalador para Windows, um pacote `.deb` para Ubuntu e um APK Android, e anexa os três arquivos à release correspondente.
+
+O instalador Windows x64 gerado pela pipeline inclui as bibliotecas de vídeo e o runtime Visual C++ junto ao aplicativo. Para usar essa versão do instalador, não é preciso instalar Flutter, VLC, MPV ou o Visual C++ Redistributable separadamente.

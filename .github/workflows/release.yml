@@ -96,6 +96,9 @@ jobs:
         shell: pwsh
         run: |
           if (!(Test-Path build\windows\x64\runner\Release\rtsp_view.exe)) { throw "Executável Windows ausente" }
+      - name: Incluir runtime Visual C++ no aplicativo
+        shell: pwsh
+        run: ./tool/package_windows_runtime.ps1 -ReleaseDir build\windows\x64\runner\Release
       - name: Instalar Inno Setup
         run: choco install innosetup --no-progress -y
       - name: Criar instalador Windows
@@ -118,6 +121,9 @@ jobs:
           if ($result.ExitCode -ne 0) { throw "Instalação Windows falhou: $($result.ExitCode)" }
           $application = Join-Path $installDir 'rtsp_view.exe'
           if (!(Test-Path $application)) { throw 'Executável instalado ausente' }
+          foreach ($library in @('flutter_windows.dll', 'libmpv-2.dll', 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')) {
+            if (!(Test-Path (Join-Path $installDir $library))) { throw "Biblioteca ausente no instalador: $library" }
+          }
           $process = Start-Process -FilePath $application -WorkingDirectory $installDir -PassThru
           Start-Sleep -Seconds 8
           $process.Refresh()
