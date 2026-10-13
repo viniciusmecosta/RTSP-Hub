@@ -373,12 +373,10 @@ class OnvifStreamPair {
     final groups = <String, List<OnvifProfile>>{};
     for (final profile in uniqueByUri.values) {
       final source = profile.sourceToken?.trim();
-      final key = source == null || source.isEmpty ? '' : source;
+      final key = source == null || source.isEmpty
+          ? _sourceFromUri(profile.streamUri)
+          : source;
       groups.putIfAbsent(key, () => []).add(profile);
-    }
-    if (groups.length > 1 && groups.containsKey('')) {
-      final orphan = groups.remove('')!;
-      groups.values.first.addAll(orphan);
     }
     final seenSignatures = <String>{};
     final result = <OnvifStreamPair>[];
@@ -399,6 +397,22 @@ class OnvifStreamPair {
       result.add(OnvifStreamPair(sourceKey: entry.key, main: main, sub: sub));
     }
     return result;
+  }
+
+  static String _sourceFromUri(Uri uri) {
+    final channel = uri.queryParameters['channel'];
+    if (channel != null && int.tryParse(channel) != null) {
+      return 'query:$channel';
+    }
+    final match = RegExp(
+      r'/Streaming/Channels/(\d{3,4})(?:/|$)',
+      caseSensitive: false,
+    ).firstMatch(uri.path);
+    if (match != null) {
+      final value = int.tryParse(match.group(1)!);
+      if (value != null && value >= 100) return 'path:${value ~/ 100}';
+    }
+    return '';
   }
 }
 
