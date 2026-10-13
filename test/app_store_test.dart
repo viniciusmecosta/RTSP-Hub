@@ -55,6 +55,36 @@ void main() {
     expect(camera.mainPath, '/global');
   });
 
+  test('exporta e importa perfis com as câmeras usadas', () async {
+    await saveCamera();
+    await store.setSlot(0, store.cameras.single.id);
+    await store.saveMonitorProfile(name: 'Portaria');
+    final exported = store.exportMonitorProfiles();
+    expect(exported, isNot(contains('password')));
+
+    final other = AppStore(
+      repository: _MemoryRepository(),
+      credentials: _MemoryCredentials(),
+    );
+    addTearDown(other.dispose);
+    final added = await other.importMonitorProfiles(exported);
+
+    expect(added, 1);
+    expect(other.cameras.single.host, '192.168.1.10');
+    final profile = other.config.monitorProfiles.single;
+    expect(profile.name, 'Portaria');
+    expect(profile.slotCameraIds.first, other.cameras.single.id);
+
+    final again = await other.importMonitorProfiles(exported);
+    expect(again, 1);
+    expect(other.cameras, hasLength(1));
+    expect(other.config.monitorProfiles.last.name, 'Portaria (2)');
+  });
+
+  test('recusa arquivo que não é exportação de perfis', () async {
+    expect(await store.importMonitorProfiles('{"cameras": []}'), isNull);
+  });
+
   test('rejects host values that contain URLs or invalid DNS labels', () async {
     final url = await saveCamera(host: 'rtsp://192.168.1.10');
     final invalidDns = await saveCamera(host: 'camera..local');
