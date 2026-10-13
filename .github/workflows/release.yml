@@ -142,6 +142,7 @@ jobs:
     needs: [android, ubuntu, windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           path: release-assets
