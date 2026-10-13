@@ -126,10 +126,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     final requestedIds =
         (_focusedCameraId == null ? pageSlots : <String?>[_focusedCameraId])
             .whereType<String>();
-    final playbackLimit = PerformancePreset.fromId(
-      store.config.resourceMode,
-    ).maxConcurrentStreams;
-    final visibleIds = requestedIds.take(playbackLimit).toSet();
+    final visibleIds = requestedIds.toSet();
     final staleSessions = <RtspSession>[];
     for (final id in _sessions.keys.toList()) {
       if (!visibleIds.contains(id)) {
@@ -232,14 +229,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     final requested = _focusedCameraId == null
         ? slots.skip(_page * pageSize).take(pageSize)
         : <String?>[_focusedCameraId];
-    return requested
-        .whereType<String>()
-        .take(
-          PerformancePreset.fromId(
-            store.config.resourceMode,
-          ).maxConcurrentStreams,
-        )
-        .toSet();
+    return requested.whereType<String>().toSet();
   }
 
   @override
@@ -854,15 +844,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   }
 
   int _pageSize(LayoutPreset layout, double width) {
-    final limit = PerformancePreset.fromId(
-      AppScope.of(context).config.resourceMode,
-    ).maxConcurrentStreams;
-    final screenLimit = width < 600
-        ? 4
-        : width < 980
-        ? 9
-        : layout.cameraCount;
-    return min(layout.cameraCount, min(screenLimit, limit)).clamp(1, 16);
+    return layout.cameraCount;
   }
 }
 
