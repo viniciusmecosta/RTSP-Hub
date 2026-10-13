@@ -261,6 +261,7 @@ class _CameraEditorState extends State<_CameraEditor>
   bool _busy = false;
   bool _testing = false;
   bool _finding = false;
+  bool _searchRecorderChannels = false;
   bool _cancelFinding = false;
   String _findingStage = '';
   String? _probeMessage;
@@ -574,10 +575,7 @@ class _CameraEditorState extends State<_CameraEditor>
                   final isSelected = path == _mainPath.text.trim();
                   return InputChip(
                     selected: isSelected,
-                    label: Text(
-                      path,
-                      style: const TextStyle(fontSize: 11),
-                    ),
+                    label: Text(path, style: const TextStyle(fontSize: 11)),
                     onSelected: (_) {
                       setState(() {
                         _mainPath.text = path;
@@ -605,6 +603,17 @@ class _CameraEditorState extends State<_CameraEditor>
           ),
           validator: (value) =>
               CameraFieldValidation.pathError(value ?? '', optional: true),
+        ),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Pesquisar canais de gravador'),
+          subtitle: const Text(
+            'Se ONVIF não responder, teste até 16 canais RTSP. Para câmera IP, deixe desligado.',
+          ),
+          value: _searchRecorderChannels,
+          onChanged: _finding || _testing
+              ? null
+              : (value) => setState(() => _searchRecorderChannels = value),
         ),
       ],
     );
@@ -875,8 +884,7 @@ class _CameraEditorState extends State<_CameraEditor>
     String password,
     List<_FoundChannel> found,
   ) async {
-    const lastChannel = 16;
-    final signatures = <String>{};
+    final lastChannel = _searchRecorderChannels ? 16 : 1;
     for (var channel = 1; channel <= lastChannel; channel++) {
       if (_cancelFinding || !mounted) return;
       setState(() => _findingStage = 'Testando canal $channel em $host');
@@ -902,19 +910,15 @@ class _CameraEditorState extends State<_CameraEditor>
         }
       }
       if (subQuality != null &&
-          StreamSignature.resolution(subQuality) ==
-              StreamSignature.resolution(mainQuality!)) {
+          StreamSignature.sameKnownResolution(mainQuality!, subQuality)) {
         subPath = null;
         subQuality = null;
-      }
-      if (!signatures.add(StreamSignature.of(mainQuality!, subQuality))) {
-        return;
       }
       found.add(
         _FoundChannel(
           number: channel,
           mainPath: mainPath,
-          mainQuality: mainQuality,
+          mainQuality: mainQuality!,
           subPath: subPath,
           subQuality: subQuality,
         ),

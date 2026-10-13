@@ -59,11 +59,22 @@ void main() {
     expect(pairs, hasLength(2));
   });
 
-  test('assinatura de fluxo ignora taxa de bits', () {
-    expect(
-      StreamSignature.of('1920×1080 · 15.0 fps · H264 · 2.1 Mbps', null),
-      StreamSignature.of('1920×1080 · 15.0 fps · H264 · 3.4 Mbps', null),
-    );
+  test('só compara resoluções conhecidas dos fluxos', () {
     expect(StreamSignature.resolution('640×360 · H264'), '640x360');
+    expect(
+      StreamSignature.sameKnownResolution('Vídeo detectado', 'H264'),
+      isFalse,
+    );
+    expect(
+      StreamSignature.sameKnownResolution('1920×1080', '640×360'),
+      isFalse,
+    );
+    expect(
+      StreamSignature.sameKnownResolution(
+        '1920×1080 · H264',
+        '1920×1080 · H265',
+      ),
+      isTrue,
+    );
   });
 }

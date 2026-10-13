@@ -41,6 +41,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
   bool _busy = false;
   bool _cancel = false;
   bool _obscurePassword = true;
+  bool _scanRecorderChannels = false;
   bool _defaultsLoaded = false;
   int _completed = 0;
   int _total = 0;
@@ -114,7 +115,9 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
   Future<void> _search() async {
     final store = AppScope.of(context);
     final port = int.tryParse(_port.text.trim());
-    final lastChannel = int.tryParse(_lastChannel.text.trim());
+    final lastChannel = _scanRecorderChannels
+        ? int.tryParse(_lastChannel.text.trim())
+        : 1;
     final user = _username.text.trim();
     if (port == null || port < 1 || port > 65535) {
       _message('Informe uma porta RTSP entre 1 e 65535.');
@@ -306,7 +309,6 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
       _total = targets.length * lastChannel;
     });
     for (final host in targets) {
-      final signatures = <String>{};
       for (var channel = 1; channel <= lastChannel; channel++) {
         if (!mounted || _cancel) return;
         if (_channels.any(
@@ -335,8 +337,6 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
         }
         if (_cancel) return;
         if (mainPath == null) {
-          // Canais de DVR/NVR são sequenciais: o primeiro ausente encerra a
-          // busca neste dispositivo e evita registrar fluxos repetidos.
           setState(() => _completed += lastChannel - channel);
           break;
         }
@@ -357,17 +357,9 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
         }
         if (!mounted || _cancel) return;
         if (subQuality != null &&
-            StreamSignature.resolution(subQuality) ==
-                StreamSignature.resolution(mainQuality!)) {
+            StreamSignature.sameKnownResolution(mainQuality!, subQuality)) {
           subPath = null;
           subQuality = null;
-        }
-        final signature = StreamSignature.of(mainQuality!, subQuality);
-        if (!signatures.add(signature)) {
-          // A câmera ignora o número do canal e devolve o mesmo vídeo:
-          // não há outros canais reais neste dispositivo.
-          setState(() => _completed += lastChannel - channel);
-          break;
         }
         final result = _DetectedChannel(
           host: host,
@@ -376,7 +368,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
           username: username,
           password: password,
           mainPath: mainPath,
-          mainQuality: mainQuality,
+          mainQuality: mainQuality!,
           subPath: subPath,
           subQuality: subQuality,
           verified: true,
@@ -581,28 +573,9 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
                           helperText: 'Busca também portas RTSP comuns',
                         ),
                       );
-                      final channels = TextField(
-                        controller: _lastChannel,
-                        enabled: !_busy,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Procurar até o canal',
-                          helperText: 'Padrão: 16',
-                        ),
-                      );
                       if (compact) {
                         return Column(
-                          children: [
-                            range,
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Expanded(child: port),
-                                const SizedBox(width: 10),
-                                Expanded(child: channels),
-                              ],
-                            ),
-                          ],
+                          children: [range, const SizedBox(height: 10), port],
                         );
                       }
                       return Row(
@@ -611,12 +584,32 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
                           Expanded(flex: 3, child: range),
                           const SizedBox(width: 12),
                           Expanded(child: port),
-                          const SizedBox(width: 12),
-                          Expanded(child: channels),
                         ],
                       );
                     },
                   ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Pesquisar canais de gravadores'),
+                    subtitle: const Text(
+                      'Sem ONVIF, testa só o canal 1 por IP. Ative para procurar vários canais em DVR/NVR.',
+                    ),
+                    value: _scanRecorderChannels,
+                    onChanged: _busy
+                        ? null
+                        : (value) =>
+                              setState(() => _scanRecorderChannels = value),
+                  ),
+                  if (_scanRecorderChannels)
+                    TextField(
+                      controller: _lastChannel,
+                      enabled: !_busy,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Procurar até o canal',
+                        helperText: 'Entre 1 e 64. Padrão: 16',
+                      ),
+                    ),
                   const SizedBox(height: 12),
                   LayoutBuilder(
                     builder: (context, constraints) {

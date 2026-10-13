@@ -89,6 +89,12 @@ void main() {
     expect(find.text('Usuário global'), findsOneWidget);
     expect(find.text('Senha global'), findsOneWidget);
     expect(find.text('Buscar câmeras'), findsOneWidget);
+    expect(find.text('Pesquisar canais de gravadores'), findsOneWidget);
+    expect(find.text('Procurar até o canal'), findsNothing);
+    await tester.ensureVisible(find.text('Pesquisar canais de gravadores'));
+    await tester.tap(find.text('Pesquisar canais de gravadores'));
+    await tester.pump();
+    expect(find.text('Procurar até o canal'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
