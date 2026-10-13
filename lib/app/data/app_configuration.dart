@@ -20,6 +20,7 @@ class AppConfiguration {
     this.lastSection = 'dashboard',
     this.lastMonitorPage = 0,
     this.tutorialCompleted = false,
+    this.lastProfileId,
   });
 
   final int schemaVersion;
@@ -38,6 +39,7 @@ class AppConfiguration {
   final String lastSection;
   final int lastMonitorPage;
   final bool tutorialCompleted;
+  final String? lastProfileId;
 
   AppConfiguration copyWith({
     List<CameraDevice>? cameras,
@@ -55,6 +57,8 @@ class AppConfiguration {
     String? lastSection,
     int? lastMonitorPage,
     bool? tutorialCompleted,
+    String? lastProfileId,
+    bool clearLastProfileId = false,
   }) => AppConfiguration(
     schemaVersion: schemaVersion,
     cameras: cameras ?? this.cameras,
@@ -72,6 +76,9 @@ class AppConfiguration {
     lastSection: lastSection ?? this.lastSection,
     lastMonitorPage: lastMonitorPage ?? this.lastMonitorPage,
     tutorialCompleted: tutorialCompleted ?? this.tutorialCompleted,
+    lastProfileId: clearLastProfileId
+        ? null
+        : lastProfileId ?? this.lastProfileId,
   );
 
   Map<String, Object?> toJson() => {
@@ -89,6 +96,7 @@ class AppConfiguration {
       'lastSection': lastSection,
       'lastMonitorPage': lastMonitorPage,
       'tutorialCompleted': tutorialCompleted,
+      'lastProfileId': lastProfileId,
     },
     'cameras': cameras.map((camera) => camera.toJson()).toList(),
     'monitorProfiles': monitorProfiles
@@ -156,6 +164,7 @@ class AppConfiguration {
       lastMonitorPage: ((settings['lastMonitorPage'] as num?)?.toInt() ?? 0)
           .clamp(0, 100),
       tutorialCompleted: settings['tutorialCompleted'] as bool? ?? false,
+      lastProfileId: settings['lastProfileId'] as String?,
     );
   }
 }

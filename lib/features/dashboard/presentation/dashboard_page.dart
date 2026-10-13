@@ -7,16 +7,19 @@ class DashboardPage extends StatelessWidget {
   const DashboardPage({
     required this.onAddCamera,
     required this.onOpenMonitor,
+    this.onOpenProfile,
     super.key,
   });
 
   final VoidCallback onAddCamera;
   final VoidCallback onOpenMonitor;
+  final ValueChanged<String>? onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final store = AppScope.of(context);
+    final lastProfile = store.lastSavedProfile;
     final columns = width >= 1100
         ? 3
         : width >= 700
@@ -56,27 +59,41 @@ class DashboardPage extends StatelessWidget {
                       style: TextStyle(color: Color(0xFFE0EAFF), height: 1.45),
                     ),
                     const SizedBox(height: 22),
-                    FilledButton.icon(
-                      onPressed: onAddCamera,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Adicionar câmera'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF1D4ED8),
-                      ),
-                    ),
-                    if (store.cameras.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: onOpenMonitor,
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Abrir monitor'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Color(0x99FFFFFF)),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: onAddCamera,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Adicionar câmera'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF1D4ED8),
+                          ),
                         ),
-                      ),
-                    ],
+                        if (lastProfile != null && onOpenProfile != null)
+                          FilledButton.icon(
+                            onPressed: () => onOpenProfile!(lastProfile.id),
+                            icon: const Icon(Icons.flash_on),
+                            label: Text('Acesso rápido · ${lastProfile.name}'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        if (store.cameras.isNotEmpty)
+                          OutlinedButton.icon(
+                            onPressed: onOpenMonitor,
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text('Abrir monitor'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(color: Color(0x99FFFFFF)),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 );
                 if (narrow) return content;
@@ -94,6 +111,28 @@ class DashboardPage extends StatelessWidget {
               },
             ),
           ),
+          if (lastProfile != null && onOpenProfile != null) ...[
+            const SizedBox(height: 16),
+            Card(
+              child: ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  child: Icon(Icons.flash_on),
+                ),
+                title: Text('Acesso rápido · ${lastProfile.name}'),
+                subtitle: const Text(
+                  'Clique para carregar o último perfil salvo e ir direto para o monitor.',
+                ),
+                trailing: FilledButton.tonalIcon(
+                  onPressed: () => onOpenProfile!(lastProfile.id),
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Abrir'),
+                ),
+                onTap: () => onOpenProfile!(lastProfile.id),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           GridView.count(
             crossAxisCount: columns,
