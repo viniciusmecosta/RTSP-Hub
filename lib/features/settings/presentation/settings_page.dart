@@ -269,7 +269,7 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Padding(
               padding: const EdgeInsets.all(18),
               child: Text(
-                '${PerformancePreset.fromId(store.config.resourceMode).description} Até ${PerformancePreset.fromId(store.config.resourceMode).maxConcurrentStreams} decodificadores são mantidos ativos; ao focar uma câmera, ela recebe prioridade.',
+                '${PerformancePreset.fromId(store.config.resourceMode).description} Todas as câmeras da grade são exibidas simultaneamente.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
