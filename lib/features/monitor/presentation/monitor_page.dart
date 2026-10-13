@@ -203,6 +203,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
         left.username == right.username &&
         left.mainPath == right.mainPath &&
         left.subPath == right.subPath &&
+        left.selectedPath == right.selectedPath &&
         left.useGlobalCredentials == right.useGlobalCredentials;
   }
 
@@ -380,8 +381,13 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                                         );
                                       }
                                     }
-                                    final estimatedHeight = rows * ((constraints.maxWidth / columns) / (16 / 10));
-                                    final shouldScroll = constraints.maxWidth < 600 && estimatedHeight > constraints.maxHeight;
+                                    final estimatedHeight =
+                                        rows *
+                                        ((constraints.maxWidth / columns) /
+                                            (16 / 10));
+                                    final shouldScroll =
+                                        constraints.maxWidth < 600 &&
+                                        estimatedHeight > constraints.maxHeight;
                                     return GridView.builder(
                                       padding: const EdgeInsets.all(3),
                                       physics: shouldScroll
@@ -483,7 +489,9 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       onSwitchChannel: camera == null || camera.savedPaths.length <= 1
           ? null
           : (newPath) async {
-              await AppScope.of(context).switchCameraChannel(camera.id, newPath);
+              await AppScope.of(
+                context,
+              ).switchCameraChannel(camera.id, newPath);
               _syncSessions();
             },
       onRetry: session == null ? null : () => session.start(),
@@ -1048,7 +1056,9 @@ class _CameraTile extends StatelessWidget {
                       } else if (value == 'clone') {
                         onClone?.call();
                       } else if (value.startsWith('channel:')) {
-                        onSwitchChannel?.call(value.substring('channel:'.length));
+                        onSwitchChannel?.call(
+                          value.substring('channel:'.length),
+                        );
                       }
                     },
                     itemBuilder: (_) => [
@@ -1081,11 +1091,18 @@ class _CameraTile extends StatelessWidget {
                             child: Row(
                               children: [
                                 Icon(
-                                  path == camera!.mainPath
+                                  path ==
+                                          (camera!.selectedPath.isEmpty
+                                              ? camera!.mainPath
+                                              : camera!.selectedPath)
                                       ? Icons.check_circle
                                       : Icons.radio_button_unchecked,
                                   size: 16,
-                                  color: path == camera!.mainPath
+                                  color:
+                                      path ==
+                                          (camera!.selectedPath.isEmpty
+                                              ? camera!.mainPath
+                                              : camera!.selectedPath)
                                       ? const Color(0xFF10B981)
                                       : Colors.white70,
                                 ),
@@ -1096,7 +1113,11 @@ class _CameraTile extends StatelessWidget {
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       fontSize: 12,
-                                      fontWeight: path == camera!.mainPath
+                                      fontWeight:
+                                          path ==
+                                              (camera!.selectedPath.isEmpty
+                                                  ? camera!.mainPath
+                                                  : camera!.selectedPath)
                                           ? FontWeight.w700
                                           : FontWeight.normal,
                                     ),
