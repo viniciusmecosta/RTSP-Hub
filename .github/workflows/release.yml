@@ -61,6 +61,7 @@ jobs:
           test -x "$install_root/opt/rtsp-view/RTSPView"
           test -x "$install_root/usr/bin/rtsp-view"
           test -f "$install_root/usr/share/applications/rtsp-view.desktop"
+          test -n "$(find "$install_root/opt/rtsp-view/lib" -maxdepth 1 -name 'libmpv.so.*' -print -quit)"
           rm -rf "$install_root"
       - name: Testar instalação e abertura no Ubuntu
         shell: bash

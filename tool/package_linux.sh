@@ -13,9 +13,14 @@ fi
 
 flutter build linux --release
 bundle="$PWD/build/linux/x64/release/bundle"
-mpv_path="$(ldconfig -p | awk '/libmpv\.so\.2 / { print $NF; exit }')"
+mpv_plugin="$bundle/lib/libmedia_kit_video_plugin.so"
+if [[ ! -f "$mpv_plugin" ]]; then
+  printf '%s\n' 'O plugin de vídeo não foi incluído no build Linux.' >&2
+  exit 1
+fi
+mpv_path="$(ldd "$mpv_plugin" | awk '$1 ~ /^libmpv\.so\.[0-9]+$/ && $2 == "=>" && $3 ~ /^\// { print $3; exit }')"
 if [[ -z "$mpv_path" || ! -f "$mpv_path" ]]; then
-  printf '%s\n' 'Instale libmpv-dev e libepoxy-dev para compilar; o runtime libmpv será incluído no pacote.' >&2
+  printf '%s\n' 'A biblioteca libmpv exigida pelo build Linux não foi encontrada.' >&2
   exit 1
 fi
 
