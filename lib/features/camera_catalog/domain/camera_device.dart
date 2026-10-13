@@ -8,6 +8,7 @@ class CameraDevice {
     this.username = '',
     this.subPath = '',
     this.useGlobalCredentials = false,
+    this.savedPaths = const [],
   });
 
   final String id;
@@ -18,6 +19,7 @@ class CameraDevice {
   final String mainPath;
   final String subPath;
   final bool useGlobalCredentials;
+  final List<String> savedPaths;
 
   int effectivePort(int defaultPort) => port ?? defaultPort;
 
@@ -30,6 +32,7 @@ class CameraDevice {
     String? mainPath,
     String? subPath,
     bool? useGlobalCredentials,
+    List<String>? savedPaths,
   }) {
     return CameraDevice(
       id: id,
@@ -40,6 +43,7 @@ class CameraDevice {
       mainPath: mainPath ?? this.mainPath,
       subPath: subPath ?? this.subPath,
       useGlobalCredentials: useGlobalCredentials ?? this.useGlobalCredentials,
+      savedPaths: savedPaths ?? this.savedPaths,
     );
   }
 
@@ -52,9 +56,14 @@ class CameraDevice {
     'mainPath': mainPath,
     'subPath': subPath,
     'useGlobalCredentials': useGlobalCredentials,
+    'savedPaths': savedPaths,
   };
 
   factory CameraDevice.fromJson(Map<String, Object?> json) {
+    final rawPaths = json['savedPaths'];
+    final savedPaths = rawPaths is List
+        ? rawPaths.whereType<String>().toList(growable: false)
+        : const <String>[];
     return CameraDevice(
       id: json['id'] as String,
       name: json['name'] as String? ?? '',
@@ -64,6 +73,7 @@ class CameraDevice {
       mainPath: json['mainPath'] as String? ?? '/Streaming/Channels/101',
       subPath: json['subPath'] as String? ?? '',
       useGlobalCredentials: json['useGlobalCredentials'] as bool? ?? false,
+      savedPaths: savedPaths,
     );
   }
 }

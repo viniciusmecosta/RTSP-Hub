@@ -477,6 +477,12 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                 );
               }
             },
+      onSwitchChannel: camera == null || camera.savedPaths.length <= 1
+          ? null
+          : (newPath) async {
+              await AppScope.of(context).switchCameraChannel(camera.id, newPath);
+              _syncSessions();
+            },
       onRetry: session == null ? null : () => session.start(),
     );
   }
@@ -874,6 +880,7 @@ class _CameraTile extends StatelessWidget {
     required this.onTap,
     required this.onFocus,
     this.onClone,
+    this.onSwitchChannel,
     required this.onRetry,
   });
   final CameraDevice? camera;
@@ -882,6 +889,7 @@ class _CameraTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onFocus;
   final VoidCallback? onClone;
+  final ValueChanged<String>? onSwitchChannel;
   final VoidCallback? onRetry;
 
   @override
@@ -1001,7 +1009,9 @@ class _CameraTile extends StatelessWidget {
                       vertical: 4,
                     ),
                     child: Text(
-                      camera!.name,
+                      camera!.savedPaths.length > 1
+                          ? '${camera!.name} (${camera!.mainPath})'
+                          : camera!.name,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -1032,6 +1042,8 @@ class _CameraTile extends StatelessWidget {
                         onFocus?.call();
                       } else if (value == 'clone') {
                         onClone?.call();
+                      } else if (value.startsWith('channel:')) {
+                        onSwitchChannel?.call(value.substring('channel:'.length));
                       }
                     },
                     itemBuilder: (_) => [
@@ -1056,6 +1068,40 @@ class _CameraTile extends StatelessWidget {
                             ],
                           ),
                         ),
+                      if (camera != null && camera!.savedPaths.length > 1) ...[
+                        const PopupMenuDivider(),
+                        ...camera!.savedPaths.map(
+                          (path) => PopupMenuItem(
+                            value: 'channel:$path',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  path == camera!.mainPath
+                                      ? Icons.check_circle
+                                      : Icons.radio_button_unchecked,
+                                  size: 16,
+                                  color: path == camera!.mainPath
+                                      ? const Color(0xFF10B981)
+                                      : Colors.white70,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Canal: $path',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: path == camera!.mainPath
+                                          ? FontWeight.w700
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
