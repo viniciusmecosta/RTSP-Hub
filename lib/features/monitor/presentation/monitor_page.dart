@@ -8,9 +8,9 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../../features/camera_catalog/domain/camera_device.dart';
+import '../../../features/camera_catalog/presentation/clone_camera_dialog.dart';
 import '../../../features/layouts/domain/layout_preset.dart';
 import '../../../features/layouts/domain/layout_geometry.dart';
-import '../../../features/settings/domain/performance_preset.dart';
 import '../application/rtsp_session.dart';
 
 class MonitorPage extends StatefulWidget {
@@ -459,6 +459,24 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
               });
               _syncSessions();
             },
+      onClone: camera == null
+          ? null
+          : () async {
+              final cloned = await CloneCameraDialog.show(
+                context,
+                camera: camera,
+                store: AppScope.of(context),
+              );
+              if (cloned == true && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Câmera “${camera.name}” clonada com sucesso.',
+                    ),
+                  ),
+                );
+              }
+            },
       onRetry: session == null ? null : () => session.start(),
     );
   }
@@ -855,6 +873,7 @@ class _CameraTile extends StatelessWidget {
     required this.waitingForResources,
     required this.onTap,
     required this.onFocus,
+    this.onClone,
     required this.onRetry,
   });
   final CameraDevice? camera;
@@ -862,6 +881,7 @@ class _CameraTile extends StatelessWidget {
   final bool waitingForResources;
   final VoidCallback onTap;
   final VoidCallback? onFocus;
+  final VoidCallback? onClone;
   final VoidCallback? onRetry;
 
   @override
@@ -988,6 +1008,55 @@ class _CameraTile extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                  ),
+                ),
+              ),
+            if (camera != null)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Material(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(16),
+                  child: PopupMenuButton<String>(
+                    tooltip: 'Opções da câmera',
+                    icon: const Icon(
+                      Icons.more_vert,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 140),
+                    onSelected: (value) {
+                      if (value == 'focus') {
+                        onFocus?.call();
+                      } else if (value == 'clone') {
+                        onClone?.call();
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'focus',
+                        child: Row(
+                          children: const [
+                            Icon(Icons.fullscreen, size: 18),
+                            SizedBox(width: 8),
+                            Text('Focar câmera'),
+                          ],
+                        ),
+                      ),
+                      if (onClone != null)
+                        const PopupMenuItem(
+                          value: 'clone',
+                          child: Row(
+                            children: [
+                              Icon(Icons.copy_outlined, size: 18),
+                              SizedBox(width: 8),
+                              Text('Clonar câmera'),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),

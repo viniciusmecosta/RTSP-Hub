@@ -55,6 +55,32 @@ void main() {
     expect(camera.mainPath, '/global');
   });
 
+  test('clona câmera copiando credenciais e configurações e alterando apenas o host', () async {
+    await store.saveCamera(
+      id: '',
+      name: 'Portão 1',
+      host: '192.168.1.10',
+      port: '8554',
+      username: 'admin',
+      password: 'secret',
+      mainPath: '/live/main',
+      subPath: '/live/sub',
+    );
+    final source = store.cameras.single;
+    final success = await store.cloneCamera(source, newHost: '192.168.1.11');
+
+    expect(success, isTrue);
+    expect(store.cameras, hasLength(2));
+    final clone = store.cameras.last;
+    expect(clone.name, 'Portão 1 (cópia)');
+    expect(clone.host, '192.168.1.11');
+    expect(clone.port, 8554);
+    expect(clone.username, 'admin');
+    expect(clone.mainPath, '/live/main');
+    expect(clone.subPath, '/live/sub');
+    expect(await store.passwordFor(clone), 'secret');
+  });
+
   test('exporta e importa perfis com as câmeras usadas', () async {
     await saveCamera();
     await store.setSlot(0, store.cameras.single.id);

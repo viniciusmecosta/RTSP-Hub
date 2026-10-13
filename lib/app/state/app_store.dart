@@ -203,6 +203,30 @@ class AppStore extends ChangeNotifier {
     }
   }
 
+  Future<bool> cloneCamera(
+    CameraDevice source, {
+    required String newHost,
+    String? newName,
+  }) async {
+    final password = source.useGlobalCredentials
+        ? ''
+        : await passwordFor(source) ?? '';
+    final name = (newName != null && newName.trim().isNotEmpty)
+        ? newName.trim()
+        : '${source.name} (cópia)';
+    return saveCamera(
+      id: '',
+      name: name,
+      host: newHost.trim(),
+      port: source.port == null ? '' : '${source.port}',
+      username: source.username,
+      password: password,
+      mainPath: source.mainPath,
+      subPath: source.subPath,
+      useGlobalCredentials: source.useGlobalCredentials,
+    );
+  }
+
   Future<void> removeCamera(String id) async {
     final cameras = _config.cameras.where((camera) => camera.id != id).toList();
     final slots = _config.slotCameraIds
