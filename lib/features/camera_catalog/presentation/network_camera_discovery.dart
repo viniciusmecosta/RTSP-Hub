@@ -113,7 +113,6 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
   }
 
   Future<void> _search() async {
-    final store = AppScope.of(context);
     final port = int.tryParse(_port.text.trim());
     final lastChannel = _scanRecorderChannels
         ? int.tryParse(_lastChannel.text.trim())
@@ -153,19 +152,6 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
       _total = hosts.length * ports.length;
       _stage = 'Procurando dispositivos nas portas RTSP comuns';
     });
-    final saved = await store.saveNetworkDiscoveryCredentials(
-      username: user,
-      password: _password.text,
-    );
-    if (!saved) {
-      if (mounted) {
-        setState(() => _busy = false);
-        _message(
-          store.message ?? 'Não foi possível salvar as credenciais globais.',
-        );
-      }
-      return;
-    }
     try {
       await _discoverOnvif();
       final scanHosts = hosts
@@ -441,6 +427,18 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
       return;
     }
     setState(() => _busy = true);
+    final credentialsSaved = await store.saveNetworkDiscoveryCredentials(
+      username: chosen.first.username,
+      password: chosen.first.password,
+    );
+    if (!mounted) return;
+    if (!credentialsSaved) {
+      setState(() => _busy = false);
+      _message(
+        store.message ?? 'Não foi possível salvar as credenciais globais.',
+      );
+      return;
+    }
     final saved = await store.addDiscoveredCameras([
       for (final channel in chosen)
         CameraDevice(
