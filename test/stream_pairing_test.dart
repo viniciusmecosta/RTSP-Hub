@@ -59,6 +59,31 @@ void main() {
     expect(pairs, hasLength(2));
   });
 
+  test('separa canais ONVIF sem token quando o URI identifica o canal', () {
+    final pairs = OnvifStreamPair.group([
+      _profile('a', 'rtsp://nvr/Streaming/Channels/101', source: null),
+      _profile(
+        'b',
+        'rtsp://nvr/Streaming/Channels/102',
+        source: null,
+        width: 640,
+        height: 360,
+      ),
+      _profile('c', 'rtsp://nvr/Streaming/Channels/201', source: null),
+      _profile(
+        'd',
+        'rtsp://nvr/Streaming/Channels/202',
+        source: null,
+        width: 640,
+        height: 360,
+      ),
+    ]);
+
+    expect(pairs, hasLength(2));
+    expect(pairs[0].sub?.streamUri.path, '/Streaming/Channels/102');
+    expect(pairs[1].sub?.streamUri.path, '/Streaming/Channels/202');
+  });
+
   test('só compara resoluções conhecidas dos fluxos', () {
     expect(StreamSignature.resolution('640×360 · H264'), '640x360');
     expect(
