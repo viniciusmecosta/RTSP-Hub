@@ -9,6 +9,7 @@ class CameraDevice {
     this.subPath = '',
     this.useGlobalCredentials = false,
     this.savedPaths = const [],
+    this.selectedPath = '',
   });
 
   final String id;
@@ -20,8 +21,15 @@ class CameraDevice {
   final String subPath;
   final bool useGlobalCredentials;
   final List<String> savedPaths;
+  final String selectedPath;
 
   int effectivePort(int defaultPort) => port ?? defaultPort;
+
+  String playbackPath({required bool useMainStream}) => selectedPath.isNotEmpty
+      ? selectedPath
+      : useMainStream || subPath.trim().isEmpty
+      ? mainPath
+      : subPath;
 
   CameraDevice copyWith({
     String? name,
@@ -33,6 +41,7 @@ class CameraDevice {
     String? subPath,
     bool? useGlobalCredentials,
     List<String>? savedPaths,
+    String? selectedPath,
   }) {
     return CameraDevice(
       id: id,
@@ -44,6 +53,7 @@ class CameraDevice {
       subPath: subPath ?? this.subPath,
       useGlobalCredentials: useGlobalCredentials ?? this.useGlobalCredentials,
       savedPaths: savedPaths ?? this.savedPaths,
+      selectedPath: selectedPath ?? this.selectedPath,
     );
   }
 
@@ -57,6 +67,7 @@ class CameraDevice {
     'subPath': subPath,
     'useGlobalCredentials': useGlobalCredentials,
     'savedPaths': savedPaths,
+    'selectedPath': selectedPath,
   };
 
   factory CameraDevice.fromJson(Map<String, Object?> json) {
@@ -74,6 +85,7 @@ class CameraDevice {
       subPath: json['subPath'] as String? ?? '',
       useGlobalCredentials: json['useGlobalCredentials'] as bool? ?? false,
       savedPaths: savedPaths,
+      selectedPath: json['selectedPath'] as String? ?? '',
     );
   }
 }

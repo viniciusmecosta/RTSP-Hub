@@ -55,31 +55,34 @@ void main() {
     expect(camera.mainPath, '/global');
   });
 
-  test('clona câmera copiando credenciais e configurações e alterando apenas o host', () async {
-    await store.saveCamera(
-      id: '',
-      name: 'Portão 1',
-      host: '192.168.1.10',
-      port: '8554',
-      username: 'admin',
-      password: 'secret',
-      mainPath: '/live/main',
-      subPath: '/live/sub',
-    );
-    final source = store.cameras.single;
-    final success = await store.cloneCamera(source, newHost: '192.168.1.11');
+  test(
+    'clona câmera copiando credenciais e configurações e alterando apenas o host',
+    () async {
+      await store.saveCamera(
+        id: '',
+        name: 'Portão 1',
+        host: '192.168.1.10',
+        port: '8554',
+        username: 'admin',
+        password: 'secret',
+        mainPath: '/live/main',
+        subPath: '/live/sub',
+      );
+      final source = store.cameras.single;
+      final success = await store.cloneCamera(source, newHost: '192.168.1.11');
 
-    expect(success, isTrue);
-    expect(store.cameras, hasLength(2));
-    final clone = store.cameras.last;
-    expect(clone.name, 'Portão 1 (cópia)');
-    expect(clone.host, '192.168.1.11');
-    expect(clone.port, 8554);
-    expect(clone.username, 'admin');
-    expect(clone.mainPath, '/live/main');
-    expect(clone.subPath, '/live/sub');
-    expect(await store.passwordFor(clone), 'secret');
-  });
+      expect(success, isTrue);
+      expect(store.cameras, hasLength(2));
+      final clone = store.cameras.last;
+      expect(clone.name, 'Portão 1 (cópia)');
+      expect(clone.host, '192.168.1.11');
+      expect(clone.port, 8554);
+      expect(clone.username, 'admin');
+      expect(clone.mainPath, '/live/main');
+      expect(clone.subPath, '/live/sub');
+      expect(await store.passwordFor(clone), 'secret');
+    },
+  );
 
   test('exporta e importa perfis com as câmeras usadas', () async {
     await saveCamera();
@@ -401,38 +404,59 @@ void main() {
     expect(restored.tutorialCompleted, isTrue);
   });
 
-  test('persists multiple channels in camera and allows switching active channel', () async {
-    final saved = await store.saveCamera(
-      id: '',
-      name: 'NVR Entrada',
-      host: '192.168.1.100',
-      port: '554',
-      username: 'admin',
-      password: '',
-      mainPath: '/Streaming/Channels/101',
-      subPath: '/Streaming/Channels/102',
-      savedPaths: [
-        '/Streaming/Channels/101',
+  test(
+    'persists multiple channels in camera and allows switching active channel',
+    () async {
+      final saved = await store.saveCamera(
+        id: '',
+        name: 'NVR Entrada',
+        host: '192.168.1.100',
+        port: '554',
+        username: 'admin',
+        password: '',
+        mainPath: '/Streaming/Channels/101',
+        subPath: '/Streaming/Channels/102',
+        savedPaths: [
+          '/Streaming/Channels/101',
+          '/Streaming/Channels/201',
+          '/Streaming/Channels/301',
+        ],
+      );
+
+      expect(saved, isTrue);
+      final camera = store.cameras.single;
+      expect(camera.mainPath, '/Streaming/Channels/101');
+      expect(
+        camera.savedPaths,
+        containsAll([
+          '/Streaming/Channels/101',
+          '/Streaming/Channels/102',
+          '/Streaming/Channels/201',
+          '/Streaming/Channels/301',
+        ]),
+      );
+
+      expect(
+        await store.switchCameraChannel(camera.id, '/Streaming/Channels/201'),
+        isTrue,
+      );
+      final updated = store.cameras.single;
+      expect(updated.mainPath, '/Streaming/Channels/101');
+      expect(updated.subPath, '/Streaming/Channels/102');
+      expect(updated.selectedPath, '/Streaming/Channels/201');
+      expect(
+        updated.playbackPath(useMainStream: false),
         '/Streaming/Channels/201',
-        '/Streaming/Channels/301',
-      ],
-    );
-
-    expect(saved, isTrue);
-    final camera = store.cameras.single;
-    expect(camera.mainPath, '/Streaming/Channels/101');
-    expect(camera.savedPaths, containsAll([
-      '/Streaming/Channels/101',
-      '/Streaming/Channels/102',
-      '/Streaming/Channels/201',
-      '/Streaming/Channels/301',
-    ]));
-
-    await store.switchCameraChannel(camera.id, '/Streaming/Channels/201');
-    final updated = store.cameras.single;
-    expect(updated.mainPath, '/Streaming/Channels/201');
-    expect(updated.savedPaths, contains('/Streaming/Channels/101'));
-  });
+      );
+      expect(
+        updated.playbackPath(useMainStream: true),
+        '/Streaming/Channels/201',
+      );
+      expect(updated.savedPaths, contains('/Streaming/Channels/101'));
+      expect(await store.switchCameraChannel(camera.id, '/unlisted'), isFalse);
+      expect(store.cameras.single.selectedPath, '/Streaming/Channels/201');
+    },
+  );
 
   test('camera model serializes and restores savedPaths', () {
     const original = CameraDevice(
@@ -441,11 +465,13 @@ void main() {
       host: '192.168.1.50',
       mainPath: '/ch1',
       savedPaths: ['/ch1', '/ch2', '/ch3'],
+      selectedPath: '/ch2',
     );
     final json = original.toJson();
     final restored = CameraDevice.fromJson(json);
 
     expect(restored.savedPaths, ['/ch1', '/ch2', '/ch3']);
+    expect(restored.selectedPath, '/ch2');
   });
 }
 

@@ -92,6 +92,7 @@ class AppStore extends ChangeNotifier {
     required String subPath,
     bool useGlobalCredentials = false,
     List<String> savedPaths = const [],
+    String selectedPath = '',
   }) async {
     final normalizedHost = host.trim();
     final parsedPort = port.trim().isEmpty
@@ -167,6 +168,7 @@ class AppStore extends ChangeNotifier {
       mainPath: normalizedMain,
       subPath: normalizedSub,
       savedPaths: allSavedPaths,
+      selectedPath: allSavedPaths.contains(selectedPath) ? selectedPath : '',
     );
     final previousPassword = await _credentials.read(camera.id);
     try {
@@ -246,17 +248,27 @@ class AppStore extends ChangeNotifier {
       subPath: source.subPath,
       useGlobalCredentials: source.useGlobalCredentials,
       savedPaths: source.savedPaths,
+      selectedPath: source.selectedPath,
     );
   }
 
-  Future<void> switchCameraChannel(String cameraId, String newPath) async {
+  Future<bool> switchCameraChannel(String cameraId, String newPath) async {
     final normalized = _normalizePath(newPath);
+    final camera = _config.cameras
+        .where((item) => item.id == cameraId)
+        .firstOrNull;
+    if (camera == null ||
+        CameraFieldValidation.pathError(normalized) != null ||
+        !camera.savedPaths.contains(normalized)) {
+      _message = 'Escolha um canal salvo para esta câmera.';
+      notifyListeners();
+      return false;
+    }
     final cameras = _config.cameras.map((c) {
       if (c.id != cameraId) return c;
-      final saved = <String>{...c.savedPaths, normalized, c.mainPath}.toList();
-      return c.copyWith(mainPath: normalized, savedPaths: saved);
+      return c.copyWith(selectedPath: normalized);
     }).toList();
-    await _commit(_config.copyWith(cameras: cameras));
+    return _commit(_config.copyWith(cameras: cameras));
   }
 
   Future<void> removeCamera(String id) async {
@@ -316,10 +328,7 @@ class AppStore extends ChangeNotifier {
         useGlobalCredentials: true,
         savedPaths: candidate.savedPaths.isNotEmpty
             ? candidate.savedPaths
-            : [
-                path,
-                if (subPath.isNotEmpty) subPath,
-              ],
+            : [path, if (subPath.isNotEmpty) subPath],
       );
       cameras.add(camera);
       final emptySlot = slots.indexOf(null);
@@ -468,10 +477,7 @@ class AppStore extends ChangeNotifier {
       profile,
     ];
     return _commit(
-      _config.copyWith(
-        monitorProfiles: profiles,
-        lastProfileId: profile.id,
-      ),
+      _config.copyWith(monitorProfiles: profiles, lastProfileId: profile.id),
     );
   }
 
@@ -659,6 +665,7 @@ class AppStore extends ChangeNotifier {
         subPath: camera.subPath,
         useGlobalCredentials: true,
         savedPaths: camera.savedPaths,
+        selectedPath: camera.selectedPath,
       );
       cameras.add(created);
       byKey[keyOf(created)] = created.id;
@@ -733,6 +740,13 @@ class AppStore extends ChangeNotifier {
             CameraFieldValidation.pathError(camera.mainPath) != null ||
             CameraFieldValidation.pathError(camera.subPath, optional: true) !=
                 null ||
+            CameraFieldValidation.pathError(
+                  camera.selectedPath,
+                  optional: true,
+                ) !=
+                null ||
+            (camera.selectedPath.isNotEmpty &&
+                !camera.savedPaths.contains(camera.selectedPath)) ||
             !cameraIds.add(camera.id) ||
             !cameraAddresses.add(addressKey)) {
           throw const FormatException();
