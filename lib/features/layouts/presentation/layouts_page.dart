@@ -217,44 +217,49 @@ class LayoutsPage extends StatelessWidget {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Salvar perfil do monitor'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: controller,
-                autofocus: true,
-                maxLength: 60,
-                textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(
-                  labelText: 'Nome do perfil',
-                  hintText: 'Ex.: Portaria · noite',
-                ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: startupSection,
-                decoration: const InputDecoration(
-                  labelText: 'Tela ao iniciar o aplicativo',
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'auto', child: Text('Automático')),
-                  DropdownMenuItem(
-                    value: 'last',
-                    child: Text('Última tela usada'),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    maxLength: 60,
+                    textInputAction: TextInputAction.done,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome do perfil',
+                      hintText: 'Ex.: Portaria · noite',
+                    ),
                   ),
-                  DropdownMenuItem(value: 'dashboard', child: Text('Início')),
-                  DropdownMenuItem(value: 'monitor', child: Text('Monitor')),
-                  DropdownMenuItem(value: 'cameras', child: Text('Câmeras')),
-                  DropdownMenuItem(value: 'layouts', child: Text('Layouts')),
-                  DropdownMenuItem(value: 'settings', child: Text('Ajustes')),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: startupSection,
+                    decoration: const InputDecoration(
+                      labelText: 'Tela ao iniciar o aplicativo',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'auto', child: Text('Automático')),
+                      DropdownMenuItem(
+                        value: 'last',
+                        child: Text('Última tela usada'),
+                      ),
+                      DropdownMenuItem(value: 'dashboard', child: Text('Início')),
+                      DropdownMenuItem(value: 'monitor', child: Text('Monitor')),
+                      DropdownMenuItem(value: 'cameras', child: Text('Câmeras')),
+                      DropdownMenuItem(value: 'layouts', child: Text('Layouts')),
+                      DropdownMenuItem(value: 'settings', child: Text('Ajustes')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => startupSection = value);
+                      }
+                    },
+                  ),
                 ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setDialogState(() => startupSection = value);
-                  }
-                },
               ),
-            ],
+            ),
           ),
           actions: [
             TextButton(

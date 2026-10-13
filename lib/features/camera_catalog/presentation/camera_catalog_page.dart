@@ -74,7 +74,7 @@ class CameraCatalogPage extends StatelessWidget {
                   crossAxisCount: columns,
                   crossAxisSpacing: 14,
                   mainAxisSpacing: 14,
-                  mainAxisExtent: 158,
+                  mainAxisExtent: 136,
                 ),
               );
             },
@@ -612,11 +612,14 @@ class _CameraEditorState extends State<_CameraEditor>
       backgroundColor: Theme.of(context).colorScheme.surface,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: compact ? 12 : 20,
+        vertical: compact ? 16 : 24,
+      ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560, maxHeight: 760),
         child: Padding(
-          padding: EdgeInsets.all(compact ? 20 : 28),
+          padding: EdgeInsets.all(compact ? 16 : 28),
           child: Form(
             key: _formKey,
             child: Column(
@@ -1093,8 +1096,11 @@ class _FoundChannelsDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Canais encontrados'),
-      content: SizedBox(
-        width: 480,
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 480,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+        ),
         child: ListView(
           shrinkWrap: true,
           children: [

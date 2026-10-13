@@ -32,7 +32,7 @@ class DashboardPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            padding: const EdgeInsets.all(28),
+            padding: EdgeInsets.all(width < 500 ? 18 : 28),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
               gradient: const LinearGradient(
@@ -124,11 +124,17 @@ class DashboardPage extends StatelessWidget {
                 subtitle: const Text(
                   'Clique para carregar o último perfil salvo e ir direto para o monitor.',
                 ),
-                trailing: FilledButton.tonalIcon(
-                  onPressed: () => onOpenProfile!(lastProfile.id),
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Abrir'),
-                ),
+                trailing: width < 450
+                    ? IconButton.filledTonal(
+                        onPressed: () => onOpenProfile!(lastProfile.id),
+                        icon: const Icon(Icons.play_arrow),
+                        tooltip: 'Abrir monitor',
+                      )
+                    : FilledButton.tonalIcon(
+                        onPressed: () => onOpenProfile!(lastProfile.id),
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Abrir'),
+                      ),
                 onTap: () => onOpenProfile!(lastProfile.id),
               ),
             ),
@@ -140,7 +146,7 @@ class DashboardPage extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             crossAxisSpacing: 14,
             mainAxisSpacing: 14,
-            childAspectRatio: columns == 1 ? 2.9 : 2.1,
+            childAspectRatio: columns == 1 ? (width < 380 ? 3.2 : 2.8) : 2.1,
             children: [
               _OverviewCard(
                 icon: Icons.videocam_outlined,
@@ -218,6 +224,8 @@ class _OverviewCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),

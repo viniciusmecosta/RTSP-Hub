@@ -26,7 +26,11 @@ class PageFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final padding = width < 600 ? 20.0 : 32.0;
+    final padding = width < 380
+        ? 12.0
+        : width < 600
+        ? 16.0
+        : 32.0;
     final contentSlivers = slivers;
     if (contentSlivers != null) {
       final side = (width - 1400) / 2 > padding ? (width - 1400) / 2 : padding;
@@ -106,14 +110,19 @@ class _PageHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: Theme.of(
-            context,
-          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+          style: width < 400
+              ? Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  )
+              : Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
         ),
         const SizedBox(height: 8),
         Text(

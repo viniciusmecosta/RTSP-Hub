@@ -380,10 +380,13 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                                         );
                                       }
                                     }
+                                    final estimatedHeight = rows * ((constraints.maxWidth / columns) / (16 / 10));
+                                    final shouldScroll = constraints.maxWidth < 600 && estimatedHeight > constraints.maxHeight;
                                     return GridView.builder(
                                       padding: const EdgeInsets.all(3),
-                                      physics:
-                                          const NeverScrollableScrollPhysics(),
+                                      physics: shouldScroll
+                                          ? const ClampingScrollPhysics()
+                                          : const NeverScrollableScrollPhysics(),
                                       itemCount: visibleCount,
                                       gridDelegate:
                                           SliverGridDelegateWithFixedCrossAxisCount(
@@ -745,6 +748,8 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
             Expanded(
               child: Text(
                 'MONITOR  ·  ${store.cameras.length} CÂMERAS',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
