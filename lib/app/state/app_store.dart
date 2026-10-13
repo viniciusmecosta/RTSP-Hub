@@ -131,6 +131,10 @@ class AppStore extends ChangeNotifier {
       return false;
     }
     final isNewCamera = id.isEmpty;
+    // Câmera nova sem usuário e senha herda as credenciais globais.
+    if (isNewCamera && username.trim().isEmpty && password.isEmpty) {
+      useGlobalCredentials = true;
+    }
     final camera = CameraDevice(
       id: isNewCamera ? const Uuid().v4() : id,
       name: name.trim().isEmpty ? normalizedHost : name.trim(),

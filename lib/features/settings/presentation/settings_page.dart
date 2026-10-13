@@ -10,6 +10,7 @@ import '../../../app/state/app_store.dart';
 import '../../../shared/design_system/page_frame.dart';
 import '../../../shared/platform/windows_startup_service.dart';
 import '../../../shared/platform/linux_startup_service.dart';
+import '../../camera_catalog/domain/camera_field_validation.dart';
 import '../domain/performance_preset.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -226,6 +227,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 16),
+          const _GlobalConnectionCard(),
+          const SizedBox(height: 16),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -394,5 +397,168 @@ class _SettingsPageState extends State<SettingsPage> {
         );
       }
     }
+  }
+}
+
+class _GlobalConnectionCard extends StatefulWidget {
+  const _GlobalConnectionCard();
+
+  @override
+  State<_GlobalConnectionCard> createState() => _GlobalConnectionCardState();
+}
+
+class _GlobalConnectionCardState extends State<_GlobalConnectionCard> {
+  final _formKey = GlobalKey<FormState>();
+  final _username = TextEditingController();
+  final _password = TextEditingController();
+  final _port = TextEditingController();
+  final _channel = TextEditingController();
+  bool _loaded = false;
+  bool _saving = false;
+  bool _obscure = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loaded) return;
+    _loaded = true;
+    final store = AppScope.of(context);
+    _username.text = store.config.defaultUser;
+    _port.text = '${store.config.defaultPort}';
+    _channel.text = store.config.defaultPath;
+    unawaited(
+      store.networkDiscoveryPassword().then((password) {
+        if (mounted && password != null) _password.text = password;
+      }),
+    );
+  }
+
+  @override
+  void dispose() {
+    for (final controller in [_username, _password, _port, _channel]) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    final store = AppScope.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _saving = true);
+    final path = _channel.text.trim();
+    await store.updateSettings(
+      defaultPort: int.parse(_port.text.trim()),
+      defaultPath: path.startsWith('/') ? path : '/$path',
+    );
+    final saved = await store.saveNetworkDiscoveryCredentials(
+      username: _username.text.trim(),
+      password: _password.text,
+    );
+    if (!mounted) return;
+    setState(() => _saving = false);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          saved
+              ? 'Conexão padrão salva. Novas câmeras sem esses dados usarão estes valores.'
+              : store.message ?? 'Não foi possível salvar a conexão padrão.',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fields = <Widget>[
+      TextFormField(
+        controller: _username,
+        decoration: const InputDecoration(labelText: 'Usuário padrão'),
+        validator: (value) =>
+            (value?.length ?? 0) > 128 ? 'Use até 128 caracteres.' : null,
+      ),
+      TextFormField(
+        controller: _password,
+        obscureText: _obscure,
+        autocorrect: false,
+        enableSuggestions: false,
+        decoration: InputDecoration(
+          labelText: 'Senha padrão',
+          suffixIcon: IconButton(
+            tooltip: _obscure ? 'Mostrar senha' : 'Ocultar senha',
+            onPressed: () => setState(() => _obscure = !_obscure),
+            icon: Icon(
+              _obscure
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
+            ),
+          ),
+        ),
+        validator: (value) =>
+            (value?.length ?? 0) > 1024 ? 'Use até 1024 caracteres.' : null,
+      ),
+      TextFormField(
+        controller: _port,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(labelText: 'Porta padrão'),
+        validator: (value) => (value ?? '').trim().isEmpty
+            ? 'Informe a porta.'
+            : CameraFieldValidation.portError(value ?? ''),
+      ),
+      TextFormField(
+        controller: _channel,
+        decoration: const InputDecoration(
+          labelText: 'Canal padrão',
+          hintText: '/Streaming/Channels/101',
+        ),
+        validator: (value) => CameraFieldValidation.pathError(value ?? ''),
+      ),
+    ];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Conexão padrão',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Usada quando uma câmera é cadastrada sem senha, porta ou canal. A senha fica no cofre seguro do dispositivo.',
+              ),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth >= 640 ? 2 : 1;
+                  final width =
+                      (constraints.maxWidth - (columns - 1) * 12) / columns;
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final field in fields)
+                        SizedBox(width: width, child: field),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Salvar conexão padrão'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
