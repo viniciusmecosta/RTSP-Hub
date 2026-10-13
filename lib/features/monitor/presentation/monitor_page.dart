@@ -12,6 +12,7 @@ import '../../../features/camera_catalog/presentation/clone_camera_dialog.dart';
 import '../../../features/layouts/domain/layout_preset.dart';
 import '../../../features/layouts/domain/layout_geometry.dart';
 import '../application/rtsp_session.dart';
+import 'camera_loading_view.dart';
 
 class MonitorPage extends StatefulWidget {
   const MonitorPage({
@@ -959,12 +960,7 @@ class _CameraTile extends StatelessWidget {
                 ),
               )
             else
-              const Center(
-                child: Text(
-                  'Preparando câmera…',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-              ),
+              const SizedBox.shrink(),
             if (camera == null)
               const Center(
                 child: Text(
@@ -973,38 +969,14 @@ class _CameraTile extends StatelessWidget {
                 ),
               ),
             if (camera != null &&
-                session != null &&
-                session!.videoController == null)
-              Center(
-                child: ValueListenableBuilder<CameraPlaybackStatus>(
-                  valueListenable: session!.status,
-                  builder: (context, status, _) => Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (status == CameraPlaybackStatus.connecting ||
-                          status == CameraPlaybackStatus.reconnecting)
-                        const SizedBox.square(
-                          dimension: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white70,
-                          ),
-                        )
-                      else
-                        IconButton(
-                          onPressed: onRetry,
-                          icon: const Icon(Icons.refresh, color: Colors.white),
-                        ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _status(status),
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
+                !waitingForResources &&
+                session?.firstFrameRendered.value != true)
+              Positioned.fill(
+                child: CameraLoadingView(
+                  status: session?.status.value ?? CameraPlaybackStatus.idle,
+                  error: session?.error.value,
+                  retryDelay: session?.nextRetryDelay,
+                  onRetry: onRetry,
                 ),
               ),
             if (camera != null)
@@ -1137,15 +1109,6 @@ class _CameraTile extends StatelessWidget {
       ),
     );
   }
-
-  String _status(CameraPlaybackStatus status) => switch (status) {
-    CameraPlaybackStatus.idle => 'Aguardando',
-    CameraPlaybackStatus.connecting => 'Conectando…',
-    CameraPlaybackStatus.playing => 'Ao vivo',
-    CameraPlaybackStatus.reconnecting => 'Reconectando…',
-    CameraPlaybackStatus.error => 'Falha na conexão',
-    CameraPlaybackStatus.paused => 'Pausada',
-  };
 }
 
 class _MonitorEmpty extends StatelessWidget {
