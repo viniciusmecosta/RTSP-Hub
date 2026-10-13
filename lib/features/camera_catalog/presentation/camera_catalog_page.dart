@@ -175,7 +175,7 @@ class _CameraCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${camera.host}:${camera.port ?? 554}',
+                    '${camera.host}:${camera.effectivePort(AppScope.of(context).config.defaultPort)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -259,9 +259,7 @@ class _CameraEditorState extends State<_CameraEditor>
           ? widget.globalPassword ?? ''
           : widget.password ?? '',
     );
-    _mainPath = TextEditingController(
-      text: camera?.mainPath ?? widget.store.config.defaultPath,
-    );
+    _mainPath = TextEditingController(text: camera?.mainPath ?? '');
     _subPath = TextEditingController(text: camera?.subPath ?? '');
   }
 
@@ -383,9 +381,10 @@ class _CameraEditorState extends State<_CameraEditor>
             Expanded(
               child: TextFormField(
                 controller: _port,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Porta',
-                  hintText: '554',
+                  hintText: '${widget.store.config.defaultPort}',
+                  helperText: 'Vazio usa a porta padrão',
                 ),
                 keyboardType: TextInputType.number,
                 buildCounter:
@@ -452,11 +451,14 @@ class _CameraEditorState extends State<_CameraEditor>
         const SizedBox(height: 12),
         TextFormField(
           controller: _mainPath,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Caminho RTSP principal',
-            hintText: '/Streaming/Channels/101',
+            hintText: widget.store.config.defaultPath,
+            helperText: 'Vazio usa o canal padrão',
           ),
-          validator: (value) => CameraFieldValidation.pathError(value ?? ''),
+          validator: (value) => (value ?? '').trim().isEmpty
+              ? null
+              : CameraFieldValidation.pathError(value ?? ''),
         ),
         const SizedBox(height: 12),
         TextFormField(

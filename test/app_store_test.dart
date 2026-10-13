@@ -34,6 +34,27 @@ void main() {
     subPath: '',
   );
 
+  test('nova câmera sem dados herda conexão global', () async {
+    await store.updateSettings(defaultPort: 8554, defaultPath: '/global');
+    final saved = await store.saveCamera(
+      id: '',
+      name: '',
+      host: '192.168.1.30',
+      port: '',
+      username: '',
+      password: '',
+      mainPath: '',
+      subPath: '',
+    );
+
+    expect(saved, isTrue);
+    final camera = store.cameras.single;
+    expect(camera.useGlobalCredentials, isTrue);
+    expect(camera.port, isNull);
+    expect(camera.effectivePort(store.config.defaultPort), 8554);
+    expect(camera.mainPath, '/global');
+  });
+
   test('rejects host values that contain URLs or invalid DNS labels', () async {
     final url = await saveCamera(host: 'rtsp://192.168.1.10');
     final invalidDns = await saveCamera(host: 'camera..local');
