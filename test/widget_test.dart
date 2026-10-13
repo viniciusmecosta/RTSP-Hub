@@ -155,7 +155,9 @@ void main() {
       await tester.pumpWidget(_app(configuration: config));
       await tester.pumpAndSettle();
 
-      final quickStart = find.textContaining('Acesso rápido · Entrada e Garagem').first;
+      final quickStart = find
+          .textContaining('Acesso rápido · Entrada e Garagem')
+          .first;
       expect(quickStart, findsOneWidget);
       await tester.tap(quickStart);
       await tester.pumpAndSettle();
@@ -163,6 +165,35 @@ void main() {
       expect(find.text('MONITOR  ·  0 CÂMERAS'), findsOneWidget);
     },
   );
+
+  testWidgets('acesso rápido com nome longo cabe em celular estreito', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const profile = SavedMonitorProfile(
+      id: 'p1',
+      name: 'Monitor da portaria principal e acesso lateral da garagem à noite',
+      layoutId: 'GRID_4',
+      slotCameraIds: [null, null, null, null],
+    );
+    await tester.pumpWidget(
+      _app(
+        configuration: const AppConfiguration(
+          startupSection: 'dashboard',
+          tutorialCompleted: true,
+          monitorProfiles: [profile],
+          lastProfileId: 'p1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Acesso rápido'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 MyApp _app({AppConfiguration? configuration}) => MyApp(

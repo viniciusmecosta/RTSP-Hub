@@ -73,13 +73,30 @@ class DashboardPage extends StatelessWidget {
                           ),
                         ),
                         if (lastProfile != null && onOpenProfile != null)
-                          FilledButton.icon(
-                            onPressed: () => onOpenProfile!(lastProfile.id),
-                            icon: const Icon(Icons.flash_on),
-                            label: Text('Acesso rápido · ${lastProfile.name}'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF10B981),
-                              foregroundColor: Colors.white,
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: constraints.maxWidth,
+                            ),
+                            child: FilledButton(
+                              onPressed: () => onOpenProfile!(lastProfile.id),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFFBFDBFE),
+                                foregroundColor: const Color(0xFF102B5C),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.flash_on, size: 18),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      'Acesso rápido · ${lastProfile.name}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         if (store.cameras.isNotEmpty)
