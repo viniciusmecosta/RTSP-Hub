@@ -18,7 +18,8 @@ class NetworkCameraDiscovery extends StatefulWidget {
   State<NetworkCameraDiscovery> createState() => _NetworkCameraDiscoveryState();
 }
 
-class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
+class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
+    with WidgetsBindingObserver {
   final _scanner = LocalNetworkScanner();
   final _onvif = OnvifDiscoveryService();
   final _range = TextEditingController();
@@ -46,7 +47,17 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_loadInterfaces());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      if (_busy) _cancelSearch();
+    }
   }
 
   @override
@@ -59,6 +70,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _cancel = true;
     unawaited(_probe?.disposeSession());
     _range.dispose();
@@ -148,11 +160,15 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
     }
     try {
       await _discoverOnvif();
+      final scanHosts = hosts
+          .where((host) => !_portsByHost.containsKey(host))
+          .toList(growable: false);
+      if (mounted) setState(() => _total = scanHosts.length * ports.length);
       var scannedHosts = 0;
       for (final candidatePort in ports) {
         if (_cancel) break;
         await for (final progress in _scanner.scan(
-          hosts,
+          scanHosts,
           candidatePort,
           isCancelled: () => _cancel,
         )) {
@@ -168,7 +184,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
               ..addAll(_portsByHost.keys);
           });
         }
-        scannedHosts += hosts.length;
+        scannedHosts += scanHosts.length;
       }
       if (!_cancel && mounted && _hosts.isNotEmpty) {
         await _inspectHosts(lastChannel: lastChannel);
@@ -423,32 +439,30 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery> {
 
   Future<void> _saveSelected() async {
     final store = AppScope.of(context);
-    final chosen = _channels.where(
-      (channel) => _selected.contains(channel.key),
-    );
+    final chosen = _channels
+        .where((channel) => _selected.contains(channel.key))
+        .toList(growable: false);
     if (chosen.isEmpty) {
       _message('Selecione ao menos um canal para cadastrar.');
       return;
     }
     setState(() => _busy = true);
-    var saved = 0;
-    for (final channel in chosen) {
-      final ok = await store.saveCamera(
-        id: '',
-        name: '${channel.host} · Canal ${channel.number}',
-        host: channel.host,
-        port: channel.port.toString(),
-        username: channel.username,
-        password: channel.password,
-        mainPath: channel.mainPath,
-        subPath: channel.subPath ?? '',
-        useGlobalCredentials: true,
-      );
-      if (ok) saved++;
-    }
+    final saved = await store.addDiscoveredCameras([
+      for (final channel in chosen)
+        CameraDevice(
+          id: '',
+          name: '${channel.host} · Canal ${channel.number}',
+          host: channel.host,
+          port: channel.port,
+          username: channel.username,
+          mainPath: channel.mainPath,
+          subPath: channel.subPath ?? '',
+          useGlobalCredentials: true,
+        ),
+    ]);
     if (!mounted) return;
     setState(() => _busy = false);
-    _message('$saved de ${_selected.length} canais adicionados às câmeras.');
+    _message('$saved de ${chosen.length} canais adicionados às câmeras.');
   }
 
   void _cancelSearch() {

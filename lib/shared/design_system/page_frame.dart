@@ -7,17 +7,46 @@ class PageFrame extends StatelessWidget {
     required this.child,
     this.actions = const [],
     super.key,
-  });
+  }) : slivers = null;
+
+  const PageFrame.slivers({
+    required this.title,
+    required this.subtitle,
+    required this.slivers,
+    this.actions = const [],
+    super.key,
+  }) : child = null;
 
   final String title;
   final String subtitle;
-  final Widget child;
+  final Widget? child;
+  final List<Widget>? slivers;
   final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final padding = width < 600 ? 20.0 : 32.0;
+    final contentSlivers = slivers;
+    if (contentSlivers != null) {
+      final side = (width - 1400) / 2 > padding ? (width - 1400) / 2 : padding;
+      return SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(side, 24, side, 28),
+              sliver: SliverToBoxAdapter(child: _heading(context)),
+            ),
+            for (final sliver in contentSlivers)
+              SliverPadding(
+                padding: EdgeInsets.symmetric(horizontal: side),
+                sliver: sliver,
+              ),
+            const SliverToBoxAdapter(child: SizedBox(height: 28)),
+          ],
+        ),
+      );
+    }
     return SafeArea(
       child: CustomScrollView(
         slivers: [
@@ -30,37 +59,9 @@ class PageFrame extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (MediaQuery.sizeOf(context).width < 600) ...[
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _PageHeading(title: title, subtitle: subtitle),
-                            if (actions.isNotEmpty) ...[
-                              const SizedBox(height: 16),
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 8,
-                                children: actions,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ] else ...[
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: _PageHeading(
-                                title: title,
-                                subtitle: subtitle,
-                              ),
-                            ),
-                            ...actions,
-                          ],
-                        ),
-                      ],
+                      _heading(context),
                       const SizedBox(height: 28),
-                      child,
+                      child!,
                     ],
                   ),
                 ),
@@ -69,6 +70,30 @@ class PageFrame extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _heading(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width < 600) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PageHeading(title: title, subtitle: subtitle),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Wrap(spacing: 10, runSpacing: 8, children: actions),
+          ],
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _PageHeading(title: title, subtitle: subtitle),
+        ),
+        ...actions,
+      ],
     );
   }
 }

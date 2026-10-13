@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rtsp_view/features/camera_catalog/domain/camera_device.dart';
 import 'package:rtsp_view/app/data/app_configuration.dart';
 import 'package:rtsp_view/app/state/app_store.dart';
 import 'package:rtsp_view/shared/infrastructure/secure_store/credential_store.dart';
@@ -94,6 +95,45 @@ void main() {
       isNot(contains('shared-secret')),
     );
     expect(await store.networkDiscoveryPassword(), 'shared-secret');
+  });
+
+  test('adds discovered channels with one configuration write', () async {
+    final added = await store.addDiscoveredCameras([
+      const CameraDevice(
+        id: '',
+        name: 'Canal 1',
+        host: '192.168.1.5',
+        port: 554,
+        mainPath: '/Streaming/Channels/101',
+      ),
+      const CameraDevice(
+        id: '',
+        name: 'Canal 2',
+        host: '192.168.1.5',
+        port: 554,
+        mainPath: '/Streaming/Channels/201',
+      ),
+      const CameraDevice(
+        id: '',
+        name: 'Duplicada',
+        host: '192.168.1.5',
+        port: 554,
+        mainPath: '/Streaming/Channels/101',
+      ),
+    ]);
+
+    expect(added, 2);
+    expect(repository.saved, hasLength(1));
+    expect(store.cameras, hasLength(2));
+    expect(
+      store.cameras.every((camera) => camera.useGlobalCredentials),
+      isTrue,
+    );
+    expect(
+      store.config.slotCameraIds.take(2),
+      store.cameras.map((camera) => camera.id),
+    );
+    expect(credentials.values, isEmpty);
   });
 
   test(

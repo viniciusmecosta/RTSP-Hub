@@ -20,6 +20,9 @@ class AppStore extends ChangeNotifier {
   final ConfigRepository _repository;
   final CredentialStore _credentials;
   final Map<String, String> _passwords = {};
+  final ValueNotifier<ThemeMode> themeModeListenable = ValueNotifier(
+    ThemeMode.system,
+  );
   Future<void> _settingsQueue = Future.value();
   AppConfiguration _config = const AppConfiguration();
   bool _loading = true;
@@ -41,6 +44,7 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
     try {
       _config = await _repository.load();
+      themeModeListenable.value = themeMode;
       final validIds = _config.cameras.map((camera) => camera.id).toSet();
       final slots = _config.slotCameraIds
           .map((id) => id != null && validIds.contains(id) ? id : null)
@@ -216,6 +220,53 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<int> addDiscoveredCameras(List<CameraDevice> discovered) async {
+    final cameras = [..._config.cameras];
+    final slots = [..._config.slotCameraIds];
+    final known = cameras
+        .map(
+          (camera) =>
+              '${camera.host.toLowerCase()}:${camera.effectivePort(_config.defaultPort)}:${camera.mainPath}',
+        )
+        .toSet();
+    var added = 0;
+    for (final candidate in discovered) {
+      final host = candidate.host.trim();
+      final path = _normalizePath(candidate.mainPath);
+      final subPath = _normalizePath(candidate.subPath);
+      final port = candidate.effectivePort(_config.defaultPort);
+      if (CameraFieldValidation.hostError(host) != null ||
+          CameraFieldValidation.portError('$port') != null ||
+          CameraFieldValidation.pathError(path) != null ||
+          CameraFieldValidation.pathError(subPath, optional: true) != null ||
+          candidate.name.trim().length > 80 ||
+          candidate.username.trim().length > 128) {
+        continue;
+      }
+      final key = '${host.toLowerCase()}:$port:$path';
+      if (!known.add(key)) continue;
+      final camera = CameraDevice(
+        id: const Uuid().v4(),
+        name: candidate.name.trim().isEmpty ? host : candidate.name.trim(),
+        host: host,
+        port: candidate.port,
+        username: candidate.username.trim(),
+        mainPath: path,
+        subPath: subPath,
+        useGlobalCredentials: true,
+      );
+      cameras.add(camera);
+      final emptySlot = slots.indexOf(null);
+      if (emptySlot >= 0) slots[emptySlot] = camera.id;
+      added++;
+    }
+    if (added == 0) return 0;
+    final saved = await _commit(
+      _config.copyWith(cameras: cameras, slotCameraIds: slots),
+    );
+    return saved ? added : 0;
+  }
+
   Future<String?> passwordFor(CameraDevice camera) async {
     if (camera.useGlobalCredentials) return networkDiscoveryPassword();
     final memory = _passwords[camera.id];
@@ -386,6 +437,7 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
+    if (mode == themeMode) return;
     await _commit(
       _config.copyWith(
         themeMode: switch (mode) {
@@ -409,9 +461,26 @@ class AppStore extends ChangeNotifier {
     String? lastSection,
     int? lastMonitorPage,
   }) async {
-    final operation = _settingsQueue.then(
-      (_) => _commit(
-        _config.copyWith(
+    final operation = _settingsQueue.then((_) {
+      final current = _config;
+      if ((defaultPort == null || defaultPort == current.defaultPort) &&
+          (defaultUser == null || defaultUser == current.defaultUser) &&
+          (defaultPath == null || defaultPath == current.defaultPath) &&
+          (bufferMs == null || bufferMs == current.bufferMs) &&
+          (resourceMode == null || resourceMode == current.resourceMode) &&
+          (autoFullscreen == null ||
+              autoFullscreen == current.autoFullscreen) &&
+          (startupSection == null ||
+              startupSection == current.startupSection) &&
+          (tutorialCompleted == null ||
+              tutorialCompleted == current.tutorialCompleted) &&
+          (lastSection == null || lastSection == current.lastSection) &&
+          (lastMonitorPage == null ||
+              lastMonitorPage == current.lastMonitorPage)) {
+        return Future<bool>.value(true);
+      }
+      return _commit(
+        current.copyWith(
           defaultPort: defaultPort,
           defaultUser: defaultUser,
           defaultPath: defaultPath,
@@ -423,8 +492,8 @@ class AppStore extends ChangeNotifier {
           lastSection: lastSection,
           lastMonitorPage: lastMonitorPage,
         ),
-      ),
-    );
+      );
+    });
     _settingsQueue = operation.then<void>((_) {});
     await operation;
   }
@@ -534,6 +603,7 @@ class AppStore extends ChangeNotifier {
     try {
       await _repository.save(config);
       _config = config;
+      themeModeListenable.value = themeMode;
       _message = null;
       notifyListeners();
       return true;
@@ -556,6 +626,12 @@ class AppStore extends ChangeNotifier {
       if (left[index] != right[index]) return false;
     }
     return true;
+  }
+
+  @override
+  void dispose() {
+    themeModeListenable.dispose();
+    super.dispose();
   }
 }
 

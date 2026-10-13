@@ -1,6 +1,22 @@
 import 'dart:async';
 
 class RtspFailureMessage {
+  static bool canRetry(Object failure) {
+    final text = failure.toString().toLowerCase();
+    return failure is! FormatException &&
+        !text.contains('401') &&
+        !text.contains('403') &&
+        !text.contains('404') &&
+        !text.contains('unauthorized') &&
+        !text.contains('authentication') &&
+        !text.contains('auth failed') &&
+        !text.contains('access denied') &&
+        !text.contains('not found') &&
+        !text.contains('invalid character') &&
+        !text.contains('invalid uri') &&
+        !text.contains('unsupported codec');
+  }
+
   static String describe(Object failure) {
     final text = failure.toString().toLowerCase();
     if (failure is TimeoutException ||

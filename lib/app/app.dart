@@ -27,6 +27,8 @@ class RtspViewApp extends StatefulWidget {
 
 class _RtspViewAppState extends State<RtspViewApp> {
   late final AppStore _store;
+  late final ThemeData _lightTheme = AppTheme.light;
+  late final ThemeData _darkTheme = AppTheme.dark;
 
   @override
   void initState() {
@@ -44,16 +46,16 @@ class _RtspViewAppState extends State<RtspViewApp> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _store,
-      builder: (context, child) => AppScope(
-        store: _store,
-        child: MaterialApp(
+    return AppScope(
+      store: _store,
+      child: ValueListenableBuilder<ThemeMode>(
+        valueListenable: _store.themeModeListenable,
+        builder: (context, themeMode, _) => MaterialApp(
           title: 'RTSP View',
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.light,
-          darkTheme: AppTheme.dark,
-          themeMode: _store.themeMode,
+          theme: _lightTheme,
+          darkTheme: _darkTheme,
+          themeMode: themeMode,
           home: AppShell(
             forceConfiguration: widget.forceConfiguration,
             desktopWindowManager: widget.desktopWindowManager,
