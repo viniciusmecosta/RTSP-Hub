@@ -400,6 +400,53 @@ void main() {
     expect(const AppConfiguration().tutorialCompleted, isFalse);
     expect(restored.tutorialCompleted, isTrue);
   });
+
+  test('persists multiple channels in camera and allows switching active channel', () async {
+    final saved = await store.saveCamera(
+      id: '',
+      name: 'NVR Entrada',
+      host: '192.168.1.100',
+      port: '554',
+      username: 'admin',
+      password: '',
+      mainPath: '/Streaming/Channels/101',
+      subPath: '/Streaming/Channels/102',
+      savedPaths: [
+        '/Streaming/Channels/101',
+        '/Streaming/Channels/201',
+        '/Streaming/Channels/301',
+      ],
+    );
+
+    expect(saved, isTrue);
+    final camera = store.cameras.single;
+    expect(camera.mainPath, '/Streaming/Channels/101');
+    expect(camera.savedPaths, containsAll([
+      '/Streaming/Channels/101',
+      '/Streaming/Channels/102',
+      '/Streaming/Channels/201',
+      '/Streaming/Channels/301',
+    ]));
+
+    await store.switchCameraChannel(camera.id, '/Streaming/Channels/201');
+    final updated = store.cameras.single;
+    expect(updated.mainPath, '/Streaming/Channels/201');
+    expect(updated.savedPaths, contains('/Streaming/Channels/101'));
+  });
+
+  test('camera model serializes and restores savedPaths', () {
+    const original = CameraDevice(
+      id: 'cam1',
+      name: 'Entrada',
+      host: '192.168.1.50',
+      mainPath: '/ch1',
+      savedPaths: ['/ch1', '/ch2', '/ch3'],
+    );
+    final json = original.toJson();
+    final restored = CameraDevice.fromJson(json);
+
+    expect(restored.savedPaths, ['/ch1', '/ch2', '/ch3']);
+  });
 }
 
 class _MemoryRepository extends ConfigRepository {

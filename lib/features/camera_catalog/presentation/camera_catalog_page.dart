@@ -255,6 +255,7 @@ class _CameraEditorState extends State<_CameraEditor>
   late final TextEditingController _password;
   late final TextEditingController _mainPath;
   late final TextEditingController _subPath;
+  late List<String> _savedPaths;
   bool _obscure = true;
   late bool _useGlobalCredentials;
   bool _busy = false;
@@ -288,6 +289,19 @@ class _CameraEditorState extends State<_CameraEditor>
     );
     _mainPath = TextEditingController(text: camera?.mainPath ?? '');
     _subPath = TextEditingController(text: camera?.subPath ?? '');
+    final initialPaths = <String>[
+      if (camera != null && camera.mainPath.trim().isNotEmpty)
+        camera.mainPath.trim(),
+      if (camera != null && camera.subPath.trim().isNotEmpty)
+        camera.subPath.trim(),
+      ...?camera?.savedPaths.map((p) => p.trim()).where((p) => p.isNotEmpty),
+    ];
+    _savedPaths = initialPaths.toSet().toList();
+    _mainPath.addListener(_onMainPathChanged);
+  }
+
+  void _onMainPathChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -307,6 +321,7 @@ class _CameraEditorState extends State<_CameraEditor>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _cancelFinding = true;
+    _mainPath.removeListener(_onMainPathChanged);
     final probe = _probe;
     if (probe != null) {
       probe.removeListener(_refreshProbe);
@@ -479,14 +494,109 @@ class _CameraEditorState extends State<_CameraEditor>
         TextFormField(
           controller: _mainPath,
           decoration: InputDecoration(
-            labelText: 'Caminho RTSP principal',
+            labelText: 'Canais',
             hintText: widget.store.config.defaultPath,
-            helperText: 'Vazio usa o canal padrão',
+            helperText: _savedPaths.isEmpty
+                ? 'Vazio usa o canal padrão'
+                : 'Selecione na lista suspensa/opções ou informe o canal',
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_mainPath.text.trim().isNotEmpty &&
+                    !_savedPaths.contains(_mainPath.text.trim()))
+                  IconButton(
+                    icon: const Icon(Icons.bookmark_add_outlined),
+                    tooltip: 'Salvar canal na lista',
+                    onPressed: () {
+                      final error = CameraFieldValidation.pathError(
+                        _mainPath.text.trim(),
+                      );
+                      if (error == null) {
+                        setState(() {
+                          _savedPaths.add(_mainPath.text.trim());
+                        });
+                      }
+                    },
+                  ),
+                if (_savedPaths.isNotEmpty)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.arrow_drop_down),
+                    tooltip: 'Canais salvos',
+                    onSelected: (path) {
+                      setState(() {
+                        _mainPath.text = path;
+                      });
+                    },
+                    itemBuilder: (context) => _savedPaths
+                        .map(
+                          (path) => PopupMenuItem<String>(
+                            value: path,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  path == _mainPath.text.trim()
+                                      ? Icons.check_circle
+                                      : Icons.radio_button_unchecked,
+                                  size: 16,
+                                  color: path == _mainPath.text.trim()
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Colors.grey,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    path,
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+              ],
+            ),
           ),
           validator: (value) => (value ?? '').trim().isEmpty
               ? null
               : CameraFieldValidation.pathError(value ?? ''),
         ),
+        if (_savedPaths.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                ..._savedPaths.map((path) {
+                  final isSelected = path == _mainPath.text.trim();
+                  return InputChip(
+                    selected: isSelected,
+                    label: Text(
+                      path,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    onSelected: (_) {
+                      setState(() {
+                        _mainPath.text = path;
+                      });
+                    },
+                    onDeleted: _savedPaths.length > 1
+                        ? () {
+                            setState(() {
+                              _savedPaths.remove(path);
+                            });
+                          }
+                        : null,
+                    deleteButtonTooltipMessage: 'Remover canal salvo',
+                  );
+                }),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         TextFormField(
           controller: _subPath,
@@ -741,6 +851,14 @@ class _CameraEditorState extends State<_CameraEditor>
     setState(() {
       _mainPath.text = useSubOnly ? channel.subPath! : channel.mainPath;
       _subPath.text = useSubOnly ? '' : channel.subPath ?? '';
+      for (final ch in found) {
+        if (!_savedPaths.contains(ch.mainPath)) _savedPaths.add(ch.mainPath);
+        if (ch.subPath != null &&
+            ch.subPath!.isNotEmpty &&
+            !_savedPaths.contains(ch.subPath!)) {
+          _savedPaths.add(ch.subPath!);
+        }
+      }
       _probeMessage =
           'Canal ${channel.number} selecionado: ${useSubOnly ? channel.subQuality : channel.mainQuality}.';
       _probeSucceeded = true;
@@ -862,6 +980,10 @@ class _CameraEditorState extends State<_CameraEditor>
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _busy = true);
+    final currentMain = _mainPath.text.trim();
+    if (currentMain.isNotEmpty && !_savedPaths.contains(currentMain)) {
+      _savedPaths.add(currentMain);
+    }
     final saved = await widget.store.saveCamera(
       id: widget.camera?.id ?? '',
       name: _name.text,
@@ -872,6 +994,7 @@ class _CameraEditorState extends State<_CameraEditor>
       mainPath: _mainPath.text,
       subPath: _subPath.text,
       useGlobalCredentials: _useGlobalCredentials,
+      savedPaths: _savedPaths,
     );
     if (!mounted) return;
     if (saved) {

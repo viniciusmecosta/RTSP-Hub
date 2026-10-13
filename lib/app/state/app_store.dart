@@ -91,6 +91,7 @@ class AppStore extends ChangeNotifier {
     required String mainPath,
     required String subPath,
     bool useGlobalCredentials = false,
+    List<String> savedPaths = const [],
   }) async {
     final normalizedHost = host.trim();
     final parsedPort = port.trim().isEmpty
@@ -146,6 +147,16 @@ class AppStore extends ChangeNotifier {
     if (isNewCamera && username.trim().isEmpty && password.isEmpty) {
       useGlobalCredentials = true;
     }
+    final normalizedMain = mainPath.trim().isEmpty
+        ? _config.defaultPath
+        : _normalizePath(mainPath);
+    final normalizedSub = _normalizePath(subPath);
+    final allSavedPaths = <String>{
+      normalizedMain,
+      if (normalizedSub.isNotEmpty) normalizedSub,
+      ...savedPaths.map(_normalizePath).where((p) => p.isNotEmpty),
+    }.toList();
+
     final camera = CameraDevice(
       id: isNewCamera ? const Uuid().v4() : id,
       name: name.trim().isEmpty ? normalizedHost : name.trim(),
@@ -153,10 +164,9 @@ class AppStore extends ChangeNotifier {
       port: port.trim().isEmpty ? null : parsedPort,
       username: username.trim(),
       useGlobalCredentials: useGlobalCredentials,
-      mainPath: mainPath.trim().isEmpty
-          ? _config.defaultPath
-          : _normalizePath(mainPath),
-      subPath: _normalizePath(subPath),
+      mainPath: normalizedMain,
+      subPath: normalizedSub,
+      savedPaths: allSavedPaths,
     );
     final previousPassword = await _credentials.read(camera.id);
     try {
@@ -235,7 +245,18 @@ class AppStore extends ChangeNotifier {
       mainPath: source.mainPath,
       subPath: source.subPath,
       useGlobalCredentials: source.useGlobalCredentials,
+      savedPaths: source.savedPaths,
     );
+  }
+
+  Future<void> switchCameraChannel(String cameraId, String newPath) async {
+    final normalized = _normalizePath(newPath);
+    final cameras = _config.cameras.map((c) {
+      if (c.id != cameraId) return c;
+      final saved = <String>{...c.savedPaths, normalized, c.mainPath}.toList();
+      return c.copyWith(mainPath: normalized, savedPaths: saved);
+    }).toList();
+    await _commit(_config.copyWith(cameras: cameras));
   }
 
   Future<void> removeCamera(String id) async {
@@ -293,6 +314,12 @@ class AppStore extends ChangeNotifier {
         mainPath: path,
         subPath: subPath,
         useGlobalCredentials: true,
+        savedPaths: candidate.savedPaths.isNotEmpty
+            ? candidate.savedPaths
+            : [
+                path,
+                if (subPath.isNotEmpty) subPath,
+              ],
       );
       cameras.add(camera);
       final emptySlot = slots.indexOf(null);
@@ -631,6 +658,7 @@ class AppStore extends ChangeNotifier {
         mainPath: camera.mainPath,
         subPath: camera.subPath,
         useGlobalCredentials: true,
+        savedPaths: camera.savedPaths,
       );
       cameras.add(created);
       byKey[keyOf(created)] = created.id;
