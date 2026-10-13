@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -16,9 +17,11 @@ Future<void> main(List<String> arguments) async {
       !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
   SingleInstanceGuard? guard;
   if (desktop) {
+    final supportDirFuture = getApplicationSupportDirectory();
+    final windowInitFuture = windowManager.ensureInitialized();
     try {
       guard = await SingleInstanceGuard.acquire(
-        baseDirectory: await getApplicationSupportDirectory(),
+        baseDirectory: await supportDirFuture,
       );
     } on Object {
       runApp(
@@ -37,20 +40,20 @@ Future<void> main(List<String> arguments) async {
       );
       return;
     }
-  }
-  if (desktop) {
-    await windowManager.ensureInitialized();
-    await windowManager.waitUntilReadyToShow(
-      const WindowOptions(
-        size: Size(1280, 800),
-        minimumSize: Size(640, 480),
-        center: true,
-        title: 'RTSP View',
+    await windowInitFuture;
+    unawaited(
+      windowManager.waitUntilReadyToShow(
+        const WindowOptions(
+          size: Size(1280, 800),
+          minimumSize: Size(640, 480),
+          center: true,
+          title: 'RTSP View',
+        ),
+        () async {
+          await windowManager.show();
+          await windowManager.focus();
+        },
       ),
-      () async {
-        await windowManager.show();
-        await windowManager.focus();
-      },
     );
   }
   runApp(
