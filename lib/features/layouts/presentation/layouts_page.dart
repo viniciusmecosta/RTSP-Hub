@@ -1,4 +1,9 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../../shared/design_system/page_frame.dart';
@@ -397,12 +402,31 @@ class _SavedProfiles extends StatelessWidget {
                     ),
                   ],
                 );
-                final saveButton = FilledButton.tonalIcon(
-                  onPressed: onSave,
-                  icon: const Icon(Icons.bookmark_add_outlined),
-                  label: const Text('Salvar perfil atual'),
+                final saveButton = Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _importProfiles(context, store),
+                      icon: const Icon(Icons.file_open_outlined),
+                      label: const Text('Importar'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: profiles.isEmpty
+                          ? null
+                          : () => _exportProfiles(context, store),
+                      icon: const Icon(Icons.ios_share_outlined),
+                      label: const Text('Exportar'),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: onSave,
+                      icon: const Icon(Icons.bookmark_add_outlined),
+                      label: const Text('Salvar perfil atual'),
+                    ),
+                  ],
                 );
-                if (constraints.maxWidth < 500) {
+                if (constraints.maxWidth < 760) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [heading, const SizedBox(height: 12), saveButton],
@@ -460,6 +484,88 @@ class _SavedProfiles extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportProfiles(BuildContext context, AppStore store) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final content = store.exportMonitorProfiles();
+    final now = DateTime.now();
+    final filename =
+        'rtsp-view-perfis-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.json';
+    try {
+      String? path;
+      if (!kIsWeb &&
+          (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
+        path = (await getSaveLocation(
+          acceptedTypeGroups: const [
+            XTypeGroup(label: 'Perfis RTSP View', extensions: ['json']),
+          ],
+          suggestedName: filename,
+        ))?.path;
+        if (path == null) return;
+      } else if (!kIsWeb && Platform.isAndroid) {
+        final directory = await getDirectoryPath(
+          confirmButtonText: 'Salvar perfis nesta pasta',
+        );
+        if (directory == null) return;
+        path = '$directory${Platform.pathSeparator}$filename';
+      }
+      if (path == null) {
+        await Clipboard.setData(ClipboardData(text: content));
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Perfis copiados para a área de transferência.'),
+          ),
+        );
+        return;
+      }
+      await File(path).writeAsString(content, flush: true);
+      messenger.showSnackBar(
+        SnackBar(content: Text('Perfis exportados para $path.')),
+      );
+    } on Object {
+      await Clipboard.setData(ClipboardData(text: content));
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não foi possível salvar o arquivo; os perfis foram copiados.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _importProfiles(BuildContext context, AppStore store) async {
+    final messenger = ScaffoldMessenger.of(context);
+    String? source;
+    try {
+      final file = await openFile(
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'Perfis RTSP View', extensions: ['json']),
+        ],
+      );
+      if (file == null) return;
+      if (await file.length() > 5 * 1024 * 1024) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('O arquivo excede o limite de 5 MB.')),
+        );
+        return;
+      }
+      source = await file.readAsString();
+    } on Object {
+      source = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+    }
+    if (source == null || source.isEmpty) return;
+    final added = await store.importMonitorProfiles(source);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          added == null || added == 0
+              ? store.message ?? 'Não foi possível importar os perfis.'
+              : '$added perfis importados. Câmeras novas usam as credenciais globais deste dispositivo.',
         ),
       ),
     );

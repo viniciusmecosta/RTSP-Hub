@@ -502,6 +502,129 @@ class AppStore extends ChangeNotifier {
     await operation;
   }
 
+  static const profileExportFormat = 'rtsp-view-profiles';
+
+  /// Exporta perfis do monitor com as câmeras que eles usam. Senhas nunca
+  /// são incluídas; no outro dispositivo valem as credenciais de lá.
+  String exportMonitorProfiles([Set<String>? profileIds]) {
+    final profiles = _config.monitorProfiles
+        .where(
+          (profile) => profileIds == null || profileIds.contains(profile.id),
+        )
+        .toList(growable: false);
+    final cameraIds = {
+      for (final profile in profiles)
+        ...profile.slotCameraIds.whereType<String>(),
+    };
+    return const JsonEncoder.withIndent('  ').convert({
+      'format': profileExportFormat,
+      'version': 1,
+      'exportedAt': DateTime.now().toUtc().toIso8601String(),
+      'profiles': profiles.map((profile) => profile.toJson()).toList(),
+      'cameras': _config.cameras
+          .where((camera) => cameraIds.contains(camera.id))
+          .map((camera) => camera.toJson())
+          .toList(),
+    });
+  }
+
+  /// Importa perfis exportados, reaproveitando câmeras já cadastradas com o
+  /// mesmo endereço, porta e caminho. Retorna quantos perfis foram
+  /// adicionados ou `null` se o arquivo for inválido.
+  Future<int?> importMonitorProfiles(String source) async {
+    final List<SavedMonitorProfile> incomingProfiles;
+    final List<CameraDevice> incomingCameras;
+    try {
+      if (source.length > 5 * 1024 * 1024) throw const FormatException();
+      final decoded = jsonDecode(source);
+      if (decoded is! Map || decoded['format'] != profileExportFormat) {
+        throw const FormatException();
+      }
+      incomingProfiles = (decoded['profiles'] as List? ?? const [])
+          .map(
+            (item) => SavedMonitorProfile.fromJson(
+              Map<String, Object?>.from(item as Map),
+            ),
+          )
+          .toList(growable: false);
+      incomingCameras = (decoded['cameras'] as List? ?? const [])
+          .map(
+            (item) =>
+                CameraDevice.fromJson(Map<String, Object?>.from(item as Map)),
+          )
+          .toList(growable: false);
+    } on Object {
+      _message = 'O arquivo não é uma exportação de perfis válida.';
+      notifyListeners();
+      return null;
+    }
+    String keyOf(CameraDevice camera) =>
+        '${camera.host.toLowerCase()}:${camera.effectivePort(_config.defaultPort)}:${camera.mainPath}';
+    final cameras = [..._config.cameras];
+    final byKey = {for (final camera in cameras) keyOf(camera): camera.id};
+    final idMap = <String, String>{};
+    for (final camera in incomingCameras) {
+      if (CameraFieldValidation.hostError(camera.host) != null ||
+          CameraFieldValidation.pathError(camera.mainPath) != null ||
+          CameraFieldValidation.pathError(camera.subPath, optional: true) !=
+              null) {
+        continue;
+      }
+      final existing = byKey[keyOf(camera)];
+      if (existing != null) {
+        idMap[camera.id] = existing;
+        continue;
+      }
+      final created = CameraDevice(
+        id: const Uuid().v4(),
+        name: camera.name,
+        host: camera.host,
+        port: camera.port,
+        username: camera.username,
+        mainPath: camera.mainPath,
+        subPath: camera.subPath,
+        useGlobalCredentials: true,
+      );
+      cameras.add(created);
+      byKey[keyOf(created)] = created.id;
+      idMap[camera.id] = created.id;
+    }
+    final profiles = [..._config.monitorProfiles];
+    var added = 0;
+    for (final profile in incomingProfiles) {
+      if (profiles.length >= 20) break;
+      var name = profile.name.trim().isEmpty ? 'Perfil' : profile.name.trim();
+      final base = name.length > 48 ? name.substring(0, 48) : name;
+      var suffix = 1;
+      while (profiles.any((p) => p.name.toLowerCase() == name.toLowerCase())) {
+        suffix++;
+        name = '$base ($suffix)';
+      }
+      profiles.add(
+        SavedMonitorProfile(
+          id: const Uuid().v4(),
+          name: name,
+          layoutId: LayoutPreset.byId(profile.layoutId).id,
+          slotCameraIds: [
+            for (final id in profile.slotCameraIds)
+              id == null ? null : idMap[id],
+          ],
+          startupSection: profile.startupSection,
+        ),
+      );
+      added++;
+    }
+    if (added == 0) {
+      _message = 'Nenhum perfil novo pôde ser importado.';
+      notifyListeners();
+      return 0;
+    }
+    final saved = await _commit(
+      _config.copyWith(cameras: cameras, monitorProfiles: profiles),
+    );
+    return saved ? added : null;
+  }
+
   String exportConfiguration() =>
       const JsonEncoder.withIndent('  ').convert(_config.toJson());
 
