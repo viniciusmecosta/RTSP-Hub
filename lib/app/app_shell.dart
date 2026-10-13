@@ -120,8 +120,10 @@ class _AppShellState extends State<AppShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final compact = width < 640;
-        final rail = width >= 640 && width < 1100;
+        final height = constraints.maxHeight;
+        final shortLandscape = height < 460 && width >= 480;
+        final compact = width < 640 && !shortLandscape;
+        final rail = (width >= 640 && width < 1100) || shortLandscape;
         return Scaffold(
           body: Row(
             children: [

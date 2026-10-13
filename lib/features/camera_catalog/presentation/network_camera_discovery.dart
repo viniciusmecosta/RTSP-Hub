@@ -709,15 +709,13 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${_hosts.length} dispositivos · ${visibleChannels.length} canais encontrados',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        TextButton(
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final label = Text(
+                          '${_hosts.length} dispositivos · ${visibleChannels.length} canais encontrados',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        );
+                        final selectButton = TextButton(
                           onPressed: _busy
                               ? null
                               : () => setState(() {
@@ -749,8 +747,20 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
                                 ? 'Desmarcar filtrados'
                                 : 'Selecionar filtrados',
                           ),
-                        ),
-                      ],
+                        );
+                        if (constraints.maxWidth < 520) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [label, selectButton],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            Expanded(child: label),
+                            selectButton,
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 8),
                     for (final host in _hosts)

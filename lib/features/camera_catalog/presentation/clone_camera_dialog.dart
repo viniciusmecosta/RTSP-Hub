@@ -65,8 +65,8 @@ class _CloneCameraDialogState extends State<CloneCameraDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Clonar câmera'),
-      content: SizedBox(
-        width: 440,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
         child: Form(
           key: _formKey,
           child: Column(

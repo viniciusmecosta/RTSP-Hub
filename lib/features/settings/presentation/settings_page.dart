@@ -24,7 +24,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _windowsStartup = WindowsStartupService();
   final _linuxStartup = LinuxStartupService();
   bool _startupEnabled = false;
-  bool _startupLoading = true;
+  bool _startupLoading = false;
 
   @override
   void initState() {
@@ -78,76 +78,71 @@ class _SettingsPageState extends State<SettingsPage> {
           Card(
             child: Column(
               children: [
-                ListTile(
-                  leading: const Icon(Icons.palette_outlined),
-                  title: const Text('Aparência'),
-                  subtitle: const Text('Tema claro, escuro ou automático'),
-                  trailing: DropdownButton<ThemeMode>(
-                    value: store.themeMode,
-                    items: const [
-                      DropdownMenuItem(
-                        value: ThemeMode.system,
-                        child: Text('Sistema'),
-                      ),
-                      DropdownMenuItem(
-                        value: ThemeMode.light,
-                        child: Text('Claro'),
-                      ),
-                      DropdownMenuItem(
-                        value: ThemeMode.dark,
-                        child: Text('Escuro'),
-                      ),
-                    ],
-                    onChanged: (mode) {
-                      if (mode != null) store.setThemeMode(mode);
-                    },
-                  ),
+                _SettingDropdownTile<ThemeMode>(
+                  icon: Icons.palette_outlined,
+                  title: 'Aparência',
+                  subtitle: 'Tema claro, escuro ou automático',
+                  value: store.themeMode,
+                  items: const [
+                    DropdownMenuItem(
+                      value: ThemeMode.system,
+                      child: Text('Sistema'),
+                    ),
+                    DropdownMenuItem(
+                      value: ThemeMode.light,
+                      child: Text('Claro'),
+                    ),
+                    DropdownMenuItem(
+                      value: ThemeMode.dark,
+                      child: Text('Escuro'),
+                    ),
+                  ],
+                  onChanged: (mode) {
+                    if (mode != null) store.setThemeMode(mode);
+                  },
                 ),
                 const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.start_outlined),
-                  title: const Text('Ao abrir o aplicativo'),
-                  subtitle: const Text(
-                    'Automático escolhe o monitor quando há câmeras na grade; Última tela usada retoma onde você saiu.',
-                  ),
-                  trailing: DropdownButton<String>(
-                    value: store.config.startupSection,
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'auto',
-                        child: Text('Automático'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'last',
-                        child: Text('Última tela usada'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'dashboard',
-                        child: Text('Início'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'monitor',
-                        child: Text('Monitor'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'cameras',
-                        child: Text('Câmeras'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'layouts',
-                        child: Text('Layouts'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'settings',
-                        child: Text('Ajustes'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        store.updateSettings(startupSection: value);
-                      }
-                    },
-                  ),
+                _SettingDropdownTile<String>(
+                  icon: Icons.start_outlined,
+                  title: 'Ao abrir o aplicativo',
+                  subtitle:
+                      'Automático escolhe o monitor quando há câmeras na grade; Última tela usada retoma onde você saiu.',
+                  value: store.config.startupSection,
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'auto',
+                      child: Text('Automático'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'last',
+                      child: Text('Última tela usada'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'dashboard',
+                      child: Text('Início'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'monitor',
+                      child: Text('Monitor'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'cameras',
+                      child: Text('Câmeras'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'layouts',
+                      child: Text('Layouts'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'settings',
+                      child: Text('Ajustes'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      store.updateSettings(startupSection: value);
+                    }
+                  },
                 ),
                 if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) ...[
                   const Divider(height: 1),
@@ -182,30 +177,27 @@ class _SettingsPageState extends State<SettingsPage> {
                       store.updateSettings(autoFullscreen: value),
                 ),
                 const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.memory_outlined),
-                  title: const Text('Perfil de desempenho'),
-                  subtitle: const Text(
-                    'O fluxo secundário reduz o trabalho do computador. O cache varia conforme a taxa do vídeo.',
-                  ),
-                  trailing: DropdownButton<String>(
-                    value: store.config.resourceMode,
-                    items: [
-                      for (final preset in PerformancePreset.values)
-                        DropdownMenuItem(
-                          value: preset.id,
-                          child: Text(preset.label),
-                        ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        store.updateSettings(
-                          resourceMode: value,
-                          bufferMs: PerformancePreset.fromId(value).bufferMs,
-                        );
-                      }
-                    },
-                  ),
+                _SettingDropdownTile<String>(
+                  icon: Icons.memory_outlined,
+                  title: 'Perfil de desempenho',
+                  subtitle:
+                      'O fluxo secundário reduz o trabalho do computador. O cache varia conforme a taxa do vídeo.',
+                  value: store.config.resourceMode,
+                  items: [
+                    for (final preset in PerformancePreset.values)
+                      DropdownMenuItem(
+                        value: preset.id,
+                        child: Text(preset.label),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      store.updateSettings(
+                        resourceMode: value,
+                        bufferMs: PerformancePreset.fromId(value).bufferMs,
+                      );
+                    }
+                  },
                 ),
                 const Divider(height: 1),
                 ListTile(
@@ -559,6 +551,94 @@ class _GlobalConnectionCardState extends State<_GlobalConnectionCard> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SettingDropdownTile<T> extends StatelessWidget {
+  const _SettingDropdownTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final T value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 560) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      icon,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(fontWeight: FontWeight.w500),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.only(left: 40),
+                  child: DropdownButton<T>(
+                    value: value,
+                    items: items,
+                    onChanged: onChanged,
+                    isExpanded: true,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        return ListTile(
+          leading: Icon(icon),
+          title: Text(title),
+          subtitle: Text(subtitle),
+          trailing: DropdownButton<T>(
+            value: value,
+            items: items,
+            onChanged: onChanged,
+          ),
+        );
+      },
     );
   }
 }
