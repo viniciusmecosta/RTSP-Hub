@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../../app/state/app_store.dart';
+import '../../discovery/application/stream_quality.dart';
 import '../../discovery/data/local_network_scanner.dart';
 import '../../discovery/data/onvif_discovery_service.dart';
 import '../../discovery/domain/rtsp_channel_candidates.dart';
@@ -423,7 +424,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
     }
     await session.start();
     final quality = session.firstFrameRendered.value
-        ? _videoQuality(session)
+        ? describeStreamQuality(session)
         : null;
     session.removeListener(_refreshProbe);
     await session.disposeSession();
@@ -436,27 +437,6 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
 
   void _refreshProbe() {
     if (mounted) setState(() {});
-  }
-
-  String _videoQuality(RtspSession session) {
-    final player = session.player;
-    if (player == null) return 'Vídeo detectado';
-    final track = player.state.tracks.video.firstWhere(
-      (item) => item.id != 'auto' && item.id != 'no',
-      orElse: () => player.state.track.video,
-    );
-    final width = track.w ?? player.state.videoParams.w;
-    final height = track.h ?? player.state.videoParams.h;
-    final details = <String>[
-      if (width != null && height != null) '$width×$height',
-      if (track.fps case final fps? when fps > 0)
-        '${fps.toStringAsFixed(1)} fps',
-      if (track.codec case final codec? when codec.isNotEmpty)
-        codec.toUpperCase(),
-      if (track.bitrate case final int bitrate when bitrate > 0)
-        '${(bitrate / 1000000).toStringAsFixed(1)} Mbps',
-    ];
-    return details.isEmpty ? 'Vídeo detectado' : details.join(' · ');
   }
 
   Future<void> _saveSelected() async {

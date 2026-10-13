@@ -5,6 +5,9 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../app/state/app_store.dart';
+import '../../discovery/application/stream_quality.dart';
+import '../../discovery/data/onvif_discovery_service.dart';
+import '../../discovery/domain/rtsp_channel_candidates.dart';
 import '../../monitor/application/rtsp_session.dart';
 import '../domain/camera_device.dart';
 import '../domain/camera_field_validation.dart';
@@ -229,6 +232,9 @@ class _CameraEditorState extends State<_CameraEditor>
   late bool _useGlobalCredentials;
   bool _busy = false;
   bool _testing = false;
+  bool _finding = false;
+  bool _cancelFinding = false;
+  String _findingStage = '';
   String? _probeMessage;
   bool? _probeSucceeded;
   RtspSession? _probe;
@@ -275,6 +281,7 @@ class _CameraEditorState extends State<_CameraEditor>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _cancelFinding = true;
     final probe = _probe;
     if (probe != null) {
       probe.removeListener(_refreshProbe);
@@ -309,7 +316,7 @@ class _CameraEditorState extends State<_CameraEditor>
           title: const Text('Usar credenciais globais'),
           subtitle: const Text('Compartilha o usuário e a senha padrão.'),
           value: _useGlobalCredentials,
-          onChanged: _busy || _testing
+          onChanged: _busy || _testing || _finding
               ? null
               : (enabled) => setState(() {
                   _useGlobalCredentials = enabled;
@@ -505,7 +512,11 @@ class _CameraEditorState extends State<_CameraEditor>
                     ),
                   ),
                 Flexible(child: SingleChildScrollView(child: fields)),
-                if (_probeMessage != null) ...[
+                if (_finding) ...[
+                  const SizedBox(height: 12),
+                  _ProbeResult(message: _findingStage, succeeded: null),
+                ],
+                if (_probeMessage != null && !_finding) ...[
                   const SizedBox(height: 12),
                   _ProbeResult(
                     message: _probeMessage!,
@@ -519,7 +530,23 @@ class _CameraEditorState extends State<_CameraEditor>
                   runSpacing: 8,
                   children: [
                     OutlinedButton.icon(
-                      onPressed: _busy || _testing ? null : _testStream,
+                      onPressed: _busy || _testing
+                          ? null
+                          : _finding
+                          ? () => setState(() => _cancelFinding = true)
+                          : _findChannels,
+                      icon: _finding
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.manage_search_outlined),
+                      label: Text(_finding ? 'Parar busca' : 'Achar canais'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _busy || _testing || _finding
+                          ? null
+                          : _testStream,
                       icon: _testing
                           ? const SizedBox.square(
                               dimension: 18,
@@ -533,7 +560,7 @@ class _CameraEditorState extends State<_CameraEditor>
                       child: const Text('Cancelar'),
                     ),
                     FilledButton.icon(
-                      onPressed: _busy || _testing ? null : _save,
+                      onPressed: _busy || _testing || _finding ? null : _save,
                       icon: _busy
                           ? const SizedBox.square(
                               dimension: 18,
@@ -608,6 +635,184 @@ class _CameraEditorState extends State<_CameraEditor>
     session.error.removeListener(_checkProbe);
     session.removeListener(_refreshProbe);
     await session.disposeSession();
+  }
+
+  Future<void> _findChannels() async {
+    final host = _host.text.trim();
+    final hostError = CameraFieldValidation.hostError(host);
+    final portError = CameraFieldValidation.portError(_port.text);
+    if (hostError != null || portError != null) {
+      _formKey.currentState!.validate();
+      return;
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    final port =
+        int.tryParse(_port.text.trim()) ?? widget.store.config.defaultPort;
+    final username = _username.text.trim();
+    final password = _password.text;
+    setState(() {
+      _finding = true;
+      _cancelFinding = false;
+      _probeMessage = null;
+      _findingStage = 'Consultando ONVIF em $host';
+    });
+    final found = <_FoundChannel>[];
+    try {
+      final device = await OnvifDiscoveryService().loadProfiles(
+        OnvifProbeDevice(
+          sourceAddress: host,
+          deviceServiceUri: Uri(
+            scheme: 'http',
+            host: host,
+            path: '/onvif/device_service',
+          ),
+          name: null,
+        ),
+        username: username,
+        password: password,
+        isCancelled: () => _cancelFinding,
+      );
+      for (final pair in OnvifStreamPair.group(device?.profiles ?? const [])) {
+        String path(Uri uri) => uri.hasQuery
+            ? '${uri.path}?${uri.query}'
+            : (uri.path.isEmpty ? '/' : uri.path);
+        found.add(
+          _FoundChannel(
+            number: found.length + 1,
+            mainPath: path(pair.main.streamUri),
+            mainQuality: pair.main.quality,
+            subPath: pair.sub == null ? null : path(pair.sub!.streamUri),
+            subQuality: pair.sub?.quality,
+          ),
+        );
+      }
+      if (found.isEmpty) {
+        await _probeCandidates(host, port, username, password, found);
+      }
+    } on Object {
+      // Falhas de rede apenas encerram a busca; o resultado vazio é exibido.
+    }
+    if (!mounted) return;
+    setState(() => _finding = false);
+    if (_cancelFinding) return;
+    if (found.isEmpty) {
+      setState(() {
+        _probeMessage =
+            'Nenhum canal de vídeo respondeu. Confira IP, porta e credenciais.';
+        _probeSucceeded = false;
+      });
+      return;
+    }
+    final chosen = await showDialog<(_FoundChannel, bool)>(
+      context: context,
+      builder: (context) => _FoundChannelsDialog(channels: found),
+    );
+    if (chosen == null || !mounted) return;
+    final (channel, useSubOnly) = chosen;
+    setState(() {
+      _mainPath.text = useSubOnly ? channel.subPath! : channel.mainPath;
+      _subPath.text = useSubOnly ? '' : channel.subPath ?? '';
+      _probeMessage =
+          'Canal ${channel.number} selecionado: ${useSubOnly ? channel.subQuality : channel.mainQuality}.';
+      _probeSucceeded = true;
+    });
+  }
+
+  Future<void> _probeCandidates(
+    String host,
+    int port,
+    String username,
+    String password,
+    List<_FoundChannel> found,
+  ) async {
+    const lastChannel = 16;
+    final signatures = <String>{};
+    for (var channel = 1; channel <= lastChannel; channel++) {
+      if (_cancelFinding || !mounted) return;
+      setState(() => _findingStage = 'Testando canal $channel em $host');
+      String? mainPath;
+      String? mainQuality;
+      for (final path in RtspChannelCandidates.mainForChannel(channel)) {
+        mainQuality = await _probeQuality(host, port, username, password, path);
+        if (_cancelFinding) return;
+        if (mainQuality != null) {
+          mainPath = path;
+          break;
+        }
+      }
+      if (mainPath == null) return;
+      String? subPath;
+      String? subQuality;
+      for (final path in RtspChannelCandidates.subForChannel(channel)) {
+        subQuality = await _probeQuality(host, port, username, password, path);
+        if (_cancelFinding) return;
+        if (subQuality != null) {
+          subPath = path;
+          break;
+        }
+      }
+      if (subQuality != null &&
+          StreamSignature.resolution(subQuality) ==
+              StreamSignature.resolution(mainQuality!)) {
+        subPath = null;
+        subQuality = null;
+      }
+      if (!signatures.add(StreamSignature.of(mainQuality!, subQuality))) {
+        return;
+      }
+      found.add(
+        _FoundChannel(
+          number: channel,
+          mainPath: mainPath,
+          mainQuality: mainQuality,
+          subPath: subPath,
+          subQuality: subQuality,
+        ),
+      );
+    }
+  }
+
+  Future<String?> _probeQuality(
+    String host,
+    int port,
+    String username,
+    String password,
+    String path,
+  ) async {
+    final session = RtspSession(
+      camera: CameraDevice(
+        id: 'channel-search',
+        name: host,
+        host: host,
+        port: port,
+        username: username,
+        mainPath: path,
+      ),
+      password: password.isEmpty ? null : password,
+      defaultPort: port,
+      bufferMs: 120,
+      useMainStream: true,
+      firstFrameTimeout: const Duration(milliseconds: 1500),
+      retryEnabled: false,
+    );
+    _probe = session;
+    session.addListener(_refreshProbe);
+    if (mounted) setState(() {});
+    await WidgetsBinding.instance.endOfFrame;
+    String? quality;
+    if (mounted && !_cancelFinding) {
+      await session.start();
+      if (session.firstFrameRendered.value) {
+        quality = describeStreamQuality(session);
+      }
+    }
+    session.removeListener(_refreshProbe);
+    await session.disposeSession();
+    if (identical(_probe, session)) {
+      _probe = null;
+      if (mounted) setState(() {});
+    }
+    return quality;
   }
 
   void _refreshProbe() {
@@ -707,6 +912,94 @@ class _ProbeResult extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FoundChannel {
+  const _FoundChannel({
+    required this.number,
+    required this.mainPath,
+    required this.mainQuality,
+    required this.subPath,
+    required this.subQuality,
+  });
+
+  final int number;
+  final String mainPath;
+  final String mainQuality;
+  final String? subPath;
+  final String? subQuality;
+}
+
+class _FoundChannelsDialog extends StatelessWidget {
+  const _FoundChannelsDialog({required this.channels});
+
+  final List<_FoundChannel> channels;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Canais encontrados'),
+      content: SizedBox(
+        width: 480,
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final channel in channels)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Canal ${channel.number}',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Principal: ${channel.mainQuality.isEmpty ? channel.mainPath : channel.mainQuality}',
+                      ),
+                      if (channel.subPath != null)
+                        Text(
+                          'Subfluxo: ${channel.subQuality?.isNotEmpty == true ? channel.subQuality : channel.subPath}',
+                        ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilledButton.tonal(
+                            onPressed: () =>
+                                Navigator.pop(context, (channel, false)),
+                            child: Text(
+                              channel.subPath == null
+                                  ? 'Usar'
+                                  : 'Usar principal + sub',
+                            ),
+                          ),
+                          if (channel.subPath != null)
+                            OutlinedButton(
+                              onPressed: () =>
+                                  Navigator.pop(context, (channel, true)),
+                              child: const Text('Usar só subfluxo'),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+      ],
     );
   }
 }
