@@ -12,6 +12,7 @@ import '../../monitor/application/rtsp_session.dart';
 import '../domain/camera_device.dart';
 import '../domain/camera_field_validation.dart';
 import '../../../shared/design_system/page_frame.dart';
+import 'clone_camera_dialog.dart';
 import 'network_camera_discovery.dart';
 
 class CameraCatalogPage extends StatelessWidget {
@@ -63,6 +64,7 @@ class CameraCatalogPage extends StatelessWidget {
                   (context, index) => _CameraCard(
                     camera: store.cameras[index],
                     onEdit: () => _edit(context, store.cameras[index]),
+                    onClone: () => _clone(context, store, store.cameras[index]),
                     onDelete: () =>
                         _delete(context, store, store.cameras[index]),
                   ),
@@ -79,6 +81,23 @@ class CameraCatalogPage extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  Future<void> _clone(
+    BuildContext context,
+    AppStore store,
+    CameraDevice camera,
+  ) async {
+    final cloned = await CloneCameraDialog.show(
+      context,
+      camera: camera,
+      store: store,
+    );
+    if (cloned == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Câmera “${camera.name}” clonada com sucesso.')),
+      );
+    }
   }
 
   Future<void> _edit(BuildContext context, [CameraDevice? camera]) async {
@@ -136,10 +155,12 @@ class _CameraCard extends StatelessWidget {
   const _CameraCard({
     required this.camera,
     required this.onEdit,
+    required this.onClone,
     required this.onDelete,
   });
   final CameraDevice camera;
   final VoidCallback onEdit;
+  final VoidCallback onClone;
   final VoidCallback onDelete;
 
   @override
@@ -189,9 +210,15 @@ class _CameraCard extends StatelessWidget {
               ),
             ),
             PopupMenuButton<String>(
-              onSelected: (value) => value == 'edit' ? onEdit() : onDelete(),
+              onSelected: (value) => switch (value) {
+                'edit' => onEdit(),
+                'clone' => onClone(),
+                'delete' => onDelete(),
+                _ => null,
+              },
               itemBuilder: (_) => const [
                 PopupMenuItem(value: 'edit', child: Text('Editar')),
+                PopupMenuItem(value: 'clone', child: Text('Clonar câmera')),
                 PopupMenuItem(value: 'delete', child: Text('Remover')),
               ],
             ),
