@@ -5,6 +5,13 @@ import 'package:rtsp_view/features/layouts/domain/layout_geometry.dart';
 import 'package:rtsp_view/features/layouts/domain/layout_preset.dart';
 
 void main() {
+  test('grade dinâmica acomoda mais de dezesseis câmeras', () {
+    final layout = LayoutPreset.byId('GRID_ALL', cameraCount: 17);
+
+    expect(layout.cameraCount, 17);
+    expect(layout.columns * layout.rows, greaterThanOrEqualTo(17));
+  });
+
   group('LayoutGeometry', () {
     final focusedLayouts = LayoutPreset.all.where(
       (layout) => layout.focusIndex != null,

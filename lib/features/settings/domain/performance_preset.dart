@@ -3,7 +3,6 @@ enum PerformancePreset {
     id: 'light',
     label: 'Leve',
     bufferMs: 180,
-    maxConcurrentStreams: 4,
     description:
         'Prioriza fluidez em computadores básicos e fluxos secundários.',
   ),
@@ -11,29 +10,25 @@ enum PerformancePreset {
     id: 'balanced',
     label: 'Equilibrado',
     bufferMs: 400,
-    maxConcurrentStreams: 9,
-    description: 'Equilibra qualidade e consumo para até nove câmeras.',
+    description: 'Equilibra qualidade e consumo com fluxos secundários.',
   ),
   quality(
     id: 'quality',
     label: 'Qualidade',
     bufferMs: 800,
-    maxConcurrentStreams: 16,
-    description: 'Usa fluxos principais e mantém mais câmeras decodificadas.',
+    description: 'Usa fluxos principais para priorizar a qualidade da imagem.',
   );
 
   const PerformancePreset({
     required this.id,
     required this.label,
     required this.bufferMs,
-    required this.maxConcurrentStreams,
     required this.description,
   });
 
   final String id;
   final String label;
   final int bufferMs;
-  final int maxConcurrentStreams;
   final String description;
 
   static PerformancePreset fromId(String? id) => switch (id) {

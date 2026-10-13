@@ -1,3 +1,5 @@
+import 'dart:math';
+
 class LayoutPreset {
   const LayoutPreset({
     required this.id,
@@ -16,6 +18,13 @@ class LayoutPreset {
   final int? focusIndex;
 
   static const all = <LayoutPreset>[
+    LayoutPreset(
+      id: 'GRID_ALL',
+      name: 'Todas as câmeras',
+      rows: 1,
+      columns: 1,
+      cameraCount: 1,
+    ),
     LayoutPreset(
       id: 'SINGLE',
       name: '1 câmera',
@@ -153,6 +162,18 @@ class LayoutPreset {
     ),
   ];
 
-  static LayoutPreset byId(String id) =>
-      all.firstWhere((preset) => preset.id == id, orElse: () => all[3]);
+  static LayoutPreset byId(String id, {int cameraCount = 1}) {
+    if (id == 'GRID_ALL') {
+      final count = max(1, cameraCount);
+      final columns = sqrt(count).ceil();
+      return LayoutPreset(
+        id: 'GRID_ALL',
+        name: 'Todas as câmeras',
+        rows: (count + columns - 1) ~/ columns,
+        columns: columns,
+        cameraCount: count,
+      );
+    }
+    return all.firstWhere((preset) => preset.id == id, orElse: () => all[4]);
+  }
 }

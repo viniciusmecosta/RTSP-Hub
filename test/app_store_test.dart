@@ -473,6 +473,36 @@ void main() {
     expect(restored.savedPaths, ['/ch1', '/ch2', '/ch3']);
     expect(restored.selectedPath, '/ch2');
   });
+
+  test('grade dinâmica mantém todas as câmeras e preserva a ordem', () async {
+    for (var index = 1; index <= 17; index++) {
+      expect(await saveCamera(host: '192.168.2.$index'), isTrue);
+    }
+    await store.setLayout('GRID_ALL');
+
+    expect(store.activeLayout.cameraCount, 17);
+    expect(store.config.slotCameraIds, hasLength(17));
+    expect(
+      store.config.slotCameraIds.whereType<String>().toSet(),
+      store.cameras.map((camera) => camera.id).toSet(),
+    );
+
+    final first = store.config.slotCameraIds.first;
+    final second = store.config.slotCameraIds[1];
+    await store.setSlot(0, second);
+    expect(store.config.slotCameraIds.first, second);
+    expect(store.config.slotCameraIds[1], first);
+
+    expect(await saveCamera(host: '192.168.2.18'), isTrue);
+    expect(store.config.slotCameraIds, hasLength(18));
+    await store.removeCamera(second!);
+    expect(store.config.slotCameraIds, hasLength(17));
+    expect(store.config.slotCameraIds, isNot(contains(second)));
+
+    final restored = AppConfiguration.fromJson(store.config.toJson());
+    expect(restored.layoutId, 'GRID_ALL');
+    expect(restored.slotCameraIds, hasLength(17));
+  });
 }
 
 class _MemoryRepository extends ConfigRepository {
