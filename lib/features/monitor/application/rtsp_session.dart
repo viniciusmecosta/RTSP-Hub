@@ -139,9 +139,19 @@ class RtspSession extends ChangeNotifier {
     }
     final pending = _starting;
     if (pending != null) {
-      return status.value == CameraPlaybackStatus.paused
-          ? pending.then((_) => start())
-          : pending;
+      if (status.value == CameraPlaybackStatus.paused ||
+          status.value == CameraPlaybackStatus.error ||
+          status.value == CameraPlaybackStatus.reconnecting) {
+        return pending.then((_) async {
+          if (_disposed ||
+              status.value == CameraPlaybackStatus.playing ||
+              status.value == CameraPlaybackStatus.connecting) {
+            return;
+          }
+          await start();
+        });
+      }
+      return pending;
     }
     final operation = _start();
     late final Future<void> tracked;
