@@ -621,12 +621,17 @@ class AppStore extends ChangeNotifier {
     };
     return const JsonEncoder.withIndent('  ').convert({
       'format': profileExportFormat,
-      'version': 1,
+      'version': 2,
       'exportedAt': DateTime.now().toUtc().toIso8601String(),
       'profiles': profiles.map((profile) => profile.toJson()).toList(),
       'cameras': _config.cameras
           .where((camera) => cameraIds.contains(camera.id))
-          .map((camera) => camera.toJson())
+          .map(
+            (camera) => {
+              ...camera.toJson(),
+              'port': camera.effectivePort(_config.defaultPort),
+            },
+          )
           .toList(),
     });
   }
@@ -640,7 +645,9 @@ class AppStore extends ChangeNotifier {
     try {
       if (source.length > 5 * 1024 * 1024) throw const FormatException();
       final decoded = jsonDecode(source);
-      if (decoded is! Map || decoded['format'] != profileExportFormat) {
+      if (decoded is! Map ||
+          decoded['format'] != profileExportFormat ||
+          !{1, 2}.contains(decoded['version'])) {
         throw const FormatException();
       }
       incomingProfiles = (decoded['profiles'] as List? ?? const [])
@@ -656,6 +663,53 @@ class AppStore extends ChangeNotifier {
                 CameraDevice.fromJson(Map<String, Object?>.from(item as Map)),
           )
           .toList(growable: false);
+      final incomingIds = <String>{};
+      for (final camera in incomingCameras) {
+        if (camera.id.isEmpty ||
+            !incomingIds.add(camera.id) ||
+            camera.name.trim().isEmpty ||
+            camera.name.length > 80 ||
+            camera.username.length > 128 ||
+            CameraFieldValidation.hostError(camera.host) != null ||
+            (decoded['version'] == 2 && camera.port == null) ||
+            CameraFieldValidation.portError(
+                  '${camera.effectivePort(_config.defaultPort)}',
+                ) !=
+                null ||
+            CameraFieldValidation.pathError(camera.mainPath) != null ||
+            CameraFieldValidation.pathError(camera.subPath, optional: true) !=
+                null ||
+            camera.savedPaths.any(
+              (path) => CameraFieldValidation.pathError(path) != null,
+            ) ||
+            CameraFieldValidation.pathError(
+                  camera.selectedPath,
+                  optional: true,
+                ) !=
+                null ||
+            (camera.selectedPath.isNotEmpty &&
+                !camera.savedPaths.contains(camera.selectedPath))) {
+          throw const FormatException();
+        }
+      }
+      for (final profile in incomingProfiles) {
+        if (profile.id.isEmpty ||
+            profile.name.trim().isEmpty ||
+            profile.name.length > 60 ||
+            !LayoutPreset.all.any((layout) => layout.id == profile.layoutId) ||
+            profile.slotCameraIds.length !=
+                LayoutPreset.byId(
+                  profile.layoutId,
+                  cameraCount: profile.slotCameraIds.length,
+                ).cameraCount ||
+            profile.slotCameraIds.any(
+              (id) => id != null && !incomingIds.contains(id),
+            ) ||
+            profile.slotCameraIds.whereType<String>().toSet().length !=
+                profile.slotCameraIds.whereType<String>().length) {
+          throw const FormatException();
+        }
+      }
     } on Object {
       _message = 'O arquivo não é uma exportação de perfis válida.';
       notifyListeners();
@@ -667,12 +721,6 @@ class AppStore extends ChangeNotifier {
     final byKey = {for (final camera in cameras) keyOf(camera): camera.id};
     final idMap = <String, String>{};
     for (final camera in incomingCameras) {
-      if (CameraFieldValidation.hostError(camera.host) != null ||
-          CameraFieldValidation.pathError(camera.mainPath) != null ||
-          CameraFieldValidation.pathError(camera.subPath, optional: true) !=
-              null) {
-        continue;
-      }
       final existing = byKey[keyOf(camera)];
       if (existing != null) {
         idMap[camera.id] = existing;
@@ -686,7 +734,7 @@ class AppStore extends ChangeNotifier {
         username: camera.username,
         mainPath: camera.mainPath,
         subPath: camera.subPath,
-        useGlobalCredentials: true,
+        useGlobalCredentials: camera.useGlobalCredentials,
         savedPaths: camera.savedPaths,
         selectedPath: camera.selectedPath,
       );
