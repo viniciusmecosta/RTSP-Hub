@@ -594,7 +594,7 @@ class _SavedProfiles extends StatelessWidget {
         content: Text(
           added == null || added == 0
               ? store.message ?? 'Não foi possível importar os perfis.'
-              : '$added perfis importados. Câmeras novas usam as credenciais globais deste dispositivo.',
+              : '$added perfis importados. Confira as senhas das câmeras neste dispositivo.',
         ),
       ),
     );

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rtsp_view/features/camera_catalog/domain/camera_device.dart';
 import 'package:rtsp_view/app/data/app_configuration.dart';
@@ -113,6 +115,67 @@ void main() {
   test('recusa arquivo que não é exportação de perfis', () async {
     expect(await store.importMonitorProfiles('{"cameras": []}'), isNull);
   });
+
+  test(
+    'perfil exportado preserva a porta efetiva e o tipo de credencial',
+    () async {
+      await store.updateSettings(defaultPort: 8554);
+      final saved = await store.saveCamera(
+        id: '',
+        name: 'Portaria',
+        host: '192.168.1.42',
+        port: '',
+        username: 'operador',
+        password: 'senha-local',
+        mainPath: '/live/main',
+        subPath: '/live/sub',
+      );
+      expect(saved, isTrue);
+      await store.setSlot(0, store.cameras.single.id);
+      await store.saveMonitorProfile(name: 'Noite');
+      final exported = store.exportMonitorProfiles();
+      final decoded = jsonDecode(exported) as Map<String, dynamic>;
+      expect(decoded['version'], 2);
+      expect((decoded['cameras'] as List).single['port'], 8554);
+      expect(exported, isNot(contains('senha-local')));
+
+      final other = AppStore(
+        repository: _MemoryRepository(),
+        credentials: _MemoryCredentials(),
+      );
+      addTearDown(other.dispose);
+      expect(await other.importMonitorProfiles(exported), 1);
+      expect(
+        other.cameras.single.effectivePort(other.config.defaultPort),
+        8554,
+      );
+      expect(other.cameras.single.useGlobalCredentials, isFalse);
+      expect(other.cameras.single.username, 'operador');
+      expect(await other.passwordFor(other.cameras.single), isNull);
+    },
+  );
+
+  test(
+    'rejeita perfil com câmera inexistente sem alterar configuração',
+    () async {
+      final invalid = jsonEncode({
+        'format': AppStore.profileExportFormat,
+        'version': 2,
+        'cameras': [],
+        'profiles': [
+          {
+            'id': 'perfil-1',
+            'name': 'Portaria',
+            'layoutId': 'GRID_4',
+            'slotCameraIds': ['camera-ausente', null, null, null],
+          },
+        ],
+      });
+
+      expect(await store.importMonitorProfiles(invalid), isNull);
+      expect(store.config.monitorProfiles, isEmpty);
+    },
+  );
 
   test('rejects host values that contain URLs or invalid DNS labels', () async {
     final url = await saveCamera(host: 'rtsp://192.168.1.10');
