@@ -350,6 +350,58 @@ class OnvifDevice {
   final List<OnvifProfile> profiles;
 }
 
+class OnvifStreamPair {
+  const OnvifStreamPair({
+    required this.sourceKey,
+    required this.main,
+    required this.sub,
+  });
+
+  final String sourceKey;
+  final OnvifProfile main;
+  final OnvifProfile? sub;
+
+  /// Reduz os perfis ONVIF a um fluxo principal e um subfluxo por fonte de
+  /// vídeo. Perfis com o mesmo URI, ou fontes que repetem exatamente os
+  /// mesmos fluxos, são descartados. O subfluxo é o primeiro perfil com
+  /// resolução menor que a do principal.
+  static List<OnvifStreamPair> group(List<OnvifProfile> profiles) {
+    final uniqueByUri = <String, OnvifProfile>{};
+    for (final profile in profiles) {
+      uniqueByUri.putIfAbsent(profile.streamUri.toString(), () => profile);
+    }
+    final groups = <String, List<OnvifProfile>>{};
+    for (final profile in uniqueByUri.values) {
+      final source = profile.sourceToken?.trim();
+      final key = source == null || source.isEmpty ? '' : source;
+      groups.putIfAbsent(key, () => []).add(profile);
+    }
+    if (groups.length > 1 && groups.containsKey('')) {
+      final orphan = groups.remove('')!;
+      groups.values.first.addAll(orphan);
+    }
+    final seenSignatures = <String>{};
+    final result = <OnvifStreamPair>[];
+    for (final entry in groups.entries) {
+      final sorted = [...entry.value]
+        ..sort((left, right) => right.pixelCount.compareTo(left.pixelCount));
+      final main = sorted.first;
+      OnvifProfile? sub;
+      for (final candidate in sorted.skip(1)) {
+        if (candidate.pixelCount < main.pixelCount ||
+            (main.pixelCount == 0 && candidate.streamUri != main.streamUri)) {
+          sub = candidate;
+          break;
+        }
+      }
+      final signature = '${main.streamUri}|${sub?.streamUri}';
+      if (!seenSignatures.add(signature)) continue;
+      result.add(OnvifStreamPair(sourceKey: entry.key, main: main, sub: sub));
+    }
+    return result;
+  }
+}
+
 class OnvifProfile {
   const OnvifProfile({
     required this.token,

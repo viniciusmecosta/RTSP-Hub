@@ -155,36 +155,34 @@ class LayoutsPage extends StatelessWidget {
                   itemBuilder: (context, index) {
                     if (index == 0) {
                       return ListTile(
-                      leading: const CircleAvatar(
-                        child: Icon(Icons.videocam_off_outlined),
-                      ),
-                      title: const Text('Deixar posição vazia'),
-                      selected: selectedId == null,
-                      trailing: selectedId == null
-                          ? const Icon(Icons.check_circle)
-                          : null,
-                      onTap: () =>
-                          Navigator.pop(context, const _SlotSelection(null)),
+                        leading: const CircleAvatar(
+                          child: Icon(Icons.videocam_off_outlined),
+                        ),
+                        title: const Text('Deixar posição vazia'),
+                        selected: selectedId == null,
+                        trailing: selectedId == null
+                            ? const Icon(Icons.check_circle)
+                            : null,
+                        onTap: () =>
+                            Navigator.pop(context, const _SlotSelection(null)),
                       );
                     }
                     final camera = store.cameras[index - 1];
                     return ListTile(
-                        leading: CircleAvatar(
-                          child: Text('$index'),
-                        ),
-                        title: Text(camera.name),
-                        subtitle: Text(
-                          '${camera.host}:${camera.effectivePort(store.config.defaultPort)}\n${camera.mainPath}',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        isThreeLine: true,
-                        selected: camera.id == selectedId,
-                        trailing: camera.id == selectedId
-                            ? const Icon(Icons.check_circle)
-                            : _assignedPosition(store, camera.id, slotIndex),
-                        onTap: () =>
-                            Navigator.pop(context, _SlotSelection(camera.id)),
+                      leading: CircleAvatar(child: Text('$index')),
+                      title: Text(camera.name),
+                      subtitle: Text(
+                        '${camera.host}:${camera.effectivePort(store.config.defaultPort)}\n${camera.mainPath}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      isThreeLine: true,
+                      selected: camera.id == selectedId,
+                      trailing: camera.id == selectedId
+                          ? const Icon(Icons.check_circle)
+                          : _assignedPosition(store, camera.id, slotIndex),
+                      onTap: () =>
+                          Navigator.pop(context, _SlotSelection(camera.id)),
                     );
                   },
                 ),
