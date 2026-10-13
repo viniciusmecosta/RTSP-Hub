@@ -223,17 +223,6 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     unawaited(_syncSessions());
   }
 
-  Set<String> _activePlaybackIds(AppStore store, List<String?> slots) {
-    final pageSize = _pageSize(
-      store.activeLayout,
-      MediaQuery.sizeOf(context).width,
-    );
-    final requested = _focusedCameraId == null
-        ? slots.skip(_page * pageSize).take(pageSize)
-        : <String?>[_focusedCameraId];
-    return requested.whereType<String>().toSet();
-  }
-
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
@@ -249,7 +238,6 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     final visibleCount = focusedIndex >= 0
         ? 1
         : (slots.length - from).clamp(0, perPage);
-    final activeIds = _activePlaybackIds(store, slots);
     final cameraById = {for (final camera in store.cameras) camera.id: camera};
     return PopScope<Object?>(
       canPop: false,
@@ -344,7 +332,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                                   builder: (context, constraints) {
                                     final columns = min(
                                       _columns(layout, constraints.maxWidth),
-                                      sqrt(visibleCount).ceil().clamp(1, 6),
+                                      sqrt(visibleCount).ceil(),
                                     );
                                     final rows = (visibleCount / columns)
                                         .ceil();
@@ -374,7 +362,6 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                                                 child: _cameraTile(
                                                   slots,
                                                   offset,
-                                                  activeIds,
                                                   cameraById,
                                                 ),
                                               ),
@@ -416,7 +403,6 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                                           _cameraTile(
                                             slots,
                                             from + offset,
-                                            activeIds,
                                             cameraById,
                                           ),
                                     );
@@ -448,7 +434,6 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   Widget _cameraTile(
     List<String?> slots,
     int slotIndex,
-    Set<String> activeIds,
     Map<String, CameraDevice> cameraById,
   ) {
     final id = slots[slotIndex];
@@ -457,7 +442,6 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     return _CameraTile(
       camera: camera,
       session: session,
-      waitingForResources: camera != null && !activeIds.contains(camera.id),
       onTap: _revealControls,
       onFocus: camera == null
           ? null
@@ -566,7 +550,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
         index,
         camera.name,
         'Em espera',
-        'Pausada para respeitar o limite do perfil de desempenho.',
+        'Aguardando a abertura desta câmera.',
       );
     }
     return ValueListenableBuilder<CameraPlaybackStatus>(
@@ -817,7 +801,8 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                       preset.id == 'GRID_2H' ||
                       preset.id == 'GRID_4' ||
                       preset.id == 'GRID_9' ||
-                      preset.id == 'GRID_16',
+                      preset.id == 'GRID_16' ||
+                      preset.id == 'GRID_ALL',
                 ))
                   PopupMenuItem(
                     value: 'layout:${preset.id}',
@@ -877,6 +862,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
 
   int _columns(LayoutPreset layout, double width) {
     if (width < 600) return layout.cameraCount == 1 ? 1 : 2;
+    if (layout.id == 'GRID_ALL') return layout.columns;
     if (width < 980) return layout.columns.clamp(1, 3);
     return layout.columns.clamp(1, 6);
   }
@@ -890,7 +876,6 @@ class _CameraTile extends StatelessWidget {
   const _CameraTile({
     required this.camera,
     required this.session,
-    required this.waitingForResources,
     required this.onTap,
     required this.onFocus,
     this.onClone,
@@ -899,7 +884,6 @@ class _CameraTile extends StatelessWidget {
   });
   final CameraDevice? camera;
   final RtspSession? session;
-  final bool waitingForResources;
   final VoidCallback onTap;
   final VoidCallback? onFocus;
   final VoidCallback? onClone;
@@ -933,24 +917,6 @@ class _CameraTile extends StatelessWidget {
                 fill: Colors.black,
                 controls: NoVideoControls,
               )
-            else if (camera != null && waitingForResources)
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.memory_outlined, color: Colors.white70),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Em espera para poupar recursos',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                    TextButton(
-                      onPressed: onFocus,
-                      child: const Text('Focar câmera'),
-                    ),
-                  ],
-                ),
-              )
             else if (camera == null)
               const Center(
                 child: Icon(
@@ -968,9 +934,7 @@ class _CameraTile extends StatelessWidget {
                   style: TextStyle(color: Color(0xFF8A98AA)),
                 ),
               ),
-            if (camera != null &&
-                !waitingForResources &&
-                session?.firstFrameRendered.value != true)
+            if (camera != null && session?.firstFrameRendered.value != true)
               Positioned.fill(
                 child: CameraLoadingView(
                   status: session?.status.value ?? CameraPlaybackStatus.idle,

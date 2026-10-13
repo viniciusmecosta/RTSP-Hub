@@ -37,7 +37,8 @@ class AppStore extends ChangeNotifier {
     'dark' => ThemeMode.dark,
     _ => ThemeMode.system,
   };
-  LayoutPreset get activeLayout => LayoutPreset.byId(_config.layoutId);
+  LayoutPreset get activeLayout =>
+      LayoutPreset.byId(_config.layoutId, cameraCount: _config.cameras.length);
 
   SavedMonitorProfile? get lastSavedProfile {
     final id = _config.lastProfileId;
@@ -60,7 +61,12 @@ class AppStore extends ChangeNotifier {
       final slots = _config.slotCameraIds
           .map((id) => id != null && validIds.contains(id) ? id : null)
           .toList();
-      if (slots.length != activeLayout.cameraCount ||
+      if (_config.layoutId == 'GRID_ALL') {
+        final allSlots = _allCameraSlots(_config.cameras, slots);
+        if (!_sameSlots(allSlots, slots)) {
+          _config = _config.copyWith(slotCameraIds: allSlots);
+        }
+      } else if (slots.length != activeLayout.cameraCount ||
           !_sameSlots(slots, _config.slotCameraIds)) {
         slots
           ..removeRange(
@@ -414,7 +420,10 @@ class AppStore extends ChangeNotifier {
 
   Future<void> setLayout(String layoutId) async {
     final previous = _config.slotCameraIds;
-    final count = LayoutPreset.byId(layoutId).cameraCount;
+    final count = LayoutPreset.byId(
+      layoutId,
+      cameraCount: _config.cameras.length,
+    ).cameraCount;
     final slots = List<String?>.generate(
       count,
       (index) => index < previous.length ? previous[index] : null,
@@ -425,6 +434,16 @@ class AppStore extends ChangeNotifier {
   Future<void> setSlot(int index, String? cameraId) async {
     final slots = [..._config.slotCameraIds];
     if (index < 0 || index >= slots.length) return;
+    if (_config.layoutId == 'GRID_ALL') {
+      if (cameraId == null) return;
+      final previous = slots.indexOf(cameraId);
+      if (previous >= 0 && previous != index) {
+        slots[previous] = slots[index];
+      }
+      slots[index] = cameraId;
+      await _commit(_config.copyWith(slotCameraIds: slots));
+      return;
+    }
     for (var i = 0; i < slots.length; i++) {
       if (slots[i] == cameraId && cameraId != null) slots[i] = null;
     }
@@ -433,6 +452,7 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> clearSlots() async {
+    if (_config.layoutId == 'GRID_ALL') return;
     await _commit(
       _config.copyWith(
         slotCameraIds: List<String?>.filled(activeLayout.cameraCount, null),
@@ -486,7 +506,10 @@ class AppStore extends ChangeNotifier {
         .where((item) => item.id == id)
         .firstOrNull;
     if (profile == null) return;
-    final layout = LayoutPreset.byId(profile.layoutId);
+    final layout = LayoutPreset.byId(
+      profile.layoutId,
+      cameraCount: _config.cameras.length,
+    );
     final validIds = _config.cameras.map((camera) => camera.id).toSet();
     final slots = List<String?>.generate(
       layout.cameraCount,
@@ -772,7 +795,10 @@ class AppStore extends ChangeNotifier {
             'quality',
           }.contains(configuration.resourceMode) ||
           configuration.slotCameraIds.length !=
-              LayoutPreset.byId(configuration.layoutId).cameraCount ||
+              LayoutPreset.byId(
+                configuration.layoutId,
+                cameraCount: configuration.cameras.length,
+              ).cameraCount ||
           configuration.monitorProfiles.length > 20) {
         throw const FormatException();
       }
@@ -784,7 +810,10 @@ class AppStore extends ChangeNotifier {
             !profileNames.add(profile.name.toLowerCase()) ||
             !layouts.contains(profile.layoutId) ||
             profile.slotCameraIds.length !=
-                LayoutPreset.byId(profile.layoutId).cameraCount) {
+                LayoutPreset.byId(
+                  profile.layoutId,
+                  cameraCount: profile.slotCameraIds.length,
+                ).cameraCount) {
           throw const FormatException();
         }
       }
@@ -817,6 +846,11 @@ class AppStore extends ChangeNotifier {
 
   Future<bool> _commit(AppConfiguration config) async {
     try {
+      if (config.layoutId == 'GRID_ALL') {
+        config = config.copyWith(
+          slotCameraIds: _allCameraSlots(config.cameras, config.slotCameraIds),
+        );
+      }
       await _repository.save(config);
       _config = config;
       themeModeListenable.value = themeMode;
@@ -842,6 +876,21 @@ class AppStore extends ChangeNotifier {
       if (left[index] != right[index]) return false;
     }
     return true;
+  }
+
+  List<String?> _allCameraSlots(
+    List<CameraDevice> cameras,
+    List<String?> previous,
+  ) {
+    final valid = cameras.map((camera) => camera.id).toSet();
+    final seen = <String>{};
+    final ordered = <String?>[
+      for (final id in previous)
+        if (id != null && valid.contains(id) && seen.add(id)) id,
+      for (final camera in cameras)
+        if (seen.add(camera.id)) camera.id,
+    ];
+    return ordered.isEmpty ? [null] : ordered;
   }
 
   @override

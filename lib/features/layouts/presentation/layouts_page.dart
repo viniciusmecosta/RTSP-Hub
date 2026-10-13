@@ -104,14 +104,15 @@ class LayoutsPage extends StatelessWidget {
               },
             ),
           const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: store.clearSlots,
-              icon: const Icon(Icons.clear_all),
-              label: const Text('Limpar grade'),
+          if (layout.id != 'GRID_ALL')
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: store.clearSlots,
+                icon: const Icon(Icons.clear_all),
+                label: const Text('Limpar grade'),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -160,6 +161,7 @@ class LayoutsPage extends StatelessWidget {
                   itemBuilder: (context, index) {
                     if (index == 0) {
                       return ListTile(
+                        enabled: store.activeLayout.id != 'GRID_ALL',
                         leading: const CircleAvatar(
                           child: Icon(Icons.videocam_off_outlined),
                         ),
@@ -168,8 +170,12 @@ class LayoutsPage extends StatelessWidget {
                         trailing: selectedId == null
                             ? const Icon(Icons.check_circle)
                             : null,
-                        onTap: () =>
-                            Navigator.pop(context, const _SlotSelection(null)),
+                        onTap: store.activeLayout.id == 'GRID_ALL'
+                            ? null
+                            : () => Navigator.pop(
+                                context,
+                                const _SlotSelection(null),
+                              ),
                       );
                     }
                     final camera = store.cameras[index - 1];
@@ -240,16 +246,34 @@ class LayoutsPage extends StatelessWidget {
                       labelText: 'Tela ao iniciar o aplicativo',
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'auto', child: Text('Automático')),
+                      DropdownMenuItem(
+                        value: 'auto',
+                        child: Text('Automático'),
+                      ),
                       DropdownMenuItem(
                         value: 'last',
                         child: Text('Última tela usada'),
                       ),
-                      DropdownMenuItem(value: 'dashboard', child: Text('Início')),
-                      DropdownMenuItem(value: 'monitor', child: Text('Monitor')),
-                      DropdownMenuItem(value: 'cameras', child: Text('Câmeras')),
-                      DropdownMenuItem(value: 'layouts', child: Text('Layouts')),
-                      DropdownMenuItem(value: 'settings', child: Text('Ajustes')),
+                      DropdownMenuItem(
+                        value: 'dashboard',
+                        child: Text('Início'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'monitor',
+                        child: Text('Monitor'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'cameras',
+                        child: Text('Câmeras'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'layouts',
+                        child: Text('Layouts'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'settings',
+                        child: Text('Ajustes'),
+                      ),
                     ],
                     onChanged: (value) {
                       if (value != null) {
