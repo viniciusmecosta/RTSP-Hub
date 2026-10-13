@@ -9,7 +9,7 @@ AppVersion={#AppVersion}
 AppPublisher=RTSP View
 DefaultDirName={autopf}\RTSP View
 DefaultGroupName=RTSP View
-OutputDir=dist
+OutputDir=..\dist
 OutputBaseFilename=RTSP-View-Setup-{#AppVersion}-x64
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -24,7 +24,7 @@ Name: "desktopicon"; Description: "Criar atalho na área de trabalho"; GroupDesc
 Name: "startup"; Description: "Iniciar automaticamente com o Windows"; GroupDescription: "Inicialização:"; Flags: unchecked
 
 [Files]
-Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
 Name: "{group}\RTSP View"; Filename: "{app}\rtsp_view.exe"
