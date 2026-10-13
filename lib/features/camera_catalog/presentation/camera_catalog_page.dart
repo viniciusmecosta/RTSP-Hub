@@ -17,7 +17,7 @@ class CameraCatalogPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
-    return PageFrame(
+    return PageFrame.slivers(
       title: 'Câmeras',
       subtitle: 'Cadastre e organize seus dispositivos RTSP.',
       actions: [
@@ -27,13 +27,15 @@ class CameraCatalogPage extends StatelessWidget {
           label: const Text('Adicionar câmera'),
         ),
       ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const NetworkCameraDiscovery(),
-          const SizedBox(height: 16),
-          if (store.cameras.isEmpty)
-            EmptyPanel(
+      slivers: [
+        const SliverToBoxAdapter(
+          child: Column(
+            children: [NetworkCameraDiscovery(), SizedBox(height: 16)],
+          ),
+        ),
+        if (store.cameras.isEmpty)
+          SliverToBoxAdapter(
+            child: EmptyPanel(
               icon: Icons.videocam_outlined,
               title: 'Nenhuma câmera cadastrada',
               description:
@@ -43,36 +45,36 @@ class CameraCatalogPage extends StatelessWidget {
                 icon: const Icon(Icons.add),
                 label: const Text('Adicionar câmera'),
               ),
-            )
-          else
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final columns = constraints.maxWidth >= 900
-                    ? 3
-                    : constraints.maxWidth >= 580
-                    ? 2
-                    : 1;
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: store.cameras.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columns,
-                    crossAxisSpacing: 14,
-                    mainAxisSpacing: 14,
-                    mainAxisExtent: 158,
-                  ),
-                  itemBuilder: (context, index) => _CameraCard(
+            ),
+          )
+        else
+          SliverLayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.crossAxisExtent >= 900
+                  ? 3
+                  : constraints.crossAxisExtent >= 580
+                  ? 2
+                  : 1;
+              return SliverGrid(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => _CameraCard(
                     camera: store.cameras[index],
                     onEdit: () => _edit(context, store.cameras[index]),
                     onDelete: () =>
                         _delete(context, store, store.cameras[index]),
                   ),
-                );
-              },
-            ),
-        ],
-      ),
+                  childCount: store.cameras.length,
+                ),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                  mainAxisExtent: 158,
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 
@@ -213,7 +215,8 @@ class _CameraEditor extends StatefulWidget {
   State<_CameraEditor> createState() => _CameraEditorState();
 }
 
-class _CameraEditorState extends State<_CameraEditor> {
+class _CameraEditorState extends State<_CameraEditor>
+    with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
   late final TextEditingController _host;
@@ -234,6 +237,7 @@ class _CameraEditorState extends State<_CameraEditor> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final camera = widget.camera;
     _useGlobalCredentials = camera?.useGlobalCredentials ?? true;
     _name = TextEditingController(text: camera?.name ?? '');
@@ -256,7 +260,21 @@ class _CameraEditorState extends State<_CameraEditor> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      final probe = _probe;
+      if (probe != null) unawaited(probe.disposeSession());
+      if (!(_probeCompleter?.isCompleted ?? true)) {
+        _probeCompleter!.complete(false);
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     final probe = _probe;
     if (probe != null) {
       probe.removeListener(_refreshProbe);

@@ -31,4 +31,18 @@ void main() {
     expect(message, contains('não respondeu a tempo'));
     expect(message, isNot(contains('secret')));
   });
+
+  test('retries network outages but waits for configuration fixes', () {
+    expect(RtspFailureMessage.canRetry(TimeoutException('timeout')), isTrue);
+    expect(
+      RtspFailureMessage.canRetry('connection refused by 192.168.1.5'),
+      isTrue,
+    );
+    expect(RtspFailureMessage.canRetry('401 Unauthorized'), isFalse);
+    expect(RtspFailureMessage.canRetry('404 Not Found'), isFalse);
+    expect(
+      RtspFailureMessage.canRetry(const FormatException('Invalid URI')),
+      isFalse,
+    );
+  });
 }

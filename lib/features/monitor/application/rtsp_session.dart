@@ -6,6 +6,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../camera_catalog/domain/camera_device.dart';
+import '../domain/rtsp_buffer_policy.dart';
 import '../domain/reconnect_policy.dart';
 import '../domain/rtsp_failure_message.dart';
 import '../domain/rtsp_stream_uri.dart';
@@ -46,22 +47,56 @@ class RtspSession extends ChangeNotifier {
   VideoController? _videoController;
   StreamSubscription<String>? _errorSubscription;
   StreamSubscription<bool>? _playingSubscription;
+  StreamSubscription<Duration>? _positionSubscription;
   Timer? _retryTimer;
   Timer? _stallTimer;
+  Timer? _progressTimer;
   Future<void>? _starting;
   Future<void>? _closing;
+  Future<void>? _disposing;
   int _generation = 0;
   int _failures = 0;
   int _totalReconnectAttempts = 0;
   bool _disposed = false;
   int? _firstFrameLatencyMs;
   Duration? _nextRetryDelay;
+  Duration _lastPosition = Duration.zero;
+  DateTime? _lastPositionAdvanced;
+  String? _hardwareDecoder;
+  int? _droppedFrames;
 
   Player? get player => _player;
   VideoController? get videoController => _videoController;
   int get reconnectAttempts => _totalReconnectAttempts;
   int? get firstFrameLatencyMs => _firstFrameLatencyMs;
   Duration? get nextRetryDelay => _nextRetryDelay;
+  String? get hardwareDecoder => _hardwareDecoder;
+  int? get droppedFrames => _droppedFrames;
+
+  Future<void> refreshDiagnostics() async {
+    final currentPlayer = _player;
+    final backend = currentPlayer?.platform;
+    if (_disposed || backend is! NativePlayer || !firstFrameRendered.value) {
+      return;
+    }
+    try {
+      final decoder = await backend.getProperty('hwdec-current');
+      if (identical(_player, currentPlayer)) _hardwareDecoder = decoder;
+    } on Object {
+      if (identical(_player, currentPlayer)) _hardwareDecoder = null;
+    }
+    try {
+      final rendered = await backend.getProperty('frame-drop-count');
+      final decoded = await backend.getProperty('decoder-frame-drop-count');
+      if (identical(_player, currentPlayer)) {
+        _droppedFrames =
+            (int.tryParse(rendered) ?? 0) + (int.tryParse(decoded) ?? 0);
+      }
+    } on Object {
+      if (identical(_player, currentPlayer)) _droppedFrames = null;
+    }
+  }
+
   String? get currentResolution {
     final player = _player;
     if (player == null) return null;
@@ -119,7 +154,12 @@ class RtspSession extends ChangeNotifier {
 
   Future<void> _start() async {
     _retryTimer?.cancel();
+    _progressTimer?.cancel();
     _nextRetryDelay = null;
+    _lastPosition = Duration.zero;
+    _lastPositionAdvanced = null;
+    _hardwareDecoder = null;
+    _droppedFrames = null;
     final generation = ++_generation;
     final started = Stopwatch()..start();
     status.value = _failures == 0
@@ -135,9 +175,9 @@ class RtspSession extends ChangeNotifier {
       MediaKit.ensureInitialized();
       final player = Player(
         configuration: PlayerConfiguration(
-          bufferSize: (bufferMs.clamp(100, 2000) * 512).clamp(
-            64 * 1024,
-            1024 * 1024,
+          bufferSize: RtspBufferPolicy.bytesFor(
+            targetMilliseconds: bufferMs,
+            mainStream: useMainStream,
           ),
           muted: true,
           logLevel: MPVLogLevel.error,
@@ -154,17 +194,52 @@ class RtspSession extends ChangeNotifier {
         ),
       );
       _player = player;
+      final backend = player.platform;
+      if (backend is NativePlayer) {
+        await backend.setProperty('cache-on-disk', 'no');
+        await backend.setProperty('aid', 'no');
+      }
+      if (generation != _generation || _disposed) {
+        await _closePlayer(player);
+        return;
+      }
       _videoController = VideoController(
         player,
-        configuration: VideoControllerConfiguration(
-          scale: useMainStream ? 1 : 0.65,
+        configuration: const VideoControllerConfiguration(
           enableHardwareAcceleration: true,
         ),
       );
       notifyListeners();
       _errorSubscription = player.stream.error.listen((message) {
         if (generation != _generation || _disposed) return;
-        _markFailure(RtspFailureMessage.describe(message));
+        if (firstFrameRendered.value && player.state.playing) return;
+        _markFailure(
+          RtspFailureMessage.describe(message),
+          retry: RtspFailureMessage.canRetry(message),
+        );
+      });
+      _positionSubscription = player.stream.position.listen((position) {
+        if (generation != _generation || _disposed) return;
+        if (position > _lastPosition ||
+            (position > Duration.zero && position < _lastPosition)) {
+          _lastPositionAdvanced = DateTime.now();
+        }
+        _lastPosition = position;
+      });
+      _progressTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+        if (generation != _generation ||
+            _disposed ||
+            !firstFrameRendered.value ||
+            !player.state.playing) {
+          return;
+        }
+        final advanced = _lastPositionAdvanced;
+        if (advanced != null &&
+            DateTime.now().difference(advanced) > const Duration(seconds: 12)) {
+          _markFailure(
+            'O vídeo parou de avançar. Tentando restabelecer a conexão.',
+          );
+        }
       });
       _playingSubscription = player.stream.playing.listen((playing) {
         if (generation != _generation || _disposed) return;
@@ -208,7 +283,10 @@ class RtspSession extends ChangeNotifier {
       }
     } on Object catch (exception) {
       if (generation == _generation && !_disposed) {
-        _markFailure(RtspFailureMessage.describe(exception));
+        _markFailure(
+          RtspFailureMessage.describe(exception),
+          retry: RtspFailureMessage.canRetry(exception),
+        );
       }
     }
   }
@@ -217,31 +295,39 @@ class RtspSession extends ChangeNotifier {
     ++_generation;
     _retryTimer?.cancel();
     _stallTimer?.cancel();
+    _progressTimer?.cancel();
     _nextRetryDelay = null;
     final player = _player;
     _player = null;
     _videoController = null;
     await _errorSubscription?.cancel();
     await _playingSubscription?.cancel();
+    await _positionSubscription?.cancel();
     _errorSubscription = null;
     _playingSubscription = null;
+    _positionSubscription = null;
     if (player != null) {
       await _closePlayer(player);
     }
-    status.value = CameraPlaybackStatus.paused;
-    notifyListeners();
+    if (!_disposed) {
+      status.value = CameraPlaybackStatus.paused;
+      notifyListeners();
+    }
   }
 
   Future<void> resume() => start();
 
-  Future<void> disposeSession() async {
-    if (_disposed) return;
+  Future<void> disposeSession() => _disposing ??= _disposeSession();
+
+  Future<void> _disposeSession() async {
     _disposed = true;
     ++_generation;
     _retryTimer?.cancel();
     _stallTimer?.cancel();
+    _progressTimer?.cancel();
     await _errorSubscription?.cancel();
     await _playingSubscription?.cancel();
+    await _positionSubscription?.cancel();
     final player = _player;
     _player = null;
     _videoController = null;
@@ -269,24 +355,26 @@ class RtspSession extends ChangeNotifier {
     );
   }
 
-  void _markFailure(String message) {
+  void _markFailure(String message, {bool retry = true}) {
     ++_generation;
     final oldPlayer = _player;
     _stallTimer?.cancel();
+    _progressTimer?.cancel();
     _player = null;
     _videoController = null;
     _errorSubscription?.cancel();
     _playingSubscription?.cancel();
+    _positionSubscription?.cancel();
     _errorSubscription = null;
     _playingSubscription = null;
+    _positionSubscription = null;
     if (oldPlayer != null) unawaited(_closePlayer(oldPlayer));
     _failures++;
-    _totalReconnectAttempts++;
     error.value = message;
-    status.value = retryEnabled
+    status.value = retryEnabled && retry
         ? CameraPlaybackStatus.reconnecting
         : CameraPlaybackStatus.error;
-    if (retryEnabled) _scheduleRetry();
+    if (retryEnabled && retry) _scheduleRetry();
     notifyListeners();
   }
 
@@ -294,7 +382,10 @@ class RtspSession extends ChangeNotifier {
     _retryTimer?.cancel();
     _nextRetryDelay = _retryDelay();
     _retryTimer = Timer(_nextRetryDelay!, () {
-      if (!_disposed) start();
+      if (!_disposed) {
+        _totalReconnectAttempts++;
+        start();
+      }
     });
   }
 

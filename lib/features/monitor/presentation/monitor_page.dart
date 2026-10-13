@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,6 +31,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   final Map<String, RtspSession> _sessions = {};
   Timer? _controlsTimer;
   Timer? _diagnosticTimer;
+  final ValueNotifier<int> _diagnosticTick = ValueNotifier(0);
   int _page = 0;
   bool _mainStreams = false;
   bool _showControls = true;
@@ -39,6 +41,8 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   bool _restoreMonitorPage = true;
   String? _lastLayoutId;
   bool _appActive = true;
+  bool _refreshingDiagnostics = false;
+  Future<void> _pendingTeardown = Future.value();
 
   @override
   void initState() {
@@ -52,6 +56,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       if (!_appActive) {
         _appActive = true;
+        _syncDiagnosticRefresh();
         unawaited(_syncSessions());
       }
       return;
@@ -62,11 +67,11 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       if (!_appActive) return;
       _appActive = false;
       ++_generation;
+      _diagnosticTimer?.cancel();
+      _controlsTimer?.cancel();
       final sessions = _sessions.values.toList();
       _sessions.clear();
-      for (final session in sessions) {
-        unawaited(session.disposeSession());
-      }
+      unawaited(_releaseSessions(sessions));
       if (mounted) setState(() {});
     }
   }
@@ -83,9 +88,8 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     ++_generation;
     _controlsTimer?.cancel();
     _diagnosticTimer?.cancel();
-    for (final session in _sessions.values) {
-      unawaited(session.disposeSession());
-    }
+    _diagnosticTick.dispose();
+    unawaited(_releaseSessions(_sessions.values.toList()));
     _sessions.clear();
     super.dispose();
   }
@@ -93,8 +97,11 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   Future<void> _syncSessions() async {
     if (!_appActive || !mounted) return;
     final generation = ++_generation;
+    await _pendingTeardown;
+    if (!_appActive || !mounted || generation != _generation) return;
     final store = AppScope.of(context);
     final ids = store.config.slotCameraIds;
+    final cameraById = {for (final camera in store.cameras) camera.id: camera};
     if (_restoreMonitorPage) {
       _page = store.config.lastMonitorPage;
       _restoreMonitorPage = false;
@@ -130,14 +137,14 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
         if (old != null) staleSessions.add(old);
       }
     }
-    await Future.wait(staleSessions.map((session) => session.disposeSession()));
+    await _releaseSessions(staleSessions);
     if (!mounted || generation != _generation) return;
     for (var index = start; index < end; index++) {
       final id = ids[index];
       if (id == null) continue;
       if (!visibleIds.contains(id)) continue;
       if (_focusedCameraId != null && id != _focusedCameraId) continue;
-      final camera = store.cameras.where((item) => item.id == id).firstOrNull;
+      final camera = cameraById[id];
       if (camera == null) continue;
       final secret = await store.passwordFor(camera);
       if (!mounted || generation != _generation) return;
@@ -153,13 +160,14 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       if (existing != null &&
           _sameCamera(existing.camera, effectiveCamera) &&
           existing.password == secret &&
+          existing.defaultPort == store.config.defaultPort &&
           existing.bufferMs == store.config.bufferMs &&
           existing.useMainStream == mainStream) {
         continue;
       }
       if (existing != null) {
         _sessions.remove(id);
-        await existing.disposeSession();
+        await _releaseSessions([existing]);
         if (!mounted || generation != _generation || !_appActive) return;
       }
       final session = RtspSession(
@@ -170,12 +178,24 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
         useMainStream: mainStream,
       );
       _sessions[id] = session;
+      setState(() {});
       unawaited(session.start());
-      if (index < ids.length - 1) {
+      if (index < end - 1) {
         await Future<void>.delayed(const Duration(milliseconds: 180));
       }
     }
     if (mounted) setState(() {});
+  }
+
+  Future<void> _releaseSessions(List<RtspSession> sessions) {
+    if (sessions.isEmpty) return _pendingTeardown;
+    final previous = _pendingTeardown;
+    final pending = () async {
+      await previous;
+      await Future.wait(sessions.map((session) => session.disposeSession()));
+    }();
+    _pendingTeardown = pending;
+    return pending;
   }
 
   bool _sameCamera(CameraDevice left, CameraDevice right) {
@@ -201,7 +221,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   void _changePage(int page, AppStore store) {
     setState(() => _page = page);
     unawaited(store.updateSettings(lastMonitorPage: page));
-    _syncSessions();
+    unawaited(_syncSessions());
   }
 
   Set<String> _activePlaybackIds(AppStore store, List<String?> slots) {
@@ -237,6 +257,8 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     final visibleCount = focusedIndex >= 0
         ? 1
         : (slots.length - from).clamp(0, perPage);
+    final activeIds = _activePlaybackIds(store, slots);
+    final cameraById = {for (final camera in store.cameras) camera.id: camera};
     return PopScope<Object?>(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -328,9 +350,9 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                                 )
                               : LayoutBuilder(
                                   builder: (context, constraints) {
-                                    final columns = _columns(
-                                      layout,
-                                      constraints.maxWidth,
+                                    final columns = min(
+                                      _columns(layout, constraints.maxWidth),
+                                      sqrt(visibleCount).ceil().clamp(1, 6),
                                     );
                                     final rows = (visibleCount / columns)
                                         .ceil();
@@ -358,9 +380,10 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                                                 rect: rectangles[offset]
                                                     .deflate(1.5),
                                                 child: _cameraTile(
-                                                  store,
                                                   slots,
                                                   offset,
+                                                  activeIds,
+                                                  cameraById,
                                                 ),
                                               ),
                                           ],
@@ -391,9 +414,10 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                                           ),
                                       itemBuilder: (context, offset) =>
                                           _cameraTile(
-                                            store,
                                             slots,
                                             from + offset,
+                                            activeIds,
+                                            cameraById,
                                           ),
                                     );
                                   },
@@ -403,7 +427,11 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                           Positioned(
                             top: 12,
                             right: 12,
-                            child: _diagnostics(context, store, slots),
+                            child: ListenableBuilder(
+                              listenable: _diagnosticTick,
+                              builder: (context, _) =>
+                                  _diagnostics(context, store, slots),
+                            ),
                           ),
                       ],
                     ),
@@ -417,13 +445,15 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _cameraTile(AppStore store, List<String?> slots, int slotIndex) {
+  Widget _cameraTile(
+    List<String?> slots,
+    int slotIndex,
+    Set<String> activeIds,
+    Map<String, CameraDevice> cameraById,
+  ) {
     final id = slots[slotIndex];
-    final camera = id == null
-        ? null
-        : store.cameras.where((item) => item.id == id).firstOrNull;
+    final camera = id == null ? null : cameraById[id];
     final session = id == null ? null : _sessions[id];
-    final activeIds = _activePlaybackIds(store, slots);
     return _CameraTile(
       camera: camera,
       session: session,
@@ -532,6 +562,11 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
             '${session.currentFramesPerSecond!.toStringAsFixed(1)} fps nominal',
           if (session.currentBitrate != null)
             '${(session.currentBitrate! / 1000000).toStringAsFixed(1)} Mbps',
+          if (session.hardwareDecoder case final decoder?
+              when decoder.isNotEmpty)
+            decoder == 'no' ? 'Decodificação por CPU' : 'Decodificação por GPU',
+          if (session.droppedFrames case final dropped? when dropped > 0)
+            '$dropped quadros perdidos',
           if (session.firstFrameLatencyMs != null)
             'Primeiro quadro ${session.firstFrameLatencyMs} ms',
           if (session.reconnectAttempts > 0)
@@ -622,10 +657,26 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
 
   void _syncDiagnosticRefresh() {
     _diagnosticTimer?.cancel();
-    if (_showDiagnostics) {
-      _diagnosticTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
+    if (_showDiagnostics && _appActive) {
+      unawaited(_refreshDiagnosticMetrics());
+      _diagnosticTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+        unawaited(_refreshDiagnosticMetrics());
       });
+    }
+  }
+
+  Future<void> _refreshDiagnosticMetrics() async {
+    if (_refreshingDiagnostics || !_appActive || !mounted) return;
+    _refreshingDiagnostics = true;
+    try {
+      await Future.wait(
+        _sessions.values.map((session) => session.refreshDiagnostics()),
+      );
+      if (mounted && _appActive && _showDiagnostics) {
+        _diagnosticTick.value++;
+      }
+    } finally {
+      _refreshingDiagnostics = false;
     }
   }
 
@@ -710,7 +761,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
               tooltip: _mainStreams ? 'Fluxo principal' : 'Fluxo econômico',
               onPressed: () {
                 setState(() => _mainStreams = !_mainStreams);
-                _restartSessions(store);
+                unawaited(_restartSessions());
               },
               icon: Icon(
                 _mainStreams
@@ -760,12 +811,13 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     );
   }
 
-  void _restartSessions(AppStore store) {
-    for (final session in _sessions.values) {
-      unawaited(session.disposeSession());
-    }
+  Future<void> _restartSessions() async {
+    ++_generation;
+    final oldSessions = _sessions.values.toList();
     _sessions.clear();
-    _syncSessions();
+    setState(() {});
+    await _releaseSessions(oldSessions);
+    if (mounted && _appActive) await _syncSessions();
   }
 
   Future<void> _showKeyboardShortcuts(BuildContext context) => showDialog<void>(
@@ -801,11 +853,17 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     return layout.columns.clamp(1, 6);
   }
 
-  int _pageSize(LayoutPreset layout, double width) => width < 600
-      ? layout.cameraCount.clamp(1, 4)
-      : width < 980
-      ? layout.cameraCount.clamp(1, 9)
-      : layout.cameraCount;
+  int _pageSize(LayoutPreset layout, double width) {
+    final limit = PerformancePreset.fromId(
+      AppScope.of(context).config.resourceMode,
+    ).maxConcurrentStreams;
+    final screenLimit = width < 600
+        ? 4
+        : width < 980
+        ? 9
+        : layout.cameraCount;
+    return min(layout.cameraCount, min(screenLimit, limit)).clamp(1, 16);
+  }
 }
 
 class _CameraTile extends StatelessWidget {
@@ -826,6 +884,15 @@ class _CameraTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currentSession = session;
+    if (currentSession == null) return _content(context);
+    return ListenableBuilder(
+      listenable: currentSession,
+      builder: (context, _) => _content(context),
+    );
+  }
+
+  Widget _content(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       onDoubleTap: onFocus,

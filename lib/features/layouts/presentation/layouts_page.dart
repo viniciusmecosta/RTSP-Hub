@@ -149,11 +149,12 @@ class LayoutsPage extends StatelessWidget {
                 ),
               ),
               Flexible(
-                child: ListView(
-                  shrinkWrap: true,
+                child: ListView.builder(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                  children: [
-                    ListTile(
+                  itemCount: store.cameras.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return ListTile(
                       leading: const CircleAvatar(
                         child: Icon(Icons.videocam_off_outlined),
                       ),
@@ -164,11 +165,12 @@ class LayoutsPage extends StatelessWidget {
                           : null,
                       onTap: () =>
                           Navigator.pop(context, const _SlotSelection(null)),
-                    ),
-                    for (final camera in store.cameras)
-                      ListTile(
+                      );
+                    }
+                    final camera = store.cameras[index - 1];
+                    return ListTile(
                         leading: CircleAvatar(
-                          child: Text('${store.cameras.indexOf(camera) + 1}'),
+                          child: Text('$index'),
                         ),
                         title: Text(camera.name),
                         subtitle: Text(
@@ -183,8 +185,8 @@ class LayoutsPage extends StatelessWidget {
                             : _assignedPosition(store, camera.id, slotIndex),
                         onTap: () =>
                             Navigator.pop(context, _SlotSelection(camera.id)),
-                      ),
-                  ],
+                    );
+                  },
                 ),
               ),
             ],

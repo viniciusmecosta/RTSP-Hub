@@ -209,9 +209,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.high_quality_outlined),
-                  title: const Text('Cache de reprodução estimado'),
+                  title: const Text('Buffer de rede'),
                   subtitle: Text(
-                    'Nível ${store.config.bufferMs} · valores menores usam menos memória, mas podem interromper em redes instáveis.',
+                    'Perfil ${store.config.bufferMs} · valores menores limitam a memória do fluxo e podem causar pausas em redes instáveis.',
                   ),
                 ),
                 const Divider(height: 1),
