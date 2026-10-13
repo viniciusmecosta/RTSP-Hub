@@ -41,3 +41,24 @@ class RtspChannelCandidates {
     }.toList(growable: false);
   }
 }
+
+/// Identifica um fluxo pelo que realmente foi recebido (resolução, fps e
+/// codec), ignorando a taxa de bits que oscila entre leituras.
+class StreamSignature {
+  static final _resolution = RegExp(r'(\d{2,5})\s*[×x]\s*(\d{2,5})');
+
+  static String resolution(String quality) {
+    final match = _resolution.firstMatch(quality);
+    return match == null ? '' : '${match.group(1)}x${match.group(2)}';
+  }
+
+  static String of(String mainQuality, String? subQuality) {
+    String normalize(String value) => value
+        .split('·')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty && !part.endsWith('Mbps'))
+        .join('|')
+        .toLowerCase();
+    return '${normalize(mainQuality)}#${normalize(subQuality ?? '')}';
+  }
+}

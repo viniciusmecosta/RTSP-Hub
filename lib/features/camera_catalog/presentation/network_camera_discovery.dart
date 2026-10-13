@@ -34,6 +34,8 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
   final _hostLabels = <String, String>{};
   final _channels = <_DetectedChannel>[];
   final _selected = <String>{};
+  final _onvifHosts = <String>{};
+  final _streamChoice = <String, _StreamChoice>{};
   bool _expanded = false;
   bool _busy = false;
   bool _cancel = false;
@@ -139,6 +141,8 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
       _hosts.clear();
       _portsByHost.clear();
       _hostLabels.clear();
+      _onvifHosts.clear();
+      _streamChoice.clear();
       _channels.clear();
       _selected.clear();
       _completed = 0;
@@ -230,30 +234,25 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
         isCancelled: () => _cancel,
       );
       if (device == null) continue;
-      final groups = <String, List<OnvifProfile>>{};
-      for (final profile in device.profiles) {
-        final source = profile.sourceToken?.trim();
-        final group = source == null || source.isEmpty ? profile.name : source;
-        groups.putIfAbsent(group, () => []).add(profile);
-      }
+      final pairs = OnvifStreamPair.group(device.profiles);
       var groupIndex = 0;
-      for (final entry in groups.entries) {
+      for (final pair in pairs) {
         if (!mounted || _cancel) return;
         groupIndex++;
-        final profiles = [...entry.value]
-          ..sort((left, right) => right.pixelCount.compareTo(left.pixelCount));
-        final main = profiles.first;
-        final sub = profiles.length > 1 ? profiles.last : null;
+        final main = pair.main;
+        final sub = pair.sub;
         final stream = main.streamUri;
         final host = stream.host;
         final port = stream.hasPort ? stream.port : 554;
-        final number =
-            int.tryParse(
-              RegExp(r'\d+').firstMatch(entry.key)?.group(0) ?? '',
-            ) ??
-            groupIndex;
+        final number = pairs.length == 1
+            ? 1
+            : int.tryParse(
+                    RegExp(r'\d+').firstMatch(pair.sourceKey)?.group(0) ?? '',
+                  ) ??
+                  groupIndex;
         final mainPath = _rtspPath(stream);
         if (mainPath.isEmpty) continue;
+        _onvifHosts.add(host);
         _portsByHost.putIfAbsent(host, () => port);
         final identity = [
           device.manufacturer,
@@ -297,12 +296,16 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
   Future<void> _inspectHosts({required int lastChannel}) async {
     final username = _username.text.trim();
     final password = _password.text;
+    final targets = _hosts
+        .where((host) => !_onvifHosts.contains(host))
+        .toList(growable: false);
     setState(() {
       _stage = 'Detectando canais e testando os fluxos';
       _completed = 0;
-      _total = _hosts.length * lastChannel;
+      _total = targets.length * lastChannel;
     });
-    for (final host in List<String>.of(_hosts)) {
+    for (final host in targets) {
+      final signatures = <String>{};
       for (var channel = 1; channel <= lastChannel; channel++) {
         if (!mounted || _cancel) return;
         if (_channels.any(
@@ -329,7 +332,13 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
             break;
           }
         }
-        if (mainPath == null || _cancel) continue;
+        if (_cancel) return;
+        if (mainPath == null) {
+          // Canais de DVR/NVR são sequenciais: o primeiro ausente encerra a
+          // busca neste dispositivo e evita registrar fluxos repetidos.
+          setState(() => _completed += lastChannel - channel);
+          break;
+        }
         String? subPath;
         String? subQuality;
         for (final path in RtspChannelCandidates.subForChannel(channel)) {
@@ -346,6 +355,19 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
           }
         }
         if (!mounted || _cancel) return;
+        if (subQuality != null &&
+            StreamSignature.resolution(subQuality) ==
+                StreamSignature.resolution(mainQuality!)) {
+          subPath = null;
+          subQuality = null;
+        }
+        final signature = StreamSignature.of(mainQuality!, subQuality);
+        if (!signatures.add(signature)) {
+          // A câmera ignora o número do canal e devolve o mesmo vídeo:
+          // não há outros canais reais neste dispositivo.
+          setState(() => _completed += lastChannel - channel);
+          break;
+        }
         final result = _DetectedChannel(
           host: host,
           port: _portsByHost[host]!,
@@ -353,7 +375,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
           username: username,
           password: password,
           mainPath: mainPath,
-          mainQuality: mainQuality!,
+          mainQuality: mainQuality,
           subPath: subPath,
           subQuality: subQuality,
           verified: true,
@@ -455,14 +477,23 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
           host: channel.host,
           port: channel.port,
           username: channel.username,
-          mainPath: channel.mainPath,
-          subPath: channel.subPath ?? '',
+          mainPath: _choiceFor(channel) == _StreamChoice.sub
+              ? channel.subPath!
+              : channel.mainPath,
+          subPath: _choiceFor(channel) == _StreamChoice.both
+              ? channel.subPath ?? ''
+              : '',
           useGlobalCredentials: true,
         ),
     ]);
     if (!mounted) return;
     setState(() => _busy = false);
     _message('$saved de ${chosen.length} canais adicionados às câmeras.');
+  }
+
+  _StreamChoice _choiceFor(_DetectedChannel channel) {
+    if (channel.subPath == null) return _StreamChoice.main;
+    return _streamChoice[channel.key] ?? _StreamChoice.both;
   }
 
   void _cancelSearch() {
@@ -753,6 +784,9 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
                               .where((channel) => channel.host == host)
                               .toList(growable: false),
                           selected: _selected,
+                          choiceFor: _choiceFor,
+                          onChoice: (item, choice) =>
+                              setState(() => _streamChoice[item.key] = choice),
                           onChanged: (item, value) => setState(() {
                             if (value) {
                               _selected.add(item.key);
@@ -811,6 +845,8 @@ class _DiscoveredHostGroup extends StatelessWidget {
     required this.displayName,
     required this.channels,
     required this.selected,
+    required this.choiceFor,
+    required this.onChoice,
     required this.onChanged,
   });
 
@@ -818,6 +854,8 @@ class _DiscoveredHostGroup extends StatelessWidget {
   final String displayName;
   final List<_DetectedChannel> channels;
   final Set<String> selected;
+  final _StreamChoice Function(_DetectedChannel channel) choiceFor;
+  final void Function(_DetectedChannel channel, _StreamChoice choice) onChoice;
   final void Function(_DetectedChannel channel, bool selected) onChanged;
 
   @override
@@ -835,24 +873,56 @@ class _DiscoveredHostGroup extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleSmall,
               ),
             ),
-            for (final channel in channels)
+            for (final channel in channels) ...[
               CheckboxListTile(
                 value: selected.contains(channel.key),
                 onChanged: (value) => onChanged(channel, value ?? false),
                 controlAffinity: ListTileControlAffinity.leading,
-                title: Text('Canal ${channel.number} · ${channel.mainQuality}'),
+                title: Text(
+                  'Câmera ${channel.number} · principal ${channel.mainQuality}',
+                ),
                 subtitle: Text(
                   '${channel.verified ? 'Vídeo confirmado' : 'Informado por ONVIF · vídeo ainda não testado'}\nPrincipal: ${channel.mainPath}${channel.subPath == null ? '' : '\nSecundário: ${channel.subPath} · ${channel.subQuality}'}',
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (channel.subPath != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(56, 0, 16, 8),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SegmentedButton<_StreamChoice>(
+                      showSelectedIcon: false,
+                      segments: const [
+                        ButtonSegment(
+                          value: _StreamChoice.both,
+                          label: Text('Principal + sub'),
+                        ),
+                        ButtonSegment(
+                          value: _StreamChoice.main,
+                          label: Text('Só principal'),
+                        ),
+                        ButtonSegment(
+                          value: _StreamChoice.sub,
+                          label: Text('Só subfluxo'),
+                        ),
+                      ],
+                      selected: {choiceFor(channel)},
+                      onSelectionChanged: (value) =>
+                          onChoice(channel, value.first),
+                    ),
+                  ),
+                ),
+            ],
           ],
         ),
       ),
     );
   }
 }
+
+enum _StreamChoice { both, main, sub }
 
 class _DetectedChannel {
   const _DetectedChannel({
