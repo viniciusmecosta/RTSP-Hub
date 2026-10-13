@@ -39,6 +39,17 @@ class AppStore extends ChangeNotifier {
   };
   LayoutPreset get activeLayout => LayoutPreset.byId(_config.layoutId);
 
+  SavedMonitorProfile? get lastSavedProfile {
+    final id = _config.lastProfileId;
+    if (id != null) {
+      final match = _config.monitorProfiles
+          .where((profile) => profile.id == id)
+          .firstOrNull;
+      if (match != null) return match;
+    }
+    return _config.monitorProfiles.lastOrNull;
+  }
+
   Future<void> load() async {
     _loading = true;
     notifyListeners();
@@ -429,7 +440,12 @@ class AppStore extends ChangeNotifier {
       ..._config.monitorProfiles.where((item) => item.id != profile.id),
       profile,
     ];
-    return _commit(_config.copyWith(monitorProfiles: profiles));
+    return _commit(
+      _config.copyWith(
+        monitorProfiles: profiles,
+        lastProfileId: profile.id,
+      ),
+    );
   }
 
   Future<void> applyMonitorProfile(String id) async {
@@ -453,6 +469,7 @@ class AppStore extends ChangeNotifier {
         layoutId: layout.id,
         slotCameraIds: slots,
         startupSection: profile.startupSection,
+        lastProfileId: profile.id,
       ),
     );
   }
@@ -461,7 +478,13 @@ class AppStore extends ChangeNotifier {
     final profiles = _config.monitorProfiles
         .where((profile) => profile.id != id)
         .toList(growable: false);
-    await _commit(_config.copyWith(monitorProfiles: profiles));
+    final clearLast = _config.lastProfileId == id;
+    await _commit(
+      _config.copyWith(
+        monitorProfiles: profiles,
+        clearLastProfileId: clearLast,
+      ),
+    );
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {

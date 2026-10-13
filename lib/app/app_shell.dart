@@ -170,6 +170,11 @@ class _AppShellState extends State<AppShell> {
     DashboardPage(
       onAddCamera: () => _selectIndex(1),
       onOpenMonitor: () => _selectIndex(3),
+      onOpenProfile: (profileId) async {
+        final store = AppScope.of(context);
+        await store.applyMonitorProfile(profileId);
+        _selectIndex(3);
+      },
     ),
     const CameraCatalogPage(),
     const LayoutsPage(),

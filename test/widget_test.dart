@@ -4,6 +4,7 @@ import 'package:rtsp_view/main.dart';
 import 'package:rtsp_view/app/data/app_configuration.dart';
 import 'package:rtsp_view/app/state/app_store.dart';
 import 'package:rtsp_view/features/camera_catalog/domain/camera_device.dart';
+import 'package:rtsp_view/features/layouts/domain/saved_monitor_profile.dart';
 import 'package:rtsp_view/shared/infrastructure/secure_store/credential_store.dart';
 import 'package:rtsp_view/shared/infrastructure/storage/config_repository.dart';
 
@@ -129,6 +130,33 @@ void main() {
     expect(find.text('Entrada principal'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'atalho de acesso rápido na tela inicial abre o monitor com o último perfil',
+    (tester) async {
+      const profile = SavedMonitorProfile(
+        id: 'p1',
+        name: 'Entrada e Garagem',
+        layoutId: 'GRID_2H',
+        slotCameraIds: [null, null],
+      );
+      final config = const AppConfiguration(
+        startupSection: 'dashboard',
+        tutorialCompleted: true,
+        monitorProfiles: [profile],
+        lastProfileId: 'p1',
+      );
+      await tester.pumpWidget(_app(configuration: config));
+      await tester.pumpAndSettle();
+
+      final quickStart = find.textContaining('Acesso rápido · Entrada e Garagem').first;
+      expect(quickStart, findsOneWidget);
+      await tester.tap(quickStart);
+      await tester.pumpAndSettle();
+
+      expect(find.text('MONITOR  ·  0 CÂMERAS'), findsOneWidget);
+    },
+  );
 }
 
 MyApp _app({AppConfiguration? configuration}) => MyApp(
