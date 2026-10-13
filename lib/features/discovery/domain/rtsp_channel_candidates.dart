@@ -42,8 +42,6 @@ class RtspChannelCandidates {
   }
 }
 
-/// Identifica um fluxo pelo que realmente foi recebido (resolução, fps e
-/// codec), ignorando a taxa de bits que oscila entre leituras.
 class StreamSignature {
   static final _resolution = RegExp(r'(\d{2,5})\s*[×x]\s*(\d{2,5})');
 
@@ -52,13 +50,9 @@ class StreamSignature {
     return match == null ? '' : '${match.group(1)}x${match.group(2)}';
   }
 
-  static String of(String mainQuality, String? subQuality) {
-    String normalize(String value) => value
-        .split('·')
-        .map((part) => part.trim())
-        .where((part) => part.isNotEmpty && !part.endsWith('Mbps'))
-        .join('|')
-        .toLowerCase();
-    return '${normalize(mainQuality)}#${normalize(subQuality ?? '')}';
+  static bool sameKnownResolution(String mainQuality, String subQuality) {
+    final mainResolution = resolution(mainQuality);
+    return mainResolution.isNotEmpty &&
+        mainResolution == resolution(subQuality);
   }
 }
