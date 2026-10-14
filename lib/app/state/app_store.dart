@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
+import '../../features/camera_catalog/data/camera_snapshot_store.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
@@ -13,10 +15,15 @@ import '../data/app_configuration.dart';
 
 class AppStore extends ChangeNotifier {
   static const _networkDiscoveryCredentialId = '__network_discovery__';
-  AppStore({ConfigRepository? repository, CredentialStore? credentials})
-    : _repository = repository ?? ConfigRepository(),
-      _credentials = credentials ?? CredentialStore();
+  AppStore({
+    ConfigRepository? repository,
+    CredentialStore? credentials,
+    CameraSnapshotStore? snapshotStore,
+  }) : _repository = repository ?? ConfigRepository(),
+       _credentials = credentials ?? CredentialStore(),
+       snapshots = snapshotStore ?? CameraSnapshotStore();
 
+  final CameraSnapshotStore snapshots;
   final ConfigRepository _repository;
   final CredentialStore _credentials;
   final Map<String, String> _passwords = {};
@@ -99,6 +106,7 @@ class AppStore extends ChangeNotifier {
     bool useGlobalCredentials = false,
     List<String> savedPaths = const [],
     String selectedPath = '',
+    Uint8List? thumbnail,
   }) async {
     final normalizedHost = host.trim();
     final parsedPort = port.trim().isEmpty
@@ -150,7 +158,6 @@ class AppStore extends ChangeNotifier {
       return false;
     }
     final isNewCamera = id.isEmpty;
-    // Câmera nova sem usuário e senha herda as credenciais globais.
     if (isNewCamera && username.trim().isEmpty && password.isEmpty) {
       useGlobalCredentials = true;
     }
@@ -176,6 +183,9 @@ class AppStore extends ChangeNotifier {
       savedPaths: allSavedPaths,
       selectedPath: allSavedPaths.contains(selectedPath) ? selectedPath : '',
     );
+    final previousCamera = _config.cameras
+        .where((item) => item.id == camera.id)
+        .firstOrNull;
     final previousPassword = await _credentials.read(camera.id);
     try {
       if (!useGlobalCredentials && password.isNotEmpty) {
@@ -207,6 +217,14 @@ class AppStore extends ChangeNotifier {
           }
         }
         return false;
+      }
+      if (thumbnail != null) {
+        await snapshots.save(camera.id, thumbnail);
+      } else if (previousCamera != null &&
+          (previousCamera.host != camera.host ||
+              previousCamera.port != camera.port ||
+              previousCamera.mainPath != camera.mainPath)) {
+        await snapshots.remove(camera.id);
       }
       _message = 'Câmera salva neste dispositivo.';
       return true;
@@ -288,6 +306,7 @@ class AppStore extends ChangeNotifier {
       return;
     }
     try {
+      await snapshots.remove(id);
       await _credentials.delete(id);
       _passwords.remove(id);
       _message = null;

@@ -1,4 +1,8 @@
 import 'dart:async';
+import 'dart:typed_data';
+
+import 'camera_preview_dialog.dart';
+import 'camera_thumbnail.dart';
 
 import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -74,7 +78,7 @@ class CameraCatalogPage extends StatelessWidget {
                   crossAxisCount: columns,
                   crossAxisSpacing: 14,
                   mainAxisSpacing: 14,
-                  mainAxisExtent: 136,
+                  mainAxisExtent: 280,
                 ),
               );
             },
@@ -165,51 +169,51 @@ class _CameraCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme;
+    final store = AppScope.of(context);
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: color.primaryContainer,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(Icons.videocam_outlined, color: color.primary),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CameraThumbnail(cameraId: camera.id),
+                Center(
+                  child: IconButton.filled(
+                    onPressed: () =>
+                        CameraPreviewDialog.openSaved(context, store, camera),
+                    tooltip: 'Ver vídeo de ${camera.name}',
+                    icon: const Icon(Icons.play_arrow),
+                  ),
+                ),
+                const Positioned(
+                  left: 12,
+                  bottom: 8,
+                  child: Chip(
+                    visualDensity: VisualDensity.compact,
+                    label: Text('Miniatura salva'),
+                    avatar: Icon(Icons.photo_outlined, size: 16),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    camera.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${camera.host}:${camera.effectivePort(AppScope.of(context).config.defaultPort)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    camera.mainPath,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
+          ),
+          ListTile(
+            title: Text(
+              camera.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            PopupMenuButton<String>(
+            subtitle: Text(
+              camera.host,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onTap: onEdit,
+            trailing: PopupMenuButton<String>(
+              tooltip: 'Opções da câmera',
               onSelected: (value) => switch (value) {
                 'edit' => onEdit(),
                 'clone' => onClone(),
@@ -217,13 +221,13 @@ class _CameraCard extends StatelessWidget {
                 _ => null,
               },
               itemBuilder: (_) => const [
-                PopupMenuItem(value: 'edit', child: Text('Editar')),
+                PopupMenuItem(value: 'edit', child: Text('Editar câmera')),
                 PopupMenuItem(value: 'clone', child: Text('Clonar câmera')),
                 PopupMenuItem(value: 'delete', child: Text('Remover')),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -256,6 +260,8 @@ class _CameraEditorState extends State<_CameraEditor>
   late final TextEditingController _mainPath;
   late final TextEditingController _subPath;
   late List<String> _savedPaths;
+  Uint8List? _thumbnail;
+  String? _thumbnailIdentity;
   bool _obscure = true;
   late bool _useGlobalCredentials;
   bool _busy = false;
@@ -704,7 +710,7 @@ class _CameraEditorState extends State<_CameraEditor>
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.play_circle_outline),
-                      label: Text(_testing ? 'Testando…' : 'Testar fluxo'),
+                      label: Text(_testing ? 'Testando…' : 'Testar vídeo'),
                     ),
                     TextButton(
                       onPressed: _busy ? null : () => Navigator.pop(context),
@@ -747,46 +753,35 @@ class _CameraEditorState extends State<_CameraEditor>
       subPath: _subPath.text.trim(),
       useGlobalCredentials: _useGlobalCredentials,
     );
-    final session = RtspSession(
-      camera: camera,
-      password: _password.text.isEmpty ? null : _password.text,
-      defaultPort: widget.store.config.defaultPort,
-      bufferMs: widget.store.config.bufferMs,
-      useMainStream: true,
-      retryEnabled: false,
-    );
-    final completer = Completer<bool>();
-    _probe = session;
-    _probeCompleter = completer;
-    _probeMessage = 'Conectando e aguardando o primeiro quadro…';
-    _probeSucceeded = null;
-    session.firstFrameRendered.addListener(_checkProbe);
-    session.error.addListener(_checkProbe);
-    session.addListener(_refreshProbe);
     setState(() => _testing = true);
-    unawaited(session.start());
-    final succeeded = await completer.future.timeout(
-      const Duration(seconds: 12),
-      onTimeout: () => false,
+    final identity = _captureIdentity;
+    final thumbnail = await showDialog<Uint8List>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => CameraPreviewDialog(
+        camera: camera,
+        password: _password.text.isEmpty ? null : _password.text,
+        defaultPort: widget.store.config.defaultPort,
+        bufferMs: widget.store.config.bufferMs,
+        captureOnly: _busy,
+      ),
     );
     if (!mounted) return;
-    final failure = session.error.value;
     setState(() {
-      _probeMessage = succeeded
-          ? 'Fluxo validado: primeiro quadro recebido.'
-          : failure ??
-                'A câmera não respondeu a tempo. Confira a rede, a porta e se o fluxo está ativo.';
-      _probeSucceeded = succeeded;
       _testing = false;
-      _probe = null;
-      _probeCompleter = null;
+      _thumbnail = thumbnail;
+      _thumbnailIdentity = thumbnail == null ? null : identity;
     });
-    await WidgetsBinding.instance.endOfFrame;
-    session.firstFrameRendered.removeListener(_checkProbe);
-    session.error.removeListener(_checkProbe);
-    session.removeListener(_refreshProbe);
-    await session.disposeSession();
   }
+
+  String get _captureIdentity => [
+    _host.text,
+    _port.text,
+    _username.text,
+    _password.text,
+    _mainPath.text,
+    _useGlobalCredentials.toString(),
+  ].join('\u0000');
 
   Future<void> _findChannels() async {
     final host = _host.text.trim();
@@ -987,6 +982,10 @@ class _CameraEditorState extends State<_CameraEditor>
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _busy = true);
+    if (_thumbnail == null || _thumbnailIdentity != _captureIdentity) {
+      await _testStream();
+      if (!mounted) return;
+    }
     final currentMain = _mainPath.text.trim();
     if (currentMain.isNotEmpty && !_savedPaths.contains(currentMain)) {
       _savedPaths.add(currentMain);
@@ -1002,6 +1001,7 @@ class _CameraEditorState extends State<_CameraEditor>
       subPath: _subPath.text,
       useGlobalCredentials: _useGlobalCredentials,
       savedPaths: _savedPaths,
+      thumbnail: _thumbnail,
     );
     if (!mounted) return;
     if (saved) {
