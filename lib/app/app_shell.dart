@@ -80,12 +80,14 @@ class _AppShellState extends State<AppShell> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('1. Cadastre a câmera e teste a conexão RTSP.'),
+            Text(
+              '1. Encontre câmeras na rede ou cadastre o IP. Use Testar vídeo para conferir a imagem.',
+            ),
             SizedBox(height: 12),
             Text('2. Escolha um layout; câmeras novas ocupam espaços vazios.'),
             SizedBox(height: 12),
             Text(
-              '3. Abra o monitor. Use botão direito para focar, F3 para ver estados e Esc para voltar.',
+              '3. Abra o monitor para acompanhar as câmeras. No computador, use F3 para ver estados e Esc para voltar.',
             ),
           ],
         ),
@@ -130,7 +132,9 @@ class _AppShellState extends State<AppShell> {
               if (!compact && rail && _section != AppSection.monitor)
                 NavigationRail(
                   selectedIndex: _selectedIndex,
-                  labelType: NavigationRailLabelType.all,
+                  labelType: shortLandscape
+                      ? NavigationRailLabelType.none
+                      : NavigationRailLabelType.all,
                   onDestinationSelected: _selectIndex,
                   destinations: [
                     for (final item in _destinations)

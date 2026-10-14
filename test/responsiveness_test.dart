@@ -22,7 +22,46 @@ void main() {
     cameras: [camera],
   );
 
-  testWidgets('renders properly on compact mobile portrait (360x640)', (tester) async {
+  for (final size in [
+    const Size(360, 640),
+    const Size(768, 1024),
+    const Size(1440, 900),
+  ]) {
+    for (final theme in ['light', 'dark']) {
+      testWidgets('native pages fit $size in $theme with larger text', (
+        tester,
+      ) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        for (final section in ['dashboard', 'cameras', 'layouts', 'settings']) {
+          await tester.pumpWidget(
+            _app(
+              configuration: config.copyWith(
+                startupSection: section,
+                themeMode: theme,
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: '$section at $size in $theme',
+          );
+          await tester.pumpWidget(const SizedBox());
+          await tester.pumpAndSettle();
+        }
+      });
+    }
+  }
+
+  testWidgets('renders properly on compact mobile portrait (360x640)', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(360, 640);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() => tester.view.resetPhysicalSize());
@@ -49,7 +88,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('navigates across sections without overflow on compact screen', (tester) async {
+  testWidgets('navigates across sections without overflow on compact screen', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(360, 640);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() => tester.view.resetPhysicalSize());
@@ -57,19 +98,21 @@ void main() {
     await tester.pumpWidget(_app(configuration: config));
     await tester.pumpAndSettle();
 
-    // Go to Cameras
     await tester.tap(find.byType(NavigationDestination).at(1));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Entrada Principal'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Entrada Principal'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    // Go to Layouts
     await tester.tap(find.byType(NavigationDestination).at(2));
     await tester.pumpAndSettle();
     expect(find.text('Perfis do monitor'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    // Go to Ajustes
     await tester.tap(find.byType(NavigationDestination).at(4));
     await tester.pumpAndSettle();
     expect(find.text('Conexão padrão'), findsOneWidget);

@@ -24,8 +24,11 @@ class PageFrame extends StatelessWidget {
   final List<Widget> actions;
 
   @override
-  Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => _build(context, constraints.maxWidth),
+  );
+
+  Widget _build(BuildContext context, double width) {
     final padding = width < 380
         ? 12.0
         : width < 600
@@ -39,7 +42,7 @@ class PageFrame extends StatelessWidget {
           slivers: [
             SliverPadding(
               padding: EdgeInsets.fromLTRB(side, 24, side, 28),
-              sliver: SliverToBoxAdapter(child: _heading(context)),
+              sliver: SliverToBoxAdapter(child: _heading(context, width)),
             ),
             for (final sliver in contentSlivers)
               SliverPadding(
@@ -63,7 +66,7 @@ class PageFrame extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _heading(context),
+                      _heading(context, width),
                       const SizedBox(height: 28),
                       child!,
                     ],
@@ -77,8 +80,8 @@ class PageFrame extends StatelessWidget {
     );
   }
 
-  Widget _heading(BuildContext context) {
-    if (MediaQuery.sizeOf(context).width < 600) {
+  Widget _heading(BuildContext context, double width) {
+    if (width < 800 || MediaQuery.textScalerOf(context).scale(14) > 20) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -96,7 +99,8 @@ class PageFrame extends StatelessWidget {
         Expanded(
           child: _PageHeading(title: title, subtitle: subtitle),
         ),
-        ...actions,
+        if (actions.isNotEmpty) const SizedBox(width: 24),
+        Wrap(spacing: 8, runSpacing: 8, children: actions),
       ],
     );
   }
@@ -117,12 +121,12 @@ class _PageHeading extends StatelessWidget {
         Text(
           title,
           style: width < 400
-              ? Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  )
+              ? Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)
               : Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  fontWeight: FontWeight.w700,
+                ),
         ),
         const SizedBox(height: 8),
         Text(
