@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:rtsp_view/main.dart';
 import 'package:rtsp_view/app/data/app_configuration.dart';
 import 'package:rtsp_view/app/state/app_store.dart';
@@ -63,7 +64,9 @@ void main() {
 
     expect(find.text('Prévia do monitor'), findsOneWidget);
     expect(
-      find.text('Visualização aproximada da grade. Não inicia transmissões.'),
+      find.text(
+        'Miniaturas salvas. Toque nas posições abaixo para escolher as câmeras.',
+      ),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -130,6 +133,14 @@ void main() {
     expect(find.text('Câmera da posição 1'), findsOneWidget);
     expect(find.text('Entrada principal'), findsOneWidget);
     expect(find.textContaining('192.168.1.5:554'), findsOneWidget);
+    expect(find.byTooltip('Ver vídeo de Entrada principal'), findsOneWidget);
+    await tester.enterText(find.byType(EditableText).last, 'garagem');
+    await tester.pumpAndSettle();
+    expect(find.text('Entrada principal'), findsNothing);
+    expect(find.text('Nenhuma câmera encontrada. Tente outro nome ou IP.'), findsOneWidget);
+    await tester.enterText(find.byType(EditableText).last, '192.168.1.5');
+    await tester.pumpAndSettle();
+    expect(find.text('Entrada principal'), findsOneWidget);
 
     await tester.tap(find.text('Entrada principal'));
     await tester.pumpAndSettle();
