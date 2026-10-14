@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../app/state/app_store.dart';
+import '../../camera_catalog/presentation/camera_picker.dart';
+import '../../camera_catalog/presentation/camera_thumbnail.dart';
 import '../../../shared/design_system/page_frame.dart';
 import '../domain/layout_geometry.dart';
 import '../domain/layout_preset.dart';
@@ -93,6 +95,7 @@ class LayoutsPage extends StatelessWidget {
                     return _CameraSlotCard(
                       position: index + 1,
                       cameraName: camera?.name,
+                      cameraId: camera?.id,
                       cameraDetail: camera == null
                           ? null
                           : '${camera.host}:${camera.effectivePort(store.config.defaultPort)} · ${camera.mainPath}',
@@ -128,91 +131,15 @@ class LayoutsPage extends StatelessWidget {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (context) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.78,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Câmera da posição ${slotIndex + 1}',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Toque em uma câmera para exibi-la nesta posição.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              ),
-              Flexible(
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                  itemCount: store.cameras.length + 1,
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return ListTile(
-                        enabled: store.activeLayout.id != 'GRID_ALL',
-                        leading: const CircleAvatar(
-                          child: Icon(Icons.videocam_off_outlined),
-                        ),
-                        title: const Text('Deixar posição vazia'),
-                        selected: selectedId == null,
-                        trailing: selectedId == null
-                            ? const Icon(Icons.check_circle)
-                            : null,
-                        onTap: store.activeLayout.id == 'GRID_ALL'
-                            ? null
-                            : () => Navigator.pop(
-                                context,
-                                const _SlotSelection(null),
-                              ),
-                      );
-                    }
-                    final camera = store.cameras[index - 1];
-                    return ListTile(
-                      leading: CircleAvatar(child: Text('$index')),
-                      title: Text(camera.name),
-                      subtitle: Text(
-                        '${camera.host}:${camera.effectivePort(store.config.defaultPort)}\n${camera.mainPath}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      isThreeLine: true,
-                      selected: camera.id == selectedId,
-                      trailing: camera.id == selectedId
-                          ? const Icon(Icons.check_circle)
-                          : _assignedPosition(store, camera.id, slotIndex),
-                      onTap: () =>
-                          Navigator.pop(context, _SlotSelection(camera.id)),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+      constraints: const BoxConstraints(maxWidth: 760),
+      builder: (context) => CameraPicker(
+        store: store,
+        position: slotIndex + 1,
+        selectedId: selectedId,
+        onSelected: (id) => Navigator.pop(context, _SlotSelection(id)),
       ),
     );
     if (selection != null) await store.setSlot(slotIndex, selection.cameraId);
-  }
-
-  Widget? _assignedPosition(AppStore store, String cameraId, int currentSlot) {
-    final index = store.config.slotCameraIds.indexOf(cameraId);
-    if (index < 0 || index == currentSlot) return null;
-    return Tooltip(
-      message: 'Atualmente na posição ${index + 1}; será movida',
-      child: Chip(label: Text('Pos. ${index + 1}')),
-    );
   }
 
   Future<void> _saveProfile(BuildContext context, AppStore store) async {
@@ -327,12 +254,14 @@ class _CameraSlotCard extends StatelessWidget {
     required this.position,
     required this.cameraName,
     required this.cameraDetail,
+    required this.cameraId,
     required this.onTap,
   });
 
   final int position;
   final String? cameraName;
   final String? cameraDetail;
+  final String? cameraId;
   final VoidCallback onTap;
 
   @override
@@ -346,7 +275,14 @@ class _CameraSlotCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             children: [
-              CircleAvatar(radius: 16, child: Text('$position')),
+              if (cameraId != null)
+                SizedBox(
+                  width: 64,
+                  height: 48,
+                  child: CameraThumbnail(cameraId: cameraId!),
+                )
+              else
+                CircleAvatar(radius: 16, child: Text('$position')),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -645,7 +581,7 @@ class _MonitorPreview extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       Text(
-                        'Visualização aproximada da grade. Não inicia transmissões.',
+                        'Miniaturas salvas. Toque nas posições abaixo para escolher as câmeras.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colors.onSurfaceVariant,
                         ),
@@ -693,6 +629,9 @@ class _MonitorPreview extends StatelessWidget {
                                 child: _MonitorPreviewTile(
                                   number: index + 1,
                                   cameraName: _cameraName(index),
+                                  cameraId: index < slotCameraIds.length
+                                      ? slotCameraIds[index]
+                                      : null,
                                   emphasized: layout.focusIndex == index,
                                 ),
                               ),
@@ -731,11 +670,13 @@ class _MonitorPreviewTile extends StatelessWidget {
     required this.number,
     required this.cameraName,
     required this.emphasized,
+    required this.cameraId,
   });
 
   final int number;
   final String? cameraName;
   final bool emphasized;
+  final String? cameraId;
 
   @override
   Widget build(BuildContext context) {
@@ -754,7 +695,21 @@ class _MonitorPreviewTile extends StatelessWidget {
               constraints.maxWidth < 90 || constraints.maxHeight < 46;
           return Stack(
             children: [
-              if (!compact)
+              if (cameraId != null) ...[
+                Positioned.fill(child: CameraThumbnail(cameraId: cameraId!)),
+                const Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0xB3000000), Color(0x00000000)],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              if (!compact && cameraId == null)
                 Center(
                   child: Icon(
                     cameraName == null
