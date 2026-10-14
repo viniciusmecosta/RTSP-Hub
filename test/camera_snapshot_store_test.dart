@@ -7,6 +7,13 @@ import 'package:rtsp_view/features/camera_catalog/data/camera_snapshot_store.dar
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('decodes only the thumbnail size needed for the display', () {
+    expect(CameraSnapshotStore.decodeWidth(72), 160);
+    expect(CameraSnapshotStore.decodeWidth(220), 320);
+    expect(CameraSnapshotStore.decodeWidth(500), 640);
+    expect(CameraSnapshotStore.decodeWidth(2000), 640);
+  });
+
   test(
     'stores snapshots separately and confines filenames to its directory',
     () async {

@@ -9,6 +9,13 @@ import 'package:path_provider/path_provider.dart';
 class CameraSnapshotStore extends ChangeNotifier {
   CameraSnapshotStore({this.directory});
 
+  static const decodeWidths = [160, 320, 640];
+
+  static int decodeWidth(double pixels) => decodeWidths.firstWhere(
+    (width) => width >= pixels,
+    orElse: () => decodeWidths.last,
+  );
+
   final Directory? directory;
   Future<Directory>? _resolvedDirectory;
   int revision = 0;
@@ -37,7 +44,9 @@ class CameraSnapshotStore extends ChangeNotifier {
       await temporary.writeAsBytes(bytes, flush: true);
       if (await file.exists()) await file.delete();
       await temporary.rename(file.path);
-      await ResizeImage(FileImage(file), width: 640).evict();
+      for (final width in decodeWidths) {
+        await ResizeImage(FileImage(file), width: width).evict();
+      }
       revision++;
       notifyListeners();
       return true;
@@ -50,7 +59,9 @@ class CameraSnapshotStore extends ChangeNotifier {
     try {
       final file = await fileFor(id);
       if (await file.exists()) await file.delete();
-      await ResizeImage(FileImage(file), width: 640).evict();
+      for (final width in decodeWidths) {
+        await ResizeImage(FileImage(file), width: width).evict();
+      }
       revision++;
       notifyListeners();
     } on Object {
