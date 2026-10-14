@@ -58,6 +58,7 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
   late final RtspSession _session;
   Uint8List? _snapshot;
   bool _capturing = false;
+  bool _closing = false;
   Timer? _deadline;
   String? _captureError;
 
@@ -132,7 +133,10 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
   }
 
   void _close() {
-    if (mounted) Navigator.pop(context, _snapshot);
+    if (!mounted || _closing) return;
+    _closing = true;
+    _deadline?.cancel();
+    Navigator.pop(context, _snapshot);
   }
 
   @override
@@ -160,90 +164,98 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
   @override
   Widget build(BuildContext context) {
     final controller = _session.videoController;
-    return Dialog(
-      insetPadding: const EdgeInsets.all(16),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 880),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.camera.name,
-                      style: Theme.of(context).textTheme.titleLarge,
+    return PopScope<Uint8List>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _close();
+      },
+      child: Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 880),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.camera.name,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _close,
+                      tooltip: 'Fechar vídeo',
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        const ColoredBox(color: Colors.black),
+                        if (controller != null)
+                          Video(
+                            controller: controller,
+                            controls: NoVideoControls,
+                          ),
+                        if (!_session.firstFrameRendered.value)
+                          CameraLoadingView(
+                            status: _session.status.value,
+                            error: _session.error.value,
+                          ),
+                      ],
                     ),
                   ),
-                  IconButton(
-                    onPressed: _close,
-                    tooltip: 'Fechar vídeo',
-                    icon: const Icon(Icons.close),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _captureError ??
+                      (_snapshot == null
+                          ? 'Aguardando vídeo para capturar a miniatura.'
+                          : 'Miniatura capturada • ${_session.currentResolution ?? 'Vídeo ao vivo'}'),
+                ),
+                if (_session.error.value != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _session.error.value!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      const ColoredBox(color: Colors.black),
-                      if (controller != null)
-                        Video(
-                          controller: controller,
-                          controls: NoVideoControls,
-                        ),
-                      if (!_session.firstFrameRendered.value)
-                        CameraLoadingView(
-                          status: _session.status.value,
-                          error: _session.error.value,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                _captureError ??
-                    (_snapshot == null
-                        ? 'Aguardando vídeo para capturar a miniatura.'
-                        : 'Miniatura capturada • ${_session.currentResolution ?? 'Vídeo ao vivo'}'),
-              ),
-              if (_session.error.value != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _session.error.value!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                const SizedBox(height: 12),
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (_session.status.value == CameraPlaybackStatus.error &&
+                        !widget.captureOnly)
+                      OutlinedButton.icon(
+                        onPressed: () => _session.start(),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Tentar novamente'),
+                      ),
+                    FilledButton(
+                      onPressed: _close,
+                      child: Text(
+                        widget.captureOnly ? 'Salvar sem esperar' : 'Concluir',
+                      ),
+                    ),
+                  ],
                 ),
               ],
-              const SizedBox(height: 12),
-              Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (_session.status.value == CameraPlaybackStatus.error &&
-                      !widget.captureOnly)
-                    OutlinedButton.icon(
-                      onPressed: () => _session.start(),
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Tentar novamente'),
-                    ),
-                  FilledButton(
-                    onPressed: _close,
-                    child: Text(
-                      widget.captureOnly ? 'Salvar sem esperar' : 'Concluir',
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),
