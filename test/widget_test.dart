@@ -137,7 +137,10 @@ void main() {
     await tester.enterText(find.byType(EditableText).last, 'garagem');
     await tester.pumpAndSettle();
     expect(find.text('Entrada principal'), findsNothing);
-    expect(find.text('Nenhuma câmera encontrada. Tente outro nome ou IP.'), findsOneWidget);
+    expect(
+      find.text('Nenhuma câmera encontrada. Tente outro nome ou IP.'),
+      findsOneWidget,
+    );
     await tester.enterText(find.byType(EditableText).last, '192.168.1.5');
     await tester.pumpAndSettle();
     expect(find.text('Entrada principal'), findsOneWidget);

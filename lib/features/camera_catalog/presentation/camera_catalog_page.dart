@@ -19,15 +19,29 @@ import '../../../shared/design_system/page_frame.dart';
 import 'clone_camera_dialog.dart';
 import 'network_camera_discovery.dart';
 
-class CameraCatalogPage extends StatelessWidget {
+class CameraCatalogPage extends StatefulWidget {
   const CameraCatalogPage({super.key});
+
+  @override
+  State<CameraCatalogPage> createState() => _CameraCatalogPageState();
+}
+
+class _CameraCatalogPageState extends State<CameraCatalogPage> {
+  String _query = '';
 
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
+    final cameras = store.cameras
+        .where(
+          (camera) =>
+              '${camera.name} ${camera.host}'.toLowerCase().contains(_query),
+        )
+        .toList();
     return PageFrame.slivers(
       title: 'Câmeras',
-      subtitle: 'Cadastre e organize seus dispositivos RTSP.',
+      subtitle:
+          'Confira a imagem, organize suas câmeras e abra o vídeo com um toque.',
       actions: [
         FilledButton.icon(
           onPressed: () => _edit(context),
@@ -36,9 +50,19 @@ class CameraCatalogPage extends StatelessWidget {
         ),
       ],
       slivers: [
-        const SliverToBoxAdapter(
-          child: Column(
-            children: [NetworkCameraDiscovery(), SizedBox(height: 16)],
+        const SliverToBoxAdapter(child: NetworkCameraDiscovery()),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: TextField(
+              onChanged: (value) =>
+                  setState(() => _query = value.trim().toLowerCase()),
+              decoration: InputDecoration(
+                labelText: 'Buscar câmera ou IP',
+                prefixIcon: const Icon(Icons.search),
+                suffixText: '${cameras.length} câmeras',
+              ),
+            ),
           ),
         ),
         if (store.cameras.isEmpty)
@@ -55,6 +79,14 @@ class CameraCatalogPage extends StatelessWidget {
               ),
             ),
           )
+        else if (cameras.isEmpty)
+          const SliverToBoxAdapter(
+            child: EmptyPanel(
+              icon: Icons.search_off,
+              title: 'Nenhuma câmera encontrada',
+              description: 'Tente buscar por outro nome ou endereço IP.',
+            ),
+          )
         else
           SliverLayoutBuilder(
             builder: (context, constraints) {
@@ -66,19 +98,21 @@ class CameraCatalogPage extends StatelessWidget {
               return SliverGrid(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) => _CameraCard(
-                    camera: store.cameras[index],
-                    onEdit: () => _edit(context, store.cameras[index]),
-                    onClone: () => _clone(context, store, store.cameras[index]),
-                    onDelete: () =>
-                        _delete(context, store, store.cameras[index]),
+                    camera: cameras[index],
+                    onEdit: () => _edit(context, cameras[index]),
+                    onClone: () => _clone(context, store, cameras[index]),
+                    onDelete: () => _delete(context, store, cameras[index]),
                   ),
-                  childCount: store.cameras.length,
+                  childCount: cameras.length,
                 ),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: columns,
                   crossAxisSpacing: 14,
                   mainAxisSpacing: 14,
-                  mainAxisExtent: 280,
+                  mainAxisExtent:
+                      MediaQuery.textScalerOf(context).scale(14) > 20
+                      ? 340
+                      : 280,
                 ),
               );
             },
@@ -193,7 +227,7 @@ class _CameraCard extends StatelessWidget {
                   bottom: 8,
                   child: Chip(
                     visualDensity: VisualDensity.compact,
-                    label: Text('Miniatura salva'),
+                    label: Text('Prévia da câmera'),
                     avatar: Icon(Icons.photo_outlined, size: 16),
                   ),
                 ),
@@ -357,7 +391,26 @@ class _CameraEditorState extends State<_CameraEditor>
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 600;
     final fields = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (_thumbnail != null) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: 140,
+              child: Image.memory(
+                _thumbnail!,
+                fit: BoxFit.cover,
+                cacheWidth: 640,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Miniatura capturada. Ela aparecerá no catálogo e nos layouts.',
+          ),
+          const SizedBox(height: 16),
+        ],
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
           title: const Text('Usar credenciais globais'),
@@ -651,7 +704,7 @@ class _CameraEditorState extends State<_CameraEditor>
                       ),
                     ),
                     IconButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _busy ? null : () => Navigator.pop(context),
                       icon: const Icon(Icons.close),
                       tooltip: 'Fechar',
                     ),

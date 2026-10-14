@@ -42,6 +42,31 @@ abstract final class AppTheme {
           ),
         ),
       ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: scheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: scheme.surface,
+        showDragHandle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        selectedTileColor: scheme.primaryContainer.withValues(alpha: 0.45),
+        selectedColor: scheme.onPrimaryContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      tooltipTheme: const TooltipThemeData(
+        waitDuration: Duration(milliseconds: 400),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: isDark ? const Color(0xFF0D1727) : const Color(0xFFF8FAFC),

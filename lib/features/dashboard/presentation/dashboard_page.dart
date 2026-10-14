@@ -16,8 +16,11 @@ class DashboardPage extends StatelessWidget {
   final ValueChanged<String>? onOpenProfile;
 
   @override
-  Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => _build(context, constraints.maxWidth),
+  );
+
+  Widget _build(BuildContext context, double width) {
     final store = AppScope.of(context);
     final lastProfile = store.lastSavedProfile;
     final columns = width >= 1100
