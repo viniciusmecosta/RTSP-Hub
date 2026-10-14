@@ -69,14 +69,21 @@ class _CameraThumbnailState extends State<CameraThumbnail> {
         builder: (context, snapshot) {
           final file = snapshot.data;
           if (file == null) return placeholder;
-          return Image(
-            key: ValueKey(_store!.revision),
-            image: ResizeImage(FileImage(file), width: 640),
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            excludeFromSemantics: true,
-            errorBuilder: (_, error, stack) => placeholder,
+          return LayoutBuilder(
+            builder: (context, constraints) => Image(
+              key: ValueKey(_store!.revision),
+              image: ResizeImage(
+                FileImage(file),
+                width: CameraSnapshotStore.decodeWidth(
+                  constraints.maxWidth * MediaQuery.devicePixelRatioOf(context),
+                ),
+              ),
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              excludeFromSemantics: true,
+              errorBuilder: (_, error, stack) => placeholder,
+            ),
           );
         },
       ),
