@@ -55,6 +55,7 @@ class ConfigRepository {
                 ? <Directory>[]
                 : await _legacyRoots()
           : [legacyDirectory!];
+      FormatException? invalidLegacy;
       for (final root in legacyRoots) {
         for (final name in [
           'config.json',
@@ -66,15 +67,20 @@ class ConfigRepository {
           AppConfiguration config;
           try {
             config = await _decode(file);
-          } on FormatException {
+          } on FormatException catch (error) {
+            invalidLegacy = error;
             continue;
           } on TypeError {
+            invalidLegacy = const FormatException(
+              'Configuração anterior inválida.',
+            );
             continue;
           }
           await save(config);
           return config;
         }
       }
+      if (invalidLegacy != null) throw invalidLegacy;
       return const AppConfiguration();
     }
     try {

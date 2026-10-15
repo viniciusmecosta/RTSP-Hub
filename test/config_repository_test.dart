@@ -34,6 +34,33 @@ void main() {
     },
   );
 
+  test('recovers a legacy backup when its primary file is corrupt', () async {
+    final legacy = Directory('${directory.path}/legacy');
+    final target = Directory('${directory.path}/new');
+    final previous = ConfigRepository(directory: legacy);
+    await previous.save(const AppConfiguration(defaultUser: 'backup-user'));
+    await previous.save(const AppConfiguration(defaultUser: 'primary-user'));
+    await File('${legacy.path}/config.json').writeAsString('{invalid');
+
+    final repository = ConfigRepository(
+      directory: target,
+      legacyDirectory: legacy,
+    );
+    expect((await repository.load()).defaultUser, 'backup-user');
+  });
+
+  test('reports corrupt legacy data instead of opening an empty app', () async {
+    final legacy = Directory('${directory.path}/legacy');
+    await legacy.create();
+    await File('${legacy.path}/config.json').writeAsString('{invalid');
+    final repository = ConfigRepository(
+      directory: Directory('${directory.path}/new'),
+      legacyDirectory: legacy,
+    );
+
+    await expectLater(repository.load(), throwsFormatException);
+  });
+
   test('recovers a corrupt primary and allows saving afterward', () async {
     final repository = ConfigRepository(directory: directory);
     await repository.save(const AppConfiguration(defaultUser: 'before'));
