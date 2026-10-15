@@ -261,15 +261,22 @@ class AppStore extends ChangeNotifier {
         }
         return false;
       }
+      var thumbnailUpdated = true;
       if (thumbnail != null) {
-        await snapshots.save(camera.id, thumbnail);
+        thumbnailUpdated = await snapshots.save(camera.id, thumbnail);
       } else if (previousCamera != null &&
           (previousCamera.host != camera.host ||
               previousCamera.port != camera.port ||
-              previousCamera.mainPath != camera.mainPath)) {
-        await snapshots.remove(camera.id);
+              previousCamera.mainPath != camera.mainPath ||
+              previousCamera.username != camera.username ||
+              previousCamera.useGlobalCredentials !=
+                  camera.useGlobalCredentials ||
+              previousPassword != (password.isEmpty ? null : password))) {
+        thumbnailUpdated = await snapshots.remove(camera.id);
       }
-      _message = 'Câmera salva neste dispositivo.';
+      _message = thumbnailUpdated
+          ? 'Câmera salva neste dispositivo.'
+          : 'Câmera salva, mas não foi possível atualizar a miniatura.';
       return true;
     } on Object {
       {
@@ -349,11 +356,13 @@ class AppStore extends ChangeNotifier {
       return;
     }
     try {
-      await snapshots.remove(id);
+      final thumbnailRemoved = await snapshots.remove(id);
       await _credentials.delete(id);
       _passwords.remove(id);
       _missingPasswords.remove(id);
-      _message = null;
+      _message = thumbnailRemoved
+          ? null
+          : 'Câmera removida, mas não foi possível apagar a miniatura antiga.';
     } on Object {
       _message =
           'Câmera removida. Não foi possível apagar uma credencial antiga do cofre.';

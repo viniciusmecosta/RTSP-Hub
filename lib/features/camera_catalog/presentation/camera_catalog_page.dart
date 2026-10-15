@@ -153,7 +153,7 @@ class _CameraCatalogPageState extends State<CameraCatalogPage> {
     );
     if (saved == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Câmera salva com segurança.')),
+        SnackBar(content: Text(store.message ?? 'Câmera salva com segurança.')),
       );
     }
   }
@@ -182,7 +182,14 @@ class _CameraCatalogPageState extends State<CameraCatalogPage> {
         ],
       ),
     );
-    if (confirmed == true) await store.removeCamera(camera.id);
+    if (confirmed == true) {
+      await store.removeCamera(camera.id);
+      if (context.mounted && store.message != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(store.message!)));
+      }
+    }
   }
 }
 
@@ -263,4 +270,3 @@ class _CameraCard extends StatelessWidget {
     );
   }
 }
-

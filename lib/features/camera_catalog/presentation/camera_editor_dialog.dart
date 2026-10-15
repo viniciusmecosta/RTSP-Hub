@@ -472,12 +472,6 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
     );
     if (!mounted) return;
     if (saved) {
-      if (widget.camera != null &&
-          _initialIdentity != _captureIdentity &&
-          _thumbnail == null) {
-        await widget.store.snapshots.remove(widget.camera!.id);
-        if (!mounted) return;
-      }
       Navigator.pop(context, true);
       return;
     }
