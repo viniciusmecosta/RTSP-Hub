@@ -24,7 +24,9 @@ class CameraSnapshotStore extends ChangeNotifier {
     final root = await (_resolvedDirectory ??= _directory());
     final key = sha256.convert(utf8.encode(id));
     final file = File('${root.path}/$key.png');
-    if (directory == null && !await file.exists() && !await File('${file.path}.removed').exists()) {
+    if (directory == null &&
+        !await file.exists() &&
+        !await File('${file.path}.removed').exists()) {
       final support = await getApplicationSupportDirectory();
       final paths = {
         support.path,
@@ -40,8 +42,9 @@ class CameraSnapshotStore extends ChangeNotifier {
         for (final name in ['RTSPHub', 'RTSPView']) {
           final legacy = File('$path/$name/thumbnails/$key.png');
           if (legacy.path == file.path || !await legacy.exists()) continue;
-          if (await legacy.length() <= 4 * 1024 * 1024)
+          if (await legacy.length() <= 4 * 1024 * 1024) {
             await legacy.copy(file.path);
+          }
           return file;
         }
       }
