@@ -12,6 +12,7 @@ class AppConfiguration {
     this.defaultPort = 554,
     this.defaultUser = 'admin',
     this.defaultPath = '/Streaming/Channels/101',
+    this.defaultSubPath = '',
     this.bufferMs = 300,
     this.resourceMode = 'light',
     this.themeMode = 'system',
@@ -31,6 +32,7 @@ class AppConfiguration {
   final int defaultPort;
   final String defaultUser;
   final String defaultPath;
+  final String defaultSubPath;
   final int bufferMs;
   final String resourceMode;
   final String themeMode;
@@ -49,6 +51,7 @@ class AppConfiguration {
     int? defaultPort,
     String? defaultUser,
     String? defaultPath,
+    String? defaultSubPath,
     int? bufferMs,
     String? resourceMode,
     String? themeMode,
@@ -68,6 +71,7 @@ class AppConfiguration {
     defaultPort: defaultPort ?? this.defaultPort,
     defaultUser: defaultUser ?? this.defaultUser,
     defaultPath: defaultPath ?? this.defaultPath,
+    defaultSubPath: defaultSubPath ?? this.defaultSubPath,
     bufferMs: bufferMs ?? this.bufferMs,
     resourceMode: resourceMode ?? this.resourceMode,
     themeMode: themeMode ?? this.themeMode,
@@ -88,6 +92,7 @@ class AppConfiguration {
       'defaultPort': defaultPort,
       'defaultUser': defaultUser,
       'defaultPath': defaultPath,
+      'defaultSubPath': defaultSubPath,
       'bufferMs': bufferMs,
       'resourceMode': resourceMode,
       'themeMode': themeMode,
@@ -138,6 +143,7 @@ class AppConfiguration {
       defaultUser: settings['defaultUser'] as String? ?? 'admin',
       defaultPath:
           settings['defaultPath'] as String? ?? '/Streaming/Channels/101',
+      defaultSubPath: settings['defaultSubPath'] as String? ?? '',
       bufferMs: (settings['bufferMs'] as num?)?.toInt() ?? 300,
       resourceMode: PerformancePreset.fromId(
         settings['resourceMode'] as String?,

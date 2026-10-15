@@ -18,6 +18,7 @@ import '../domain/camera_field_validation.dart';
 import '../../../shared/design_system/page_frame.dart';
 import 'clone_camera_dialog.dart';
 import 'network_camera_discovery.dart';
+import '../../settings/presentation/global_connection_page.dart';
 
 class CameraCatalogPage extends StatefulWidget {
   const CameraCatalogPage({super.key});
@@ -40,9 +41,13 @@ class _CameraCatalogPageState extends State<CameraCatalogPage> {
         .toList();
     return PageFrame.slivers(
       title: 'Câmeras',
-      subtitle:
-          'Confira a imagem, organize suas câmeras e abra o vídeo com um toque.',
+      subtitle: 'Seus dispositivos, imagens e conexões em um só lugar.',
       actions: [
+        OutlinedButton.icon(
+          onPressed: () => GlobalConnectionPage.open(context),
+          icon: const Icon(Icons.settings_ethernet),
+          label: const Text('Conexão global'),
+        ),
         FilledButton.icon(
           onPressed: () => _edit(context),
           icon: const Icon(Icons.add),
@@ -141,8 +146,8 @@ class _CameraCatalogPageState extends State<CameraCatalogPage> {
   Future<void> _edit(BuildContext context, [CameraDevice? camera]) async {
     final store = AppScope.of(context);
     final password = camera == null
-        ? await store.networkDiscoveryPassword()
-        : await store.passwordFor(camera);
+        ? ''
+        : await store.specificPasswordFor(camera);
     final globalPassword = await store.networkDiscoveryPassword();
     if (!context.mounted) return;
     final saved = await showDialog<bool>(
@@ -297,7 +302,7 @@ class _CameraEditorState extends State<_CameraEditor>
   Uint8List? _thumbnail;
   String? _thumbnailIdentity;
   bool _obscure = true;
-  late bool _useGlobalCredentials;
+  bool _portOverride = false;
   bool _busy = false;
   bool _testing = false;
   bool _finding = false;
@@ -314,20 +319,16 @@ class _CameraEditorState extends State<_CameraEditor>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     final camera = widget.camera;
-    _useGlobalCredentials = camera?.useGlobalCredentials ?? true;
     _name = TextEditingController(text: camera?.name ?? '');
     _host = TextEditingController(text: camera?.host ?? '');
-    _port = TextEditingController(text: camera?.port?.toString() ?? '');
+    _portOverride = camera?.port != null;
+    _port = TextEditingController(
+      text: '${camera?.port ?? widget.store.config.defaultPort}',
+    );
     _username = TextEditingController(
-      text: _useGlobalCredentials
-          ? widget.store.config.defaultUser
-          : camera?.username ?? widget.store.config.defaultUser,
+      text: camera?.useGlobalCredentials == true ? '' : camera?.username ?? '',
     );
-    _password = TextEditingController(
-      text: _useGlobalCredentials
-          ? widget.globalPassword ?? ''
-          : widget.password ?? '',
-    );
+    _password = TextEditingController(text: widget.password ?? '');
     _mainPath = TextEditingController(text: camera?.mainPath ?? '');
     _subPath = TextEditingController(text: camera?.subPath ?? '');
     final initialPaths = <String>[
@@ -411,24 +412,10 @@ class _CameraEditorState extends State<_CameraEditor>
           ),
           const SizedBox(height: 16),
         ],
-        SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Usar credenciais globais'),
-          subtitle: const Text('Compartilha o usuário e a senha padrão.'),
-          value: _useGlobalCredentials,
-          onChanged: _busy || _testing || _finding
-              ? null
-              : (enabled) => setState(() {
-                  _useGlobalCredentials = enabled;
-                  if (enabled) {
-                    _username.text = widget.store.config.defaultUser;
-                    _password.text = widget.globalPassword ?? '';
-                  } else {
-                    _username.text = widget.camera?.username ?? '';
-                    _password.text = widget.password ?? '';
-                  }
-                }),
+        const Text(
+          'Preencha apenas o que for diferente da conexão global. Cada campo vazio usa seu próprio padrão.',
         ),
+        const SizedBox(height: 18),
         TextFormField(
           controller: _name,
           decoration: const InputDecoration(
@@ -470,7 +457,7 @@ class _CameraEditorState extends State<_CameraEditor>
                   camera.host.toLowerCase() == host.toLowerCase() &&
                   camera.effectivePort(widget.store.config.defaultPort) ==
                       port &&
-                  camera.mainPath == path,
+                  widget.store.resolveCamera(camera).mainPath == path,
             );
             return duplicate
                 ? 'Esse endereço, porta e caminho já estão cadastrados.'
@@ -483,10 +470,19 @@ class _CameraEditorState extends State<_CameraEditor>
             Expanded(
               child: TextFormField(
                 controller: _port,
+                onChanged: (_) => _portOverride = true,
                 decoration: InputDecoration(
                   labelText: 'Porta',
                   hintText: '${widget.store.config.defaultPort}',
-                  helperText: 'Vazio usa a porta padrão',
+                  helperText: 'Padrão: ${widget.store.config.defaultPort}',
+                  suffixIcon: IconButton(
+                    tooltip: 'Usar porta global',
+                    icon: const Icon(Icons.restart_alt),
+                    onPressed: () => setState(() {
+                      _portOverride = false;
+                      _port.text = '${widget.store.config.defaultPort}';
+                    }),
+                  ),
                 ),
                 keyboardType: TextInputType.number,
                 buildCounter:
@@ -504,8 +500,11 @@ class _CameraEditorState extends State<_CameraEditor>
             Expanded(
               child: TextFormField(
                 controller: _username,
-                enabled: !_useGlobalCredentials,
-                decoration: const InputDecoration(labelText: 'Usuário'),
+                decoration: InputDecoration(
+                  labelText: 'Usuário específico',
+                  hintText: widget.store.config.defaultUser,
+                  helperText: 'Vazio usa o usuário global',
+                ),
                 maxLength: 128,
                 buildCounter:
                     (
@@ -525,13 +524,12 @@ class _CameraEditorState extends State<_CameraEditor>
         const SizedBox(height: 12),
         TextFormField(
           controller: _password,
-          enabled: !_useGlobalCredentials,
           decoration: InputDecoration(
-            labelText: widget.camera == null ? 'Senha (opcional)' : 'Senha',
-            helperText: widget.camera != null && widget.password == null
-                ? 'Não foi possível ler a senha salva; informe-a novamente.'
-                : 'Armazenada no cofre seguro do dispositivo.',
+            labelText: 'Senha específica',
+            helperText:
+                'Vazia usa a senha global. Apague para voltar ao padrão.',
             suffixIcon: IconButton(
+              tooltip: _obscure ? 'Mostrar senha' : 'Ocultar senha',
               onPressed: () => setState(() => _obscure = !_obscure),
               icon: Icon(
                 _obscure
@@ -554,7 +552,7 @@ class _CameraEditorState extends State<_CameraEditor>
         TextFormField(
           controller: _mainPath,
           decoration: InputDecoration(
-            labelText: 'Canais',
+            labelText: 'Canal / caminho específico',
             hintText: widget.store.config.defaultPath,
             helperText: _savedPaths.isEmpty
                 ? 'Vazio usa o canal padrão'
@@ -657,8 +655,10 @@ class _CameraEditorState extends State<_CameraEditor>
         const SizedBox(height: 12),
         TextFormField(
           controller: _subPath,
-          decoration: const InputDecoration(
-            labelText: 'Caminho RTSP secundário (opcional)',
+          decoration: InputDecoration(
+            labelText: 'Subfluxo específico (opcional)',
+            hintText: widget.store.config.defaultSubPath,
+            helperText: 'Vazio usa o subfluxo global',
           ),
           validator: (value) =>
               CameraFieldValidation.pathError(value ?? '', optional: true),
@@ -804,7 +804,7 @@ class _CameraEditorState extends State<_CameraEditor>
       username: _username.text.trim(),
       mainPath: enteredPath.startsWith('/') ? enteredPath : '/$enteredPath',
       subPath: _subPath.text.trim(),
-      useGlobalCredentials: _useGlobalCredentials,
+      useGlobalCredentials: false,
     );
     setState(() => _testing = true);
     final identity = _captureIdentity;
@@ -812,8 +812,10 @@ class _CameraEditorState extends State<_CameraEditor>
       context: context,
       barrierDismissible: false,
       builder: (_) => CameraPreviewDialog(
-        camera: camera,
-        password: _password.text.isEmpty ? null : _password.text,
+        camera: widget.store.resolveCamera(camera),
+        password: _password.text.isEmpty
+            ? widget.globalPassword
+            : _password.text,
         defaultPort: widget.store.config.defaultPort,
         bufferMs: widget.store.config.bufferMs,
         captureOnly: _busy,
@@ -833,7 +835,7 @@ class _CameraEditorState extends State<_CameraEditor>
     _username.text,
     _password.text,
     _mainPath.text,
-    _useGlobalCredentials.toString(),
+    _portOverride.toString(),
   ].join('\u0000');
 
   Future<void> _findChannels() async {
@@ -847,8 +849,12 @@ class _CameraEditorState extends State<_CameraEditor>
     FocusManager.instance.primaryFocus?.unfocus();
     final port =
         int.tryParse(_port.text.trim()) ?? widget.store.config.defaultPort;
-    final username = _username.text.trim();
-    final password = _password.text;
+    final username = _username.text.trim().isEmpty
+        ? widget.store.config.defaultUser
+        : _username.text.trim();
+    final password = _password.text.isEmpty
+        ? widget.globalPassword ?? ''
+        : _password.text;
     setState(() {
       _finding = true;
       _cancelFinding = false;
@@ -888,9 +894,7 @@ class _CameraEditorState extends State<_CameraEditor>
       if (found.isEmpty) {
         await _probeCandidates(host, port, username, password, found);
       }
-    } on Object {
-      // Falhas de rede apenas encerram a busca; o resultado vazio é exibido.
-    }
+    } on Object {}
     if (!mounted) return;
     setState(() => _finding = false);
     if (_cancelFinding) return;
@@ -938,7 +942,13 @@ class _CameraEditorState extends State<_CameraEditor>
       setState(() => _findingStage = 'Testando canal $channel em $host');
       String? mainPath;
       String? mainQuality;
-      for (final path in RtspChannelCandidates.mainForChannel(channel)) {
+      for (final path in {
+        if (channel == 1)
+          _mainPath.text.trim().isEmpty
+              ? widget.store.config.defaultPath
+              : _mainPath.text.trim(),
+        ...RtspChannelCandidates.mainForChannel(channel),
+      }) {
         mainQuality = await _probeQuality(host, port, username, password, path);
         if (_cancelFinding) return;
         if (mainQuality != null) {
@@ -1047,12 +1057,12 @@ class _CameraEditorState extends State<_CameraEditor>
       id: widget.camera?.id ?? '',
       name: _name.text,
       host: _host.text,
-      port: _port.text,
+      port: _portOverride ? _port.text : '',
       username: _username.text,
       password: _password.text,
       mainPath: _mainPath.text,
       subPath: _subPath.text,
-      useGlobalCredentials: _useGlobalCredentials,
+      useGlobalCredentials: false,
       savedPaths: _savedPaths,
       thumbnail: _thumbnail,
     );

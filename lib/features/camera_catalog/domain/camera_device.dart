@@ -25,6 +25,21 @@ class CameraDevice {
 
   int effectivePort(int defaultPort) => port ?? defaultPort;
 
+  CameraDevice resolved({
+    required int defaultPort,
+    required String defaultUser,
+    required String defaultPath,
+    String defaultSubPath = '',
+  }) => copyWith(
+    port: effectivePort(defaultPort),
+    username: useGlobalCredentials || username.trim().isEmpty
+        ? defaultUser
+        : username,
+    mainPath: mainPath.trim().isEmpty ? defaultPath : mainPath,
+    subPath: subPath.trim().isEmpty ? defaultSubPath : subPath,
+    useGlobalCredentials: false,
+  );
+
   String playbackPath({required bool useMainStream}) => selectedPath.isNotEmpty
       ? selectedPath
       : useMainStream || subPath.trim().isEmpty

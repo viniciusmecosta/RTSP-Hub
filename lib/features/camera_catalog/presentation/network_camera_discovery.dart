@@ -40,7 +40,6 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
   bool _expanded = false;
   bool _busy = false;
   bool _cancel = false;
-  bool _obscurePassword = true;
   bool _scanRecorderChannels = false;
   bool _defaultsLoaded = false;
   int _completed = 0;
@@ -88,6 +87,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
 
   Future<void> _loadDefaults() async {
     final store = AppScope.of(context);
+    _port.text = '${store.config.defaultPort}';
     _username.text = store.config.defaultUser;
     final password = await store.networkDiscoveryPassword();
     if (mounted && password != null) _password.text = password;
@@ -137,7 +137,16 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
       _message(error.message);
       return;
     }
-    final ports = <int>{port, 554, 8554, 10554, 8555}.toList();
+    final ports = <int>{
+      port,
+      554,
+      8554,
+      10554,
+      8555,
+      ...AppScope.of(
+        context,
+      ).cameras.map((camera) => camera.effectivePort(port)),
+    }.toList();
     setState(() {
       _busy = true;
       _cancel = false;
@@ -153,6 +162,10 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
       _stage = 'Procurando dispositivos nas portas RTSP comuns';
     });
     try {
+      final store = AppScope.of(context);
+      _username.text = store.config.defaultUser;
+      _password.text = await store.networkDiscoveryPassword() ?? '';
+      if (!mounted || _cancel) return;
       await _discoverOnvif();
       final scanHosts = hosts
           .where((host) => !_portsByHost.containsKey(host))
@@ -207,6 +220,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
 
   Future<void> _discoverOnvif() async {
     if (_interfaces.isEmpty) return;
+    final store = AppScope.of(context);
     setState(() => _stage = 'Procurando dispositivos ONVIF');
     final probes = await _onvif.discover(
       _interfaces,
@@ -217,10 +231,18 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
       setState(
         () => _stage = 'Lendo canais de ${probe.name ?? probe.sourceAddress}',
       );
+      final known = store.cameraForEndpoint(probe.sourceAddress);
+      final username = known == null
+          ? _username.text.trim()
+          : store.resolveCamera(known).username;
+      final password = known == null
+          ? _password.text
+          : await store.passwordFor(known) ?? '';
+      if (!mounted || _cancel) return;
       final device = await _onvif.loadProfiles(
         probe,
-        username: _username.text.trim(),
-        password: _password.text,
+        username: username,
+        password: password,
         isCancelled: () => _cancel,
       );
       if (device == null) continue;
@@ -286,6 +308,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
   Future<void> _inspectHosts({required int lastChannel}) async {
     final username = _username.text.trim();
     final password = _password.text;
+    final defaultPath = AppScope.of(context).config.defaultPath;
     final targets = _hosts
         .where((host) => !_onvifHosts.contains(host))
         .toList(growable: false);
@@ -308,7 +331,10 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
         });
         String? mainPath;
         String? mainQuality;
-        for (final path in RtspChannelCandidates.mainForChannel(channel)) {
+        for (final path in {
+          if (channel == 1) defaultPath,
+          ...RtspChannelCandidates.mainForChannel(channel),
+        }) {
           mainQuality = await _probePath(
             host: host,
             port: _portsByHost[host]!,
@@ -374,6 +400,13 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
     required String password,
     required String path,
   }) async {
+    final store = AppScope.of(context);
+    final known = store.cameraForEndpoint(host, port: port, path: path);
+    if (known != null) {
+      username = store.resolveCamera(known).username;
+      password = await store.passwordFor(known) ?? '';
+      if (!mounted || _cancel) return null;
+    }
     final session = RtspSession(
       camera: CameraDevice(
         id: 'network-search',
@@ -427,18 +460,6 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
       return;
     }
     setState(() => _busy = true);
-    final credentialsSaved = await store.saveNetworkDiscoveryCredentials(
-      username: chosen.first.username,
-      password: chosen.first.password,
-    );
-    if (!mounted) return;
-    if (!credentialsSaved) {
-      setState(() => _busy = false);
-      _message(
-        store.message ?? 'Não foi possível salvar as credenciais globais.',
-      );
-      return;
-    }
     final saved = await store.addDiscoveredCameras([
       for (final channel in chosen)
         CameraDevice(
@@ -446,7 +467,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
           name: '${channel.host} · Canal ${channel.number}',
           host: channel.host,
           port: channel.port,
-          username: channel.username,
+          username: '',
           mainPath: _choiceFor(channel) == _StreamChoice.sub
               ? channel.subPath!
               : channel.mainPath,
@@ -609,60 +630,13 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
                       ),
                     ),
                   const SizedBox(height: 12),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final compact = constraints.maxWidth < 520;
-                      final username = TextField(
-                        controller: _username,
-                        enabled: !_busy,
-                        maxLength: 128,
-                        decoration: const InputDecoration(
-                          labelText: 'Usuário global',
-                          helperText:
-                              'Usado para testar as câmeras encontradas',
-                        ),
-                      );
-                      final password = TextField(
-                        controller: _password,
-                        enabled: !_busy,
-                        obscureText: _obscurePassword,
-                        maxLength: 1024,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        decoration: InputDecoration(
-                          labelText: 'Senha global',
-                          helperText:
-                              'Guardada no cofre seguro deste dispositivo',
-                          suffixIcon: IconButton(
-                            onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword,
-                            ),
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
-                            ),
-                          ),
-                        ),
-                      );
-                      if (compact) {
-                        return Column(
-                          children: [
-                            username,
-                            const SizedBox(height: 10),
-                            password,
-                          ],
-                        );
-                      }
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: username),
-                          const SizedBox(width: 12),
-                          Expanded(child: password),
-                        ],
-                      );
-                    },
+                  const ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.settings_ethernet),
+                    title: Text('Usa a conexão global'),
+                    subtitle: Text(
+                      'Usuário, senha e canal vêm dos padrões. Edite-os em Conexão global, fora da busca.',
+                    ),
                   ),
                   const SizedBox(height: 10),
                   Wrap(

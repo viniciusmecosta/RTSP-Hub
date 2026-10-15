@@ -54,7 +54,8 @@ void main() {
     expect(camera.useGlobalCredentials, isTrue);
     expect(camera.port, isNull);
     expect(camera.effectivePort(store.config.defaultPort), 8554);
-    expect(camera.mainPath, '/global');
+    expect(camera.mainPath, isEmpty);
+    expect(store.resolveCamera(camera).mainPath, '/global');
   });
 
   test(
