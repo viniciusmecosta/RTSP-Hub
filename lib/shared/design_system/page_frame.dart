@@ -6,6 +6,7 @@ class PageFrame extends StatelessWidget {
     required this.subtitle,
     required this.child,
     this.actions = const [],
+    this.maxContentWidth = 1400,
     super.key,
   }) : slivers = null;
 
@@ -14,6 +15,7 @@ class PageFrame extends StatelessWidget {
     required this.subtitle,
     required this.slivers,
     this.actions = const [],
+    this.maxContentWidth = 1400,
     super.key,
   }) : child = null;
 
@@ -22,6 +24,7 @@ class PageFrame extends StatelessWidget {
   final Widget? child;
   final List<Widget>? slivers;
   final List<Widget> actions;
+  final double maxContentWidth;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -36,7 +39,9 @@ class PageFrame extends StatelessWidget {
         : 32.0;
     final contentSlivers = slivers;
     if (contentSlivers != null) {
-      final side = (width - 1400) / 2 > padding ? (width - 1400) / 2 : padding;
+      final side = (width - maxContentWidth) / 2 > padding
+          ? (width - maxContentWidth) / 2
+          : padding;
       return SafeArea(
         child: CustomScrollView(
           slivers: [
@@ -62,7 +67,7 @@ class PageFrame extends StatelessWidget {
             sliver: SliverToBoxAdapter(
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1400),
+                  constraints: BoxConstraints(maxWidth: maxContentWidth),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [

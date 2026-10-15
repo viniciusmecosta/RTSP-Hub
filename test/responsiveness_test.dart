@@ -4,6 +4,7 @@ import 'package:rtsp_hub/main.dart';
 import 'package:rtsp_hub/app/data/app_configuration.dart';
 import 'package:rtsp_hub/app/state/app_store.dart';
 import 'package:rtsp_hub/features/camera_catalog/domain/camera_device.dart';
+import 'package:rtsp_hub/features/settings/presentation/settings_page.dart';
 import 'package:rtsp_hub/shared/infrastructure/secure_store/credential_store.dart';
 import 'package:rtsp_hub/shared/infrastructure/storage/config_repository.dart';
 
@@ -23,8 +24,11 @@ void main() {
   );
 
   for (final size in [
+    const Size(320, 568),
     const Size(360, 640),
     const Size(768, 1024),
+    const Size(1024, 600),
+    const Size(1100, 700),
     const Size(1440, 900),
   ]) {
     for (final theme in ['light', 'dark']) {
@@ -85,6 +89,55 @@ void main() {
 
     expect(find.text('Visão geral'), findsOneWidget);
     expect(find.byType(NavigationRail), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final theme in ['light', 'dark']) {
+    testWidgets('desktop sidebar has no vertical stripe in $theme', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        _app(configuration: config.copyWith(themeMode: theme)),
+      );
+      await tester.pumpAndSettle();
+
+      final sidebar = tester.widget<Container>(
+        find.byKey(const ValueKey('desktopSidebar')),
+      );
+      expect(sidebar.decoration, isNull);
+      expect(sidebar.color, isNotNull);
+      expect(find.byKey(const ValueKey('sidebar_dashboard')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('sidebar_layouts')));
+      await tester.pumpAndSettle();
+      expect(find.text('Escolha a distribuição'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('closing settings during startup lookup does not throw', (
+    tester,
+  ) async {
+    final store = AppStore(
+      repository: _TestConfigRepository(config),
+      credentials: _TestCredentialStore(),
+    );
+    addTearDown(store.dispose);
+    await store.load();
+    await tester.pumpWidget(
+      AppScope(
+        store: store,
+        child: const MaterialApp(home: SettingsPage()),
+      ),
+    );
+    await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
     expect(tester.takeException(), isNull);
   });
 

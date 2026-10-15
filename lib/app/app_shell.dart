@@ -131,6 +131,9 @@ class _AppShellState extends State<AppShell> {
             children: [
               if (!compact && rail && _section != AppSection.monitor)
                 NavigationRail(
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerLow,
                   selectedIndex: _selectedIndex,
                   labelType: shortLandscape
                       ? NavigationRailLabelType.none
@@ -226,10 +229,6 @@ class _AppShellState extends State<AppShell> {
   Future<void> _setDesktopFullscreen(bool fullscreen) async {
     try {
       await windowManager.setFullScreen(fullscreen);
-      if (!fullscreen) {
-        await windowManager.setSize(const Size(1280, 800));
-        await windowManager.center();
-      }
     } on Object {
       _lastFullscreen = null;
     }
@@ -253,18 +252,17 @@ class _DesktopSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     return Container(
-      width: 240,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(right: BorderSide(color: theme.dividerColor)),
-      ),
+      key: const ValueKey('desktopSidebar'),
+      width: 248,
+      color: colors.surfaceContainerLow,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 24, 18, 26),
+              padding: const EdgeInsets.fromLTRB(20, 26, 16, 30),
               child: Row(
                 children: [
                   ClipRRect(
@@ -278,49 +276,137 @@ class _DesktopSidebar extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'RTSP Hub',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'RTSP Hub',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          'CENTRAL DE CÂMERAS',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
             for (final item in _items)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 3,
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
-                  child: ListTile(
-                    selected: item.$1 == section,
-                    leading: Icon(item.$3),
-                    title: Text(item.$2),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    onTap: () => onSelected(item.$1),
-                  ),
-                ),
+              _SidebarDestination(
+                section: item.$1,
+                label: item.$2,
+                icon: item.$3,
+                selected: item.$1 == section,
+                onTap: () => onSelected(item.$1),
               ),
             const Spacer(),
             Padding(
-              padding: const EdgeInsets.all(18),
-              child: Text(
-                'RTSP Hub\nMonitoramento local',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.shield_outlined,
+                    size: 17,
+                    color: colors.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Monitoramento local',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarDestination extends StatelessWidget {
+  const _SidebarDestination({
+    required this.section,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AppSection section;
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final foreground = selected
+        ? colors.onPrimaryContainer
+        : colors.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: Material(
+          key: ValueKey('sidebar_${section.name}'),
+          color: selected ? colors.primaryContainer : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              height: 52,
+              child: Row(
+                children: [
+                  Container(
+                    width: 3,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: selected ? colors.primary : Colors.transparent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 17),
+                  Icon(icon, size: 22, color: foreground),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: foreground,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

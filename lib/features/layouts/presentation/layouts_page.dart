@@ -379,7 +379,8 @@ class _SavedProfiles extends StatelessWidget {
                     ),
                   ],
                 );
-                if (constraints.maxWidth < 760) {
+                if (constraints.maxWidth < 1060 ||
+                    MediaQuery.textScalerOf(context).scale(14) > 20) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [heading, const SizedBox(height: 12), saveButton],
