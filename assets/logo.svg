@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+    <defs>
+        <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#090D16" />
+            <stop offset="50%" stop-color="#0F172A" />
+            <stop offset="100%" stop-color="#1E293B" />
+        </linearGradient>
+
+        <linearGradient id="screenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#243247" />
+            <stop offset="100%" stop-color="#0F172A" />
+        </linearGradient>
+
+        <linearGradient id="glassShine" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.06" />
+            <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.02" />
+            <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+        </linearGradient>
+
+        <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#38BDF8" />
+            <stop offset="100%" stop-color="#0284C7" />
+        </linearGradient>
+
+        <radialGradient id="lensCore" cx="50%" cy="50%" r="50%" fx="35%" fy="35%">
+            <stop offset="0%" stop-color="#0284C7" stop-opacity="0.65" />
+            <stop offset="70%" stop-color="#090D16" />
+            <stop offset="100%" stop-color="#020617" />
+        </radialGradient>
+
+        <filter id="hubShadow" x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.7" />
+        </filter>
+    </defs>
+
+    <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+    <g>
+        <rect x="46" y="46" width="200" height="200" rx="32" fill="url(#screenGrad)" stroke="#475569" stroke-width="4" />
+        <path d="M 46 78 Q 46 46 78 46 L 214 46 L 46 214 Z" fill="url(#glassShine)" />
+        <path d="M 74 96 L 74 74 L 96 74" fill="none" stroke="#38BDF8" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.65" />
+        <circle cx="212" cy="80" r="10" fill="#EF4444" />
+        <circle cx="212" cy="80" r="18" fill="#EF4444" opacity="0.28" />
+        <rect x="74" y="210" width="44" height="8" rx="4" fill="#38BDF8" opacity="0.75" />
+        <rect x="126" y="210" width="24" height="8" rx="4" fill="#64748B" opacity="0.5" />
+    </g>
+
+    <g>
+        <rect x="266" y="46" width="200" height="200" rx="32" fill="url(#screenGrad)" stroke="#475569" stroke-width="4" />
+        <path d="M 266 78 Q 266 46 298 46 L 434 46 L 266 214 Z" fill="url(#glassShine)" />
+        <path d="M 294 96 L 294 74 L 316 74" fill="none" stroke="#38BDF8" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.65" />
+        <circle cx="432" cy="80" r="10" fill="#EF4444" />
+        <circle cx="432" cy="80" r="18" fill="#EF4444" opacity="0.28" />
+        <rect x="362" y="210" width="44" height="8" rx="4" fill="#38BDF8" opacity="0.75" />
+        <rect x="414" y="210" width="24" height="8" rx="4" fill="#64748B" opacity="0.5" />
+    </g>
+
+    <g>
+        <rect x="46" y="266" width="200" height="200" rx="32" fill="url(#screenGrad)" stroke="#475569" stroke-width="4" />
+        <path d="M 46 298 Q 46 266 78 266 L 214 266 L 46 434 Z" fill="url(#glassShine)" />
+        <path d="M 74 316 L 74 294 L 96 294" fill="none" stroke="#38BDF8" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.65" />
+        <circle cx="212" cy="300" r="10" fill="#EF4444" />
+        <circle cx="212" cy="300" r="18" fill="#EF4444" opacity="0.28" />
+        <rect x="74" y="430" width="44" height="8" rx="4" fill="#38BDF8" opacity="0.75" />
+        <rect x="126" y="430" width="24" height="8" rx="4" fill="#64748B" opacity="0.5" />
+    </g>
+
+    <g>
+        <rect x="266" y="266" width="200" height="200" rx="32" fill="url(#screenGrad)" stroke="#475569" stroke-width="4" />
+        <path d="M 266 298 Q 266 266 298 266 L 434 266 L 266 434 Z" fill="url(#glassShine)" />
+        <path d="M 294 316 L 294 294 L 316 294" fill="none" stroke="#38BDF8" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.65" />
+        <circle cx="432" cy="300" r="10" fill="#EF4444" />
+        <circle cx="432" cy="300" r="18" fill="#EF4444" opacity="0.28" />
+        <rect x="362" y="430" width="44" height="8" rx="4" fill="#38BDF8" opacity="0.75" />
+        <rect x="414" y="430" width="24" height="8" rx="4" fill="#64748B" opacity="0.5" />
+    </g>
+
+    <g filter="url(#hubShadow)">
+        <circle cx="256" cy="256" r="54" fill="#090D16" stroke="#334155" stroke-width="3" />
+        <circle cx="256" cy="256" r="40" fill="url(#lensCore)" stroke="url(#cyanGrad)" stroke-width="6" />
+        <circle cx="256" cy="256" r="22" fill="#050811" stroke="#38BDF8" stroke-width="2" opacity="0.7" />
+        <circle cx="256" cy="256" r="10" fill="#38BDF8" />
+        <circle cx="245" cy="245" r="4.5" fill="#FFFFFF" opacity="0.95" />
+    </g>
+</svg>
