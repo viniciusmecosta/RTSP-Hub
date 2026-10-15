@@ -177,8 +177,12 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
       var scannedHosts = 0;
       for (final candidatePort in ports) {
         if (_cancel) break;
+        final remainingHosts = scanHosts
+            .where((host) => !_portsByHost.containsKey(host))
+            .toList(growable: false);
+        scannedHosts += scanHosts.length - remainingHosts.length;
         await for (final progress in _scanner.scan(
-          scanHosts,
+          remainingHosts,
           candidatePort,
           isCancelled: () => _cancel,
         )) {
@@ -194,7 +198,8 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
               ..addAll(_portsByHost.keys);
           });
         }
-        scannedHosts += scanHosts.length;
+        scannedHosts += remainingHosts.length;
+        if (mounted && !_cancel) setState(() => _completed = scannedHosts);
       }
       if (!_cancel && mounted && _hosts.isNotEmpty) {
         await _inspectHosts(lastChannel: lastChannel);
@@ -583,7 +588,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
                         decoration: const InputDecoration(
                           labelText: 'Rede IPv4',
                           hintText: '192.168.1.0/24',
-                          helperText: 'Exemplo: 192.168.1.0/24',
+                          helperText: 'Recomendado /24; máximo /22 (1022 IPs)',
                         ),
                       );
                       final port = TextField(
