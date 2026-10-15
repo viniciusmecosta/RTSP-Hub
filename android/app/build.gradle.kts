@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.rtsp.rtsp_view"
+    namespace = "com.rtsp.rtsp_hub"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -14,7 +14,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.rtsp.rtsp_view"
+        applicationId = "com.rtsp.rtsp_hub"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
