@@ -76,4 +76,19 @@ void main() {
       expect(await backup.exists(), isFalse);
     },
   );
+
+  test('deleted snapshots do not reappear from a stale backup', () async {
+    final directory = await Directory.systemTemp.createTemp('snapshots-test');
+    addTearDown(() => directory.delete(recursive: true));
+    final store = CameraSnapshotStore(directory: directory);
+    addTearDown(store.dispose);
+    expect(await store.save('camera', Uint8List.fromList([1])), isTrue);
+    final file = await store.fileFor('camera');
+    final backup = File('${file.path}.bak');
+    await file.copy(backup.path);
+
+    expect(await store.remove('camera'), isTrue);
+    expect(await backup.exists(), isFalse);
+    expect(await store.read('camera'), isNull);
+  });
 }
