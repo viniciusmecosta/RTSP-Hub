@@ -15,6 +15,25 @@ void main() {
     if (await directory.exists()) await directory.delete(recursive: true);
   });
 
+  test(
+    'migrates the previous app directory without deleting its data',
+    () async {
+      final legacy = Directory('${directory.path}/legacy');
+      final target = Directory('${directory.path}/new');
+      await ConfigRepository(
+        directory: legacy,
+      ).save(const AppConfiguration(defaultUser: 'legacy-user'));
+      final repository = ConfigRepository(
+        directory: target,
+        legacyDirectory: legacy,
+      );
+      expect((await repository.load()).defaultUser, 'legacy-user');
+      expect(await File('${legacy.path}/config.json').exists(), isTrue);
+      await repository.save(const AppConfiguration(defaultUser: 'new-user'));
+      expect((await repository.load()).defaultUser, 'new-user');
+    },
+  );
+
   test('recovers a corrupt primary and allows saving afterward', () async {
     final repository = ConfigRepository(directory: directory);
     await repository.save(const AppConfiguration(defaultUser: 'before'));

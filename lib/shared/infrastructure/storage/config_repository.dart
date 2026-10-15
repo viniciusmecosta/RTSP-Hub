@@ -6,9 +6,11 @@ import 'package:path_provider/path_provider.dart';
 import '../../../app/data/app_configuration.dart';
 
 class ConfigRepository {
-  ConfigRepository({Directory? directory}) : _overrideDirectory = directory;
+  ConfigRepository({Directory? directory, this.legacyDirectory})
+    : _overrideDirectory = directory;
 
   final Directory? _overrideDirectory;
+  final Directory? legacyDirectory;
   Future<void> _saveQueue = Future.value();
 
   Future<Directory> _directory() async {
@@ -48,6 +50,24 @@ class ConfigRepository {
         }
       }
       if (await backup.exists()) return _decode(backup);
+      final legacyRoots = legacyDirectory == null
+          ? _overrideDirectory != null
+                ? <Directory>[]
+                : await _legacyRoots()
+          : [legacyDirectory!];
+      for (final root in legacyRoots) {
+        for (final name in [
+          'config.json',
+          'config.backup.json',
+          '.config.json.previous',
+        ]) {
+          final file = File('${root.path}/$name');
+          if (!await file.exists()) continue;
+          final config = await _decode(file);
+          await save(config);
+          return config;
+        }
+      }
       return const AppConfiguration();
     }
     try {
@@ -64,6 +84,26 @@ class ConfigRepository {
       }
       rethrow;
     }
+  }
+
+  Future<List<Directory>> _legacyRoots() async {
+    final support = await getApplicationSupportDirectory();
+    final paths = {
+      support.path,
+      support.path
+          .replaceAll('rtsp_hub', 'rtsp_view')
+          .replaceAll('rtspHub', 'rtspView'),
+      support.path.replaceAll('RTSP Hub', 'RTSP View'),
+    };
+    paths.add(
+      support.path
+          .replaceAll('rtsp_view', 'rtsp_hub')
+          .replaceAll('rtspView', 'rtspHub'),
+    );
+    return [
+      for (final path in paths) Directory('$path/RTSPHub'),
+      for (final path in paths) Directory('$path/RTSPView'),
+    ];
   }
 
   Future<void> save(AppConfiguration config) {
