@@ -71,9 +71,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
     _port = TextEditingController(
       text: '${camera?.port ?? widget.store.config.defaultPort}',
     );
-    _username = TextEditingController(
-      text: camera?.useGlobalCredentials == true ? '' : camera?.username ?? '',
-    );
+    _username = TextEditingController(text: camera?.username ?? '');
     _password = TextEditingController(text: widget.password ?? '');
     _mainPath = TextEditingController(text: camera?.mainPath ?? '');
     _subPath = TextEditingController(text: camera?.subPath ?? '');
@@ -175,7 +173,8 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
                           passwordController: _password,
                           defaultUser: widget.store.config.defaultUser,
                           obscurePassword: _obscure,
-                          onToggleObscure: () => setState(() => _obscure = !_obscure),
+                          onToggleObscure: () =>
+                              setState(() => _obscure = !_obscure),
                         ),
                         const SizedBox(height: 12),
                         CameraPathFields(
@@ -184,9 +183,12 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
                           defaultPath: widget.store.config.defaultPath,
                           defaultSubPath: widget.store.config.defaultSubPath,
                           savedPaths: _savedPaths,
-                          onAddSavedPath: (path) => setState(() => _savedPaths.add(path)),
-                          onSelectSavedPath: (path) => setState(() => _mainPath.text = path),
-                          onRemoveSavedPath: (path) => setState(() => _savedPaths.remove(path)),
+                          onAddSavedPath: (path) =>
+                              setState(() => _savedPaths.add(path)),
+                          onSelectSavedPath: (path) =>
+                              setState(() => _mainPath.text = path),
+                          onRemoveSavedPath: (path) =>
+                              setState(() => _savedPaths.remove(path)),
                           searchRecorderChannels: _searchRecorderChannels,
                           onToggleSearchRecorderChannels: (v) =>
                               setState(() => _searchRecorderChannels = v),

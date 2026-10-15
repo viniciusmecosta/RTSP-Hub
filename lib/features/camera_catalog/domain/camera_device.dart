@@ -32,9 +32,7 @@ class CameraDevice {
     String defaultSubPath = '',
   }) => copyWith(
     port: effectivePort(defaultPort),
-    username: useGlobalCredentials || username.trim().isEmpty
-        ? defaultUser
-        : username,
+    username: username.trim().isEmpty ? defaultUser : username,
     mainPath: mainPath.trim().isEmpty ? defaultPath : mainPath,
     subPath: subPath.trim().isEmpty ? defaultSubPath : subPath,
     useGlobalCredentials: false,
