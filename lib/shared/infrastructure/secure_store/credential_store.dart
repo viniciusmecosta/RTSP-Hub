@@ -20,8 +20,9 @@ class CredentialStore {
     final legacy = await _storage.read(
       key: 'rtsp_view.camera.$cameraId.password',
     );
-    if (legacy != null)
+    if (legacy != null) {
       await _storage.write(key: _key(cameraId), value: legacy);
+    }
     return legacy;
   }
 

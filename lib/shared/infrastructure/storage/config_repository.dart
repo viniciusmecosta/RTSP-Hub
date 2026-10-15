@@ -63,7 +63,14 @@ class ConfigRepository {
         ]) {
           final file = File('${root.path}/$name');
           if (!await file.exists()) continue;
-          final config = await _decode(file);
+          AppConfiguration config;
+          try {
+            config = await _decode(file);
+          } on FormatException {
+            continue;
+          } on TypeError {
+            continue;
+          }
           await save(config);
           return config;
         }
