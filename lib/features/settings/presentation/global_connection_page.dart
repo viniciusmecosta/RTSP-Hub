@@ -18,6 +18,7 @@ class GlobalConnectionPage extends StatelessWidget {
       title: 'Configure uma vez',
       subtitle:
           'Os mesmos padrões para cadastrar, encontrar e visualizar suas câmeras.',
+      maxContentWidth: 1040,
       child: GlobalConnectionCard(),
     ),
   );

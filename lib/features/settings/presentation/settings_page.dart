@@ -40,7 +40,7 @@ class _SettingsPageState extends State<SettingsPage> {
         : Platform.isLinux
         ? await _linuxStartup.isEnabled()
         : false;
-    if (!context.mounted) return;
+    if (!mounted) return;
     setState(() {
       _startupEnabled = enabled;
       _startupLoading = false;
