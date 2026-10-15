@@ -115,7 +115,7 @@ void main() {
 
     await tester.tap(find.byType(NavigationDestination).at(4));
     await tester.pumpAndSettle();
-    expect(find.text('Conexão padrão'), findsOneWidget);
+    expect(find.text('Conexão global'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

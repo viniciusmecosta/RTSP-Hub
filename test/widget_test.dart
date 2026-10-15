@@ -89,8 +89,9 @@ void main() {
     await tester.tap(find.text('Encontrar câmeras na rede'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Usuário global'), findsOneWidget);
-    expect(find.text('Senha global'), findsOneWidget);
+    expect(find.text('Usa a conexão global'), findsOneWidget);
+    expect(find.text('Usuário global'), findsNothing);
+    expect(find.text('Senha global'), findsNothing);
     expect(find.text('Buscar câmeras'), findsOneWidget);
     expect(find.text('Pesquisar canais de gravadores'), findsOneWidget);
     expect(find.text('Procurar até o canal'), findsNothing);

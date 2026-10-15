@@ -128,7 +128,7 @@ class _PageHeading extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
           subtitle,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(

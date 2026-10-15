@@ -8,35 +8,63 @@ abstract final class AppTheme {
   static ThemeData get dark => _build(Brightness.dark);
 
   static ThemeData _build(Brightness brightness) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: blue,
-      brightness: brightness,
-      surface: brightness == Brightness.dark
-          ? const Color(0xFF111827)
-          : const Color(0xFFF8FAFC),
-    );
     final isDark = brightness == Brightness.dark;
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: blue,
+          brightness: brightness,
+          surface: brightness == Brightness.dark
+              ? const Color(0xFF111827)
+              : const Color(0xFFF8FAFC),
+        ).copyWith(
+          primary: isDark ? const Color(0xFF9FC2FF) : blue,
+          onPrimary: isDark ? const Color(0xFF002558) : Colors.white,
+          primaryContainer: isDark
+              ? const Color(0xFF16375E)
+              : const Color(0xFFE7EEFF),
+          onPrimaryContainer: isDark
+              ? const Color(0xFFD4E5FF)
+              : const Color(0xFF143673),
+        );
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
+      textTheme: ThemeData(brightness: brightness).textTheme.copyWith(
+        titleLarge: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.4,
+          color: scheme.onSurface,
+        ),
+        titleMedium: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: scheme.onSurface,
+        ),
+        bodyLarge: TextStyle(
+          fontSize: 16,
+          height: 1.4,
+          color: scheme.onSurface,
+        ),
+      ),
       scaffoldBackgroundColor: isDark
-          ? const Color(0xFF0B1220)
-          : const Color(0xFFF1F5F9),
+          ? const Color(0xFF080F1B)
+          : const Color(0xFFF4F6FA),
       appBarTheme: AppBarTheme(
         backgroundColor: isDark
-            ? const Color(0xFF0B1220)
-            : const Color(0xFFF1F5F9),
+            ? const Color(0xFF080F1B)
+            : const Color(0xFFF4F6FA),
         foregroundColor: scheme.onSurface,
         elevation: 0,
         centerTitle: false,
       ),
       cardTheme: CardThemeData(
-        color: isDark ? const Color(0xFF111C2E) : Colors.white,
+        color: isDark ? const Color(0xFF101D2E) : Colors.white,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(12),
           side: BorderSide(
             color: isDark ? const Color(0xFF25334A) : const Color(0xFFE2E8F0),
           ),
@@ -71,15 +99,15 @@ abstract final class AppTheme {
         filled: true,
         fillColor: isDark ? const Color(0xFF0D1727) : const Color(0xFFF8FAFC),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: scheme.outlineVariant),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: scheme.outlineVariant),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: blue, width: 1.6),
         ),
         contentPadding: const EdgeInsets.symmetric(
@@ -93,7 +121,7 @@ abstract final class AppTheme {
           foregroundColor: Colors.white,
           minimumSize: const Size(48, 48),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
       ),
@@ -101,7 +129,7 @@ abstract final class AppTheme {
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(48, 48),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
       ),
