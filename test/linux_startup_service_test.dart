@@ -25,4 +25,24 @@ void main() {
     expect(await service.setEnabled(false), isTrue);
     expect(await service.isEnabled(), isFalse);
   });
+
+  test('migrates the previous autostart entry to the new executable', () async {
+    final directory = await Directory.systemTemp.createTemp('rtsp-startup-');
+    addTearDown(() => directory.delete(recursive: true));
+    final autostart = Directory('${directory.path}/autostart');
+    await autostart.create();
+    final legacy = File('${autostart.path}/rtsp-view.desktop');
+    await legacy.writeAsString('Exec="/opt/RTSP View/rtsp_view"\n');
+    final service = LinuxStartupService(
+      configHome: directory.path,
+      executable: '/opt/RTSP Hub/rtsp_hub',
+    );
+
+    expect(await service.isEnabled(), isTrue);
+    expect(await legacy.exists(), isFalse);
+    expect(
+      await File('${autostart.path}/rtsp-hub.desktop').readAsString(),
+      contains('Exec="/opt/RTSP Hub/rtsp_hub"'),
+    );
+  });
 }

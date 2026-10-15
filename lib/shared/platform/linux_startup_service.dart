@@ -9,16 +9,24 @@ class LinuxStartupService {
   Future<bool> isEnabled() async {
     if (!Platform.isLinux) return false;
     final file = _entryFile();
-    return file != null && await file.exists();
+    final legacy = _legacyEntryFile();
+    if (file != null && await file.exists()) {
+      if (legacy != null && await legacy.exists()) await setEnabled(true);
+      return true;
+    }
+    if (legacy == null || !await legacy.exists()) return false;
+    return setEnabled(true);
   }
 
   Future<bool> setEnabled(bool enabled) async {
     if (!Platform.isLinux) return false;
     final file = _entryFile();
     if (file == null) return false;
+    final legacy = _legacyEntryFile();
     try {
       if (!enabled) {
         if (await file.exists()) await file.delete();
+        if (legacy != null && await legacy.exists()) await legacy.delete();
         return true;
       }
       final appExecutable = (executable ?? Platform.resolvedExecutable)
@@ -36,6 +44,7 @@ class LinuxStartupService {
         'X-GNOME-Autostart-enabled=true\n',
         flush: true,
       );
+      if (legacy != null && await legacy.exists()) await legacy.delete();
       return true;
     } on Object {
       return false;
@@ -45,6 +54,11 @@ class LinuxStartupService {
   File? _entryFile() {
     final root = _configRoot();
     return root == null ? null : File('$root/autostart/rtsp-hub.desktop');
+  }
+
+  File? _legacyEntryFile() {
+    final root = _configRoot();
+    return root == null ? null : File('$root/autostart/rtsp-view.desktop');
   }
 
   String? _configRoot() {
