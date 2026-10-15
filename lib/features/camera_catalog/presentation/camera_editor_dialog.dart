@@ -48,6 +48,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
   late List<String> _savedPaths;
   Uint8List? _thumbnail;
   String? _thumbnailIdentity;
+  late final String _initialIdentity;
   bool _obscure = true;
   bool _portOverride = false;
   bool _busy = false;
@@ -84,6 +85,23 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
     ];
     _savedPaths = initialPaths.toSet().toList();
     _mainPath.addListener(_onMainPathChanged);
+    _initialIdentity = _captureIdentity;
+    if (camera != null) {
+      unawaited(_loadExistingThumbnail(camera.id, _initialIdentity));
+    }
+  }
+
+  Future<void> _loadExistingThumbnail(String id, String identity) async {
+    try {
+      final bytes = await widget.store.snapshots.read(id);
+      if (!mounted || bytes == null || identity != _captureIdentity) return;
+      setState(() {
+        _thumbnail = bytes;
+        _thumbnailIdentity = identity;
+      });
+    } on Object {
+      return;
+    }
   }
 
   void _onMainPathChanged() {
@@ -454,6 +472,12 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
     );
     if (!mounted) return;
     if (saved) {
+      if (widget.camera != null &&
+          _initialIdentity != _captureIdentity &&
+          _thumbnail == null) {
+        await widget.store.snapshots.remove(widget.camera!.id);
+        if (!mounted) return;
+      }
       Navigator.pop(context, true);
       return;
     }
