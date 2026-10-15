@@ -25,12 +25,13 @@ class CameraSnapshotStore extends ChangeNotifier {
     final key = sha256.convert(utf8.encode(id));
     final file = File('${root.path}/$key.png');
     final backup = File('${file.path}.bak');
-    if (!await file.exists() && await backup.exists()) {
+    final removed = File('${file.path}.removed');
+    if (!await file.exists() &&
+        !await removed.exists() &&
+        await backup.exists()) {
       await backup.rename(file.path);
     }
-    if (directory == null &&
-        !await file.exists() &&
-        !await File('${file.path}.removed').exists()) {
+    if (directory == null && !await file.exists() && !await removed.exists()) {
       final support = await getApplicationSupportDirectory();
       final paths = {
         support.path,
@@ -110,6 +111,10 @@ class CameraSnapshotStore extends ChangeNotifier {
     try {
       final file = await fileFor(id);
       if (await file.exists()) await file.delete();
+      final backup = File('${file.path}.bak');
+      if (await backup.exists()) await backup.delete();
+      final temporary = File('${file.path}.tmp');
+      if (await temporary.exists()) await temporary.delete();
       await File('${file.path}.removed').writeAsString('');
       for (final width in decodeWidths) {
         await ResizeImage(FileImage(file), width: width).evict();
