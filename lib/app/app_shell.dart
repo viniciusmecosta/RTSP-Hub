@@ -176,6 +176,7 @@ class _AppShellState extends State<AppShell> {
     DashboardPage(
       onAddCamera: () => _selectIndex(1),
       onOpenMonitor: () => _selectIndex(3),
+      onOpenLayouts: () => _selectIndex(2),
       onOpenProfile: (profileId) async {
         final store = AppScope.of(context);
         await store.applyMonitorProfile(profileId);
@@ -266,14 +267,15 @@ class _DesktopSidebar extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(22, 24, 18, 26),
               child: Row(
                 children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
-                      borderRadius: BorderRadius.circular(14),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.asset(
+                      'assets/logo.png',
+                      width: 42,
+                      height: 42,
+                      cacheWidth: 84,
+                      semanticLabel: 'RTSP Hub',
                     ),
-                    child: const Icon(Icons.videocam, color: Colors.white),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -312,7 +314,7 @@ class _DesktopSidebar extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(18),
               child: Text(
-                'Monitoramento local',
+                'RTSP Hub\nMonitoramento local',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
