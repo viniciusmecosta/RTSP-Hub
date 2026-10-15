@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rtsp_hub/app/data/app_configuration.dart';
 import 'package:rtsp_hub/app/state/app_store.dart';
 import 'package:rtsp_hub/features/camera_catalog/data/camera_snapshot_store.dart';
+import 'package:rtsp_hub/features/camera_catalog/domain/camera_device.dart';
 import 'package:rtsp_hub/shared/infrastructure/secure_store/credential_store.dart';
 import 'package:rtsp_hub/shared/infrastructure/storage/config_repository.dart';
 
@@ -168,6 +169,30 @@ void main() {
     expect(credentials.values.containsKey(id), isFalse);
     expect(await store.passwordFor(store.cameras.single), 'global:@ç#?');
     expect(store.resolveCamera(store.cameras.single).port, 9554);
+  });
+
+  test('legacy global flag does not hide specific field overrides', () async {
+    const camera = CameraDevice(
+      id: 'legacy',
+      name: 'Portaria',
+      host: '192.168.1.20',
+      mainPath: '',
+      username: 'operator',
+      useGlobalCredentials: true,
+    );
+    repository.value = repository.value.copyWith(cameras: [camera]);
+    credentials.values[camera.id] = 'specific@:#';
+    final reloaded = AppStore(
+      repository: repository,
+      credentials: credentials,
+      snapshotStore: snapshots,
+    );
+    addTearDown(reloaded.dispose);
+    await reloaded.load();
+
+    expect(reloaded.resolveCamera(camera).username, 'operator');
+    expect(reloaded.resolveCamera(camera).mainPath, '/global');
+    expect(await reloaded.passwordFor(camera), 'specific@:#');
   });
 
   test('failed camera save restores the previous password', () async {

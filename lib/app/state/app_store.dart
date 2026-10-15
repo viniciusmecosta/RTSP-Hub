@@ -190,9 +190,7 @@ class AppStore extends ChangeNotifier {
       return false;
     }
     final isNewCamera = id.isEmpty;
-    if (isNewCamera && username.trim().isEmpty && password.isEmpty) {
-      useGlobalCredentials = true;
-    }
+    useGlobalCredentials = username.trim().isEmpty && password.isEmpty;
     final normalizedMain = _normalizePath(mainPath);
     final normalizedSub = _normalizePath(subPath);
     final allSavedPaths = <String>{
@@ -206,7 +204,7 @@ class AppStore extends ChangeNotifier {
       name: name.trim().isEmpty ? normalizedHost : name.trim(),
       host: normalizedHost,
       port: port.trim().isEmpty ? null : parsedPort,
-      username: useGlobalCredentials ? '' : username.trim(),
+      username: username.trim(),
       useGlobalCredentials: useGlobalCredentials,
       mainPath: normalizedMain,
       subPath: normalizedSub,
@@ -225,7 +223,7 @@ class AppStore extends ChangeNotifier {
       return false;
     }
     try {
-      if (!useGlobalCredentials && password.isNotEmpty) {
+      if (password.isNotEmpty) {
         await _credentials.write(camera.id, password);
         _passwords[camera.id] = password;
       } else {
@@ -412,7 +410,6 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<String?> specificPasswordFor(CameraDevice camera) async {
-    if (camera.useGlobalCredentials) return null;
     final memory = _passwords[camera.id];
     if (memory != null) return memory;
     try {
@@ -708,11 +705,8 @@ class AppStore extends ChangeNotifier {
   static const profileExportFormat = AppBackupService.profileExportFormat;
   static const maxBackupBytes = AppBackupService.maxBackupBytes;
 
-  String exportMonitorProfiles([Set<String>? profileIds]) =>
-      _backupService.exportMonitorProfiles(
-        config: _config,
-        profileIds: profileIds,
-      );
+  String exportMonitorProfiles([Set<String>? profileIds]) => _backupService
+      .exportMonitorProfiles(config: _config, profileIds: profileIds);
 
   Future<int?> importMonitorProfiles(String source) =>
       _backupService.importMonitorProfiles(
@@ -726,11 +720,11 @@ class AppStore extends ChangeNotifier {
       );
 
   Future<String> exportBackup() => _backupService.exportBackup(
-        config: _config,
-        credentials: _credentials,
-        snapshots: snapshots,
-        getCurrentConfig: () => _config,
-      );
+    config: _config,
+    credentials: _credentials,
+    snapshots: snapshots,
+    getCurrentConfig: () => _config,
+  );
 
   String exportConfiguration() => _backupService.exportConfiguration(_config);
 
