@@ -8,6 +8,8 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
 import 'shared/infrastructure/single_instance/single_instance_guard.dart';
+import 'shared/platform/linux_startup_service.dart';
+import 'shared/platform/windows_startup_service.dart';
 
 export 'app/app.dart' show MyApp, RtspHubApp, RtspViewApp;
 
@@ -41,6 +43,11 @@ Future<void> main(List<String> arguments) async {
       return;
     }
     await windowInitFuture;
+    if (Platform.isLinux) {
+      unawaited(LinuxStartupService().isEnabled());
+    } else if (Platform.isWindows) {
+      unawaited(WindowsStartupService().isEnabled());
+    }
     unawaited(
       windowManager.waitUntilReadyToShow(
         const WindowOptions(
