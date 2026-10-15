@@ -38,9 +38,7 @@ class CameraPreviewDialog extends StatefulWidget {
     final bytes = await showDialog<Uint8List>(
       context: context,
       builder: (_) => CameraPreviewDialog(
-        camera: camera.useGlobalCredentials
-            ? camera.copyWith(username: store.config.defaultUser)
-            : camera,
+        camera: store.resolveCamera(camera),
         password: password,
         defaultPort: store.config.defaultPort,
         bufferMs: store.config.bufferMs,

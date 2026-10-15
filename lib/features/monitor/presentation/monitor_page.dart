@@ -146,15 +146,13 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       if (camera == null) continue;
       final secret = await store.passwordFor(camera);
       if (!mounted || generation != _generation) return;
-      final effectiveCamera = camera.useGlobalCredentials
-          ? camera.copyWith(username: store.config.defaultUser)
-          : camera;
+      final effectiveCamera = store.resolveCamera(camera);
       final existing = _sessions[id];
       final mainStream =
           _mainStreams ||
           _focusedCameraId == id ||
           store.config.resourceMode == 'quality' ||
-          camera.subPath.isEmpty;
+          effectiveCamera.subPath.isEmpty;
       if (existing != null &&
           _sameCamera(existing.camera, effectiveCamera) &&
           existing.password == secret &&

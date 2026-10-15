@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import '../../features/camera_catalog/data/camera_snapshot_store.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../features/camera_catalog/domain/camera_device.dart';
@@ -94,6 +94,34 @@ class AppStore extends ChangeNotifier {
     }
   }
 
+  CameraDevice resolveCamera(CameraDevice camera) => camera.resolved(
+    defaultPort: _config.defaultPort,
+    defaultUser: _config.defaultUser,
+    defaultPath: _config.defaultPath,
+    defaultSubPath: _config.defaultSubPath,
+  );
+
+  CameraDevice? cameraForEndpoint(String host, {int? port, String? path}) {
+    final matches = cameras
+        .where(
+          (camera) =>
+              camera.host.toLowerCase() == host.toLowerCase() &&
+              (port == null ||
+                  camera.effectivePort(_config.defaultPort) == port),
+        )
+        .toList();
+    if (path != null) {
+      for (final camera in matches) {
+        final resolved = resolveCamera(camera);
+        if (resolved.mainPath == path ||
+            resolved.subPath == path ||
+            camera.savedPaths.contains(path))
+          return camera;
+      }
+    }
+    return matches.length == 1 ? matches.single : null;
+  }
+
   Future<bool> saveCamera({
     required String id,
     required String name,
@@ -150,7 +178,7 @@ class AppStore extends ChangeNotifier {
           camera.id != id &&
           camera.host.toLowerCase() == normalizedHost.toLowerCase() &&
           camera.effectivePort(_config.defaultPort) == parsedPort &&
-          camera.mainPath == _normalizePath(path),
+          resolveCamera(camera).mainPath == _normalizePath(path),
     )) {
       _message =
           'Já existe uma câmera cadastrada com o mesmo endereço, porta e caminho.';
@@ -161,12 +189,10 @@ class AppStore extends ChangeNotifier {
     if (isNewCamera && username.trim().isEmpty && password.isEmpty) {
       useGlobalCredentials = true;
     }
-    final normalizedMain = mainPath.trim().isEmpty
-        ? _config.defaultPath
-        : _normalizePath(mainPath);
+    final normalizedMain = _normalizePath(mainPath);
     final normalizedSub = _normalizePath(subPath);
     final allSavedPaths = <String>{
-      normalizedMain,
+      if (normalizedMain.isNotEmpty) normalizedMain,
       if (normalizedSub.isNotEmpty) normalizedSub,
       ...savedPaths.map(_normalizePath).where((p) => p.isNotEmpty),
     }.toList();
@@ -176,7 +202,7 @@ class AppStore extends ChangeNotifier {
       name: name.trim().isEmpty ? normalizedHost : name.trim(),
       host: normalizedHost,
       port: port.trim().isEmpty ? null : parsedPort,
-      username: username.trim(),
+      username: useGlobalCredentials ? '' : username.trim(),
       useGlobalCredentials: useGlobalCredentials,
       mainPath: normalizedMain,
       subPath: normalizedSub,
@@ -186,12 +212,19 @@ class AppStore extends ChangeNotifier {
     final previousCamera = _config.cameras
         .where((item) => item.id == camera.id)
         .firstOrNull;
-    final previousPassword = await _credentials.read(camera.id);
+    String? previousPassword;
+    try {
+      previousPassword = await _credentials.read(camera.id);
+    } on Object {
+      _message = 'Não foi possível acessar o cofre. A câmera não foi alterada.';
+      notifyListeners();
+      return false;
+    }
     try {
       if (!useGlobalCredentials && password.isNotEmpty) {
         await _credentials.write(camera.id, password);
         _passwords[camera.id] = password;
-      } else if (useGlobalCredentials) {
+      } else {
         await _credentials.delete(camera.id);
         _passwords.remove(camera.id);
       }
@@ -207,7 +240,7 @@ class AppStore extends ChangeNotifier {
       if (!await _commit(
         _config.copyWith(cameras: cameras, slotCameraIds: slots),
       )) {
-        if (useGlobalCredentials || password.isNotEmpty) {
+        {
           if (previousPassword == null) {
             await _credentials.delete(camera.id);
             _passwords.remove(camera.id);
@@ -229,7 +262,7 @@ class AppStore extends ChangeNotifier {
       _message = 'Câmera salva neste dispositivo.';
       return true;
     } on Object {
-      if (useGlobalCredentials || password.isNotEmpty) {
+      {
         try {
           if (previousPassword == null) {
             await _credentials.delete(camera.id);
@@ -257,7 +290,7 @@ class AppStore extends ChangeNotifier {
   }) async {
     final password = source.useGlobalCredentials
         ? ''
-        : await passwordFor(source) ?? '';
+        : await specificPasswordFor(source) ?? '';
     final name = (newName != null && newName.trim().isNotEmpty)
         ? newName.trim()
         : '${source.name} (cópia)';
@@ -323,7 +356,7 @@ class AppStore extends ChangeNotifier {
     final known = cameras
         .map(
           (camera) =>
-              '${camera.host.toLowerCase()}:${camera.effectivePort(_config.defaultPort)}:${camera.mainPath}',
+              '${camera.host.toLowerCase()}:${camera.effectivePort(_config.defaultPort)}:${resolveCamera(camera).mainPath}',
         )
         .toSet();
     var added = 0;
@@ -346,10 +379,10 @@ class AppStore extends ChangeNotifier {
         id: const Uuid().v4(),
         name: candidate.name.trim().isEmpty ? host : candidate.name.trim(),
         host: host,
-        port: candidate.port,
-        username: candidate.username.trim(),
-        mainPath: path,
-        subPath: subPath,
+        port: port == _config.defaultPort ? null : port,
+        username: '',
+        mainPath: path == _config.defaultPath ? '' : path,
+        subPath: subPath == _config.defaultSubPath ? '' : subPath,
         useGlobalCredentials: true,
         savedPaths: candidate.savedPaths.isNotEmpty
             ? candidate.savedPaths
@@ -368,7 +401,14 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<String?> passwordFor(CameraDevice camera) async {
-    if (camera.useGlobalCredentials) return networkDiscoveryPassword();
+    final password = await specificPasswordFor(camera);
+    return password == null || password.isEmpty
+        ? networkDiscoveryPassword()
+        : password;
+  }
+
+  Future<String?> specificPasswordFor(CameraDevice camera) async {
+    if (camera.useGlobalCredentials) return null;
     final memory = _passwords[camera.id];
     if (memory != null) return memory;
     try {
@@ -402,36 +442,73 @@ class AppStore extends ChangeNotifier {
   Future<bool> saveNetworkDiscoveryCredentials({
     required String username,
     required String password,
+  }) => saveGlobalConnection(
+    username: username,
+    password: password,
+    port: '${_config.defaultPort}',
+    mainPath: _config.defaultPath,
+    subPath: _config.defaultSubPath,
+  );
+
+  Future<bool> saveGlobalConnection({
+    required String username,
+    required String password,
+    required String port,
+    required String mainPath,
+    String subPath = '',
   }) async {
+    final parsedPort = int.tryParse(port.trim());
+    if (parsedPort == null ||
+        CameraFieldValidation.portError(port) != null ||
+        username.trim().length > 128 ||
+        password.length > 1024 ||
+        CameraFieldValidation.pathError(mainPath) != null ||
+        CameraFieldValidation.pathError(subPath, optional: true) != null) {
+      _message = 'Confira usuário, senha, porta e caminhos da conexão global.';
+      notifyListeners();
+      return false;
+    }
+    String? previous;
     try {
-      final previousPassword = await _credentials.read(
-        _networkDiscoveryCredentialId,
-      );
-      if (password.isEmpty) {
-        await _credentials.delete(_networkDiscoveryCredentialId);
-        _passwords.remove(_networkDiscoveryCredentialId);
-      } else {
-        await _credentials.write(_networkDiscoveryCredentialId, password);
+      previous = await _credentials.read(_networkDiscoveryCredentialId);
+    } on Object {
+      _message = 'Não foi possível acessar o cofre seguro.';
+      notifyListeners();
+      return false;
+    }
+    try {
+      await _credentials.write(_networkDiscoveryCredentialId, password);
+      if (!await _commit(
+        _config.copyWith(
+          defaultUser: username.trim(),
+          defaultPort: parsedPort,
+          defaultPath: _normalizePath(mainPath),
+          defaultSubPath: _normalizePath(subPath),
+        ),
+      )) {
+        throw StateError('configuration write failed');
+      }
+      _passwords.remove(_networkDiscoveryCredentialId);
+      if (password.isNotEmpty) {
         _passwords[_networkDiscoveryCredentialId] = password;
       }
-      final saved = await _commit(
-        _config.copyWith(defaultUser: username.trim()),
-      );
-      if (!saved) {
-        if (previousPassword == null) {
-          await _credentials.delete(_networkDiscoveryCredentialId);
-          _passwords.remove(_networkDiscoveryCredentialId);
-        } else {
-          await _credentials.write(
-            _networkDiscoveryCredentialId,
-            previousPassword,
-          );
-          _passwords[_networkDiscoveryCredentialId] = previousPassword;
-        }
-      }
-      return saved;
+      notifyListeners();
+      return true;
     } on Object {
-      _message = 'Não foi possível salvar as credenciais globais no cofre.';
+      try {
+        if (previous == null) {
+          await _credentials.delete(_networkDiscoveryCredentialId);
+        } else {
+          await _credentials.write(_networkDiscoveryCredentialId, previous);
+        }
+      } on Object {
+        _message =
+            'O cofre ficou indisponível. Confira as credenciais globais antes de conectar.';
+        notifyListeners();
+        return false;
+      }
+      _message =
+          'Não foi possível salvar a conexão global. Os valores anteriores foram mantidos.';
       notifyListeners();
       return false;
     }
@@ -626,8 +703,6 @@ class AppStore extends ChangeNotifier {
 
   static const profileExportFormat = 'rtsp-hub-profiles';
 
-  /// Exporta perfis do monitor com as câmeras que eles usam. Senhas nunca
-  /// são incluídas; no outro dispositivo valem as credenciais de lá.
   String exportMonitorProfiles([Set<String>? profileIds]) {
     final profiles = _config.monitorProfiles
         .where(
@@ -655,17 +730,19 @@ class AppStore extends ChangeNotifier {
     });
   }
 
-  /// Importa perfis exportados, reaproveitando câmeras já cadastradas com o
-  /// mesmo endereço, porta e caminho. Retorna quantos perfis foram
-  /// adicionados ou `null` se o arquivo for inválido.
   Future<int?> importMonitorProfiles(String source) async {
     final List<SavedMonitorProfile> incomingProfiles;
     final List<CameraDevice> incomingCameras;
     try {
-      if (source.length > 5 * 1024 * 1024) throw const FormatException();
+      if (utf8.encode(source).length > maxBackupBytes) {
+        throw const FormatException();
+      }
       final decoded = jsonDecode(source);
       if (decoded is! Map ||
-          decoded['format'] != profileExportFormat ||
+          !{
+            profileExportFormat,
+            'rtsp-view-profiles',
+          }.contains(decoded['format']) ||
           !{1, 2}.contains(decoded['version'])) {
         throw const FormatException();
       }
@@ -684,7 +761,8 @@ class AppStore extends ChangeNotifier {
           .toList(growable: false);
       final incomingIds = <String>{};
       for (final camera in incomingCameras) {
-        if (camera.id.isEmpty ||
+        if (camera.id == _networkDiscoveryCredentialId ||
+            camera.id.isEmpty ||
             !incomingIds.add(camera.id) ||
             camera.name.trim().isEmpty ||
             camera.name.length > 80 ||
@@ -695,7 +773,8 @@ class AppStore extends ChangeNotifier {
                   '${camera.effectivePort(_config.defaultPort)}',
                 ) !=
                 null ||
-            CameraFieldValidation.pathError(camera.mainPath) != null ||
+            CameraFieldValidation.pathError(camera.mainPath, optional: true) !=
+                null ||
             CameraFieldValidation.pathError(camera.subPath, optional: true) !=
                 null ||
             camera.savedPaths.any(
@@ -827,7 +906,7 @@ class AppStore extends ChangeNotifier {
             CameraFieldValidation.hostError(camera.host) != null ||
             camera.effectivePort(configuration.defaultPort) < 1 ||
             camera.effectivePort(configuration.defaultPort) > 65535 ||
-            CameraFieldValidation.pathError(camera.mainPath) != null ||
+            CameraFieldValidation.pathError(camera.mainPath, optional: true) != null ||
             CameraFieldValidation.pathError(camera.subPath, optional: true) !=
                 null ||
             CameraFieldValidation.pathError(
