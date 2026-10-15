@@ -40,18 +40,18 @@ class LocalNetworkScanner {
     if (address == null ||
         address.type != InternetAddressType.IPv4 ||
         prefix == null ||
-        prefix < 16 ||
+        prefix < 22 ||
         prefix > 30) {
-      throw const FormatException('Use uma rede IPv4 entre /16 e /30.');
+      throw const FormatException(
+        'Use uma rede IPv4 entre /22 e /30 (até 1022 endereços).',
+      );
     }
     final octets = address.address.split('.').map(int.parse).toList();
     final integer =
         (octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3];
-    final boundedPrefix = prefix < 24 ? 24 : prefix;
-    final mask = (0xffffffff << (32 - boundedPrefix)) & 0xffffffff;
+    final mask = (0xffffffff << (32 - prefix)) & 0xffffffff;
     final network = integer & mask;
-    final count = 1 << (32 - boundedPrefix);
-    if (count > 65536) throw const FormatException('A rede é grande demais.');
+    final count = 1 << (32 - prefix);
     return [
       for (var offset = 1; offset < count - 1; offset++)
         _formatIpv4(network + offset),

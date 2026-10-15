@@ -5,12 +5,12 @@ import 'package:rtsp_hub/features/discovery/domain/rtsp_channel_candidates.dart'
 void main() {
   final scanner = LocalNetworkScanner();
 
-  test('bounds a large local network to one /24', () {
-    final hosts = scanner.hostsInRange('192.168.14.0/16');
+  test('scans the entire requested /22 range', () {
+    final hosts = scanner.hostsInRange('192.168.14.0/22');
 
-    expect(hosts, hasLength(254));
-    expect(hosts.first, '192.168.14.1');
-    expect(hosts.last, '192.168.14.254');
+    expect(hosts, hasLength(1022));
+    expect(hosts.first, '192.168.12.1');
+    expect(hosts.last, '192.168.15.254');
   });
 
   test('accepts a narrow network and excludes network and broadcast hosts', () {
@@ -22,6 +22,8 @@ void main() {
   test('rejects malformed and unsupported network ranges', () {
     expect(() => scanner.hostsInRange('not-a-network'), throwsFormatException);
     expect(() => scanner.hostsInRange('10.0.0.0/31'), throwsFormatException);
+    expect(() => scanner.hostsInRange('192.168.14.0/16'), throwsFormatException);
+    expect(() => scanner.hostsInRange('192.168.14.0/21'), throwsFormatException);
     expect(() => scanner.hostsInRange('2001:db8::/64'), throwsFormatException);
   });
 
