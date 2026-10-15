@@ -52,6 +52,11 @@ class TestSnapshotStore extends CameraSnapshotStore {
   TestSnapshotStore({required super.directory});
 
   bool failRemove = false;
+  bool failSave = false;
+
+  @override
+  Future<bool> save(String id, Uint8List bytes) async =>
+      failSave ? false : super.save(id, bytes);
 
   @override
   Future<bool> remove(String id) async => failRemove ? false : super.remove(id);
@@ -368,6 +373,46 @@ void main() {
       expect(await store.importConfiguration(source), isFalse);
       expect(await snapshots.read(id), png);
       expect(await store.passwordFor(store.cameras.single), 'old');
+    },
+  );
+
+  test('camera save reports when its thumbnail could not be stored', () async {
+    snapshots.failSave = true;
+    expect(
+      await store.saveCamera(
+        id: '',
+        name: 'Portaria',
+        host: '192.168.1.10',
+        port: '',
+        username: '',
+        password: '',
+        mainPath: '',
+        subPath: '',
+        thumbnail: Uint8List.fromList([1]),
+      ),
+      isTrue,
+    );
+    expect(store.message, contains('miniatura'));
+  });
+
+  test('camera removal reports when an old thumbnail remains', () async {
+    expect(await save(), isTrue);
+    snapshots.failRemove = true;
+    await store.removeCamera(store.cameras.single.id);
+
+    expect(store.cameras, isEmpty);
+    expect(store.message, contains('miniatura'));
+  });
+
+  test(
+    'changing credentials invalidates a photo of the former stream',
+    () async {
+      expect(await save(password: 'old'), isTrue);
+      final id = store.cameras.single.id;
+      expect(await snapshots.save(id, Uint8List.fromList([1, 2, 3])), isTrue);
+
+      expect(await save(id: id, password: 'new'), isTrue);
+      expect(await snapshots.read(id), isNull);
     },
   );
 
