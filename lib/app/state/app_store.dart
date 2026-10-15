@@ -190,7 +190,9 @@ class AppStore extends ChangeNotifier {
       return false;
     }
     final isNewCamera = id.isEmpty;
-    useGlobalCredentials = username.trim().isEmpty && password.isEmpty;
+    if (isNewCamera && username.trim().isEmpty && password.isEmpty) {
+      useGlobalCredentials = true;
+    }
     final normalizedMain = _normalizePath(mainPath);
     final normalizedSub = _normalizePath(subPath);
     final allSavedPaths = <String>{
@@ -204,7 +206,7 @@ class AppStore extends ChangeNotifier {
       name: name.trim().isEmpty ? normalizedHost : name.trim(),
       host: normalizedHost,
       port: port.trim().isEmpty ? null : parsedPort,
-      username: username.trim(),
+      username: useGlobalCredentials ? '' : username.trim(),
       useGlobalCredentials: useGlobalCredentials,
       mainPath: normalizedMain,
       subPath: normalizedSub,
@@ -223,7 +225,7 @@ class AppStore extends ChangeNotifier {
       return false;
     }
     try {
-      if (password.isNotEmpty) {
+      if (!useGlobalCredentials && password.isNotEmpty) {
         await _credentials.write(camera.id, password);
         _passwords[camera.id] = password;
       } else {
