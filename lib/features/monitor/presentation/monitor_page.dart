@@ -215,7 +215,10 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   }
 
   void _changePage(int page, AppStore store) {
-    setState(() => _page = page);
+    setState(() {
+      _page = page;
+      _focusedCameraId = null;
+    });
     unawaited(store.updateSettings(lastMonitorPage: page));
     unawaited(_syncSessions());
   }

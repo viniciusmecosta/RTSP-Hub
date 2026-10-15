@@ -94,7 +94,7 @@ class MonitorCameraTile extends StatelessWidget {
                     ),
                     child: Text(
                       camera!.savedPaths.length > 1
-                          ? '${camera!.name} (${camera!.mainPath})'
+                          ? '${camera!.name} (${camera!.playbackPath(useMainStream: true)})'
                           : camera!.name,
                       style: const TextStyle(
                         color: Colors.white,
@@ -189,8 +189,8 @@ class MonitorCameraTile extends StatelessWidget {
                                               (camera!.selectedPath.isEmpty
                                                   ? camera!.mainPath
                                                   : camera!.selectedPath)
-                                              ? FontWeight.w700
-                                              : FontWeight.normal,
+                                          ? FontWeight.w700
+                                          : FontWeight.normal,
                                     ),
                                   ),
                                 ),
