@@ -24,6 +24,10 @@ class CameraSnapshotStore extends ChangeNotifier {
     final root = await (_resolvedDirectory ??= _directory());
     final key = sha256.convert(utf8.encode(id));
     final file = File('${root.path}/$key.png');
+    final backup = File('${file.path}.bak');
+    if (!await file.exists() && await backup.exists()) {
+      await backup.rename(file.path);
+    }
     if (directory == null &&
         !await file.exists() &&
         !await File('${file.path}.removed').exists()) {
@@ -76,11 +80,21 @@ class CameraSnapshotStore extends ChangeNotifier {
     try {
       final file = await fileFor(id);
       final removed = File('${file.path}.removed');
-      if (await removed.exists()) await removed.delete();
       final temporary = File('${file.path}.tmp');
+      final backup = File('${file.path}.bak');
       await temporary.writeAsBytes(bytes, flush: true);
-      if (await file.exists()) await file.delete();
-      await temporary.rename(file.path);
+      if (await backup.exists()) await backup.delete();
+      if (await file.exists()) await file.rename(backup.path);
+      try {
+        await temporary.rename(file.path);
+      } on Object {
+        if (await backup.exists() && !await file.exists()) {
+          await backup.rename(file.path);
+        }
+        rethrow;
+      }
+      if (await backup.exists()) await backup.delete();
+      if (await removed.exists()) await removed.delete();
       for (final width in decodeWidths) {
         await ResizeImage(FileImage(file), width: width).evict();
       }
