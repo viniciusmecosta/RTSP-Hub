@@ -24,11 +24,13 @@ class MemoryRepository extends ConfigRepository {
 
 class MemoryCredentials extends CredentialStore {
   final values = <String, String>{};
+  final reads = <String, int>{};
   bool failRead = false;
   String? failWrite;
   @override
   Future<String?> read(String cameraId) async {
     if (failRead) throw StateError('locked');
+    reads.update(cameraId, (count) => count + 1, ifAbsent: () => 1);
     return values[cameraId];
   }
 
@@ -194,6 +196,50 @@ void main() {
     expect(reloaded.resolveCamera(camera).mainPath, '/global');
     expect(await reloaded.passwordFor(camera), 'specific@:#');
   });
+
+  test('reconnections reuse the known absence of camera credentials', () async {
+    expect(await save(), isTrue);
+    final camera = store.cameras.single;
+    credentials.reads.clear();
+
+    expect(await store.passwordFor(camera), 'global:@ç#?');
+    expect(await store.passwordFor(camera), 'global:@ç#?');
+    expect(credentials.reads[camera.id], 1);
+
+    expect(await save(id: camera.id, password: 'specific'), isTrue);
+    expect(await store.passwordFor(store.cameras.single), 'specific');
+  });
+
+  test(
+    'global credential cache refreshes after changing the password',
+    () async {
+      expect(
+        await store.saveGlobalConnection(
+          username: 'global',
+          password: '',
+          port: '8554',
+          mainPath: '/global',
+        ),
+        isTrue,
+      );
+      credentials.reads.clear();
+
+      expect(await store.networkDiscoveryPassword(), isNull);
+      expect(await store.networkDiscoveryPassword(), isNull);
+      expect(credentials.reads['__network_discovery__'], 1);
+
+      expect(
+        await store.saveGlobalConnection(
+          username: 'global',
+          password: 'new-secret',
+          port: '8554',
+          mainPath: '/global',
+        ),
+        isTrue,
+      );
+      expect(await store.networkDiscoveryPassword(), 'new-secret');
+    },
+  );
 
   test('failed camera save restores the previous password', () async {
     await save(password: 'private');

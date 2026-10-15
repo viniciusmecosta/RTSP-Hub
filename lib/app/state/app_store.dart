@@ -30,6 +30,7 @@ class AppStore extends ChangeNotifier {
   final CredentialStore _credentials;
   final AppBackupService _backupService;
   final Map<String, String> _passwords = {};
+  final Set<String> _missingPasswords = {};
   final ValueNotifier<ThemeMode> themeModeListenable = ValueNotifier(
     ThemeMode.system,
   );
@@ -63,6 +64,8 @@ class AppStore extends ChangeNotifier {
 
   Future<void> load() async {
     _loading = true;
+    _passwords.clear();
+    _missingPasswords.clear();
     notifyListeners();
     try {
       _config = await _repository.load();
@@ -216,9 +219,12 @@ class AppStore extends ChangeNotifier {
     final previousCamera = _config.cameras
         .where((item) => item.id == camera.id)
         .firstOrNull;
+    _missingPasswords.remove(camera.id);
     String? previousPassword;
     try {
-      previousPassword = await _credentials.read(camera.id);
+      if (previousCamera != null) {
+        previousPassword = await _credentials.read(camera.id);
+      }
     } on Object {
       _message = 'Não foi possível acessar o cofre. A câmera não foi alterada.';
       notifyListeners();
@@ -346,6 +352,7 @@ class AppStore extends ChangeNotifier {
       await snapshots.remove(id);
       await _credentials.delete(id);
       _passwords.remove(id);
+      _missingPasswords.remove(id);
       _message = null;
     } on Object {
       _message =
@@ -414,9 +421,14 @@ class AppStore extends ChangeNotifier {
   Future<String?> specificPasswordFor(CameraDevice camera) async {
     final memory = _passwords[camera.id];
     if (memory != null) return memory;
+    if (_missingPasswords.contains(camera.id)) return null;
     try {
       final password = await _credentials.read(camera.id);
-      if (password != null) _passwords[camera.id] = password;
+      if (password == null) {
+        _missingPasswords.add(camera.id);
+      } else {
+        _passwords[camera.id] = password;
+      }
       return password;
     } on Object {
       _message =
@@ -429,9 +441,14 @@ class AppStore extends ChangeNotifier {
   Future<String?> networkDiscoveryPassword() async {
     final memory = _passwords[_networkDiscoveryCredentialId];
     if (memory != null) return memory;
+    if (_missingPasswords.contains(_networkDiscoveryCredentialId)) {
+      return null;
+    }
     try {
       final password = await _credentials.read(_networkDiscoveryCredentialId);
-      if (password != null) {
+      if (password == null) {
+        _missingPasswords.add(_networkDiscoveryCredentialId);
+      } else {
         _passwords[_networkDiscoveryCredentialId] = password;
       }
       return password;
@@ -480,6 +497,7 @@ class AppStore extends ChangeNotifier {
       return false;
     }
     try {
+      _missingPasswords.remove(_networkDiscoveryCredentialId);
       await _credentials.write(_networkDiscoveryCredentialId, password);
       if (!await _commit(
         _config.copyWith(
@@ -730,20 +748,22 @@ class AppStore extends ChangeNotifier {
 
   String exportConfiguration() => _backupService.exportConfiguration(_config);
 
-  Future<bool> importConfiguration(String source) =>
-      _backupService.importConfiguration(
-        source: source,
-        currentConfig: _config,
-        credentials: _credentials,
-        snapshots: snapshots,
-        commit: _commit,
-        passwordsCache: _passwords,
-        setMessage: (msg) {
-          _message = msg;
-          notifyListeners();
-        },
-        notify: notifyListeners,
-      );
+  Future<bool> importConfiguration(String source) async {
+    _missingPasswords.clear();
+    return _backupService.importConfiguration(
+      source: source,
+      currentConfig: _config,
+      credentials: _credentials,
+      snapshots: snapshots,
+      commit: _commit,
+      passwordsCache: _passwords,
+      setMessage: (msg) {
+        _message = msg;
+        notifyListeners();
+      },
+      notify: notifyListeners,
+    );
+  }
 
   void clearMessage() {
     _message = null;
