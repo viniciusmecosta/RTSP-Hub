@@ -48,19 +48,28 @@ class MemoryCredentials extends CredentialStore {
   Future<void> delete(String cameraId) async => values.remove(cameraId);
 }
 
+class TestSnapshotStore extends CameraSnapshotStore {
+  TestSnapshotStore({required super.directory});
+
+  bool failRemove = false;
+
+  @override
+  Future<bool> remove(String id) async => failRemove ? false : super.remove(id);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late AppStore store;
   late MemoryRepository repository;
   late MemoryCredentials credentials;
   late Directory directory;
-  late CameraSnapshotStore snapshots;
+  late TestSnapshotStore snapshots;
 
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('hub-backup-test');
     repository = MemoryRepository();
     credentials = MemoryCredentials();
-    snapshots = CameraSnapshotStore(directory: directory);
+    snapshots = TestSnapshotStore(directory: directory);
     store = AppStore(
       repository: repository,
       credentials: credentials,
@@ -341,6 +350,24 @@ void main() {
       expect(await store.importConfiguration(jsonEncode(decoded)), isFalse);
       expect(await store.passwordFor(store.cameras.single), 'old');
       expect(store.cameras.single.id, id);
+    },
+  );
+
+  test(
+    'backup refuses to finish when an old thumbnail cannot be removed',
+    () async {
+      await save(password: 'old');
+      final id = store.cameras.single.id;
+      final source = await store.exportBackup();
+      final png = base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ9kAAAAASUVORK5CYII=',
+      );
+      expect(await snapshots.save(id, png), isTrue);
+      snapshots.failRemove = true;
+
+      expect(await store.importConfiguration(source), isFalse);
+      expect(await snapshots.read(id), png);
+      expect(await store.passwordFor(store.cameras.single), 'old');
     },
   );
 

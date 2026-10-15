@@ -255,9 +255,7 @@ class AppBackupService {
       networkDiscoveryCredentialId,
       ...config.cameras.map((camera) => camera.id),
     };
-    final creds = Map<String, Object?>.from(
-      decoded['credentials'] as Map,
-    );
+    final creds = Map<String, Object?>.from(decoded['credentials'] as Map);
     if (creds.keys.toSet().length != allowed.length ||
         !allowed.containsAll(creds.keys) ||
         creds.values.any(
@@ -325,7 +323,9 @@ class AppBackupService {
             throw StateError('snapshot write failed');
           }
         } else {
-          await snapshots.remove(id);
+          if (!await snapshots.remove(id)) {
+            throw StateError('snapshot removal failed');
+          }
         }
       }
       if (!await commit(config)) {
@@ -353,7 +353,7 @@ class AppBackupService {
       }
       for (final entry in oldImages.entries) {
         if (entry.value == null) {
-          await snapshots.remove(entry.key);
+          restored = await snapshots.remove(entry.key) && restored;
         } else {
           restored = await snapshots.save(entry.key, entry.value!) && restored;
         }
