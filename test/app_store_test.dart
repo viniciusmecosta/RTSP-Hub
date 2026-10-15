@@ -1,11 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/features/camera_catalog/domain/camera_device.dart';
-import 'package:rtsp_view/app/data/app_configuration.dart';
-import 'package:rtsp_view/app/state/app_store.dart';
-import 'package:rtsp_view/shared/infrastructure/secure_store/credential_store.dart';
-import 'package:rtsp_view/shared/infrastructure/storage/config_repository.dart';
+import 'package:rtsp_hub/features/camera_catalog/domain/camera_device.dart';
+import 'package:rtsp_hub/app/data/app_configuration.dart';
+import 'package:rtsp_hub/app/state/app_store.dart';
+import 'package:rtsp_hub/shared/infrastructure/secure_store/credential_store.dart';
+import 'package:rtsp_hub/shared/infrastructure/storage/config_repository.dart';
 
 void main() {
   late _MemoryRepository repository;

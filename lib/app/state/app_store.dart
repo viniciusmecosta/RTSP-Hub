@@ -624,7 +624,7 @@ class AppStore extends ChangeNotifier {
     await operation;
   }
 
-  static const profileExportFormat = 'rtsp-view-profiles';
+  static const profileExportFormat = 'rtsp-hub-profiles';
 
   /// Exporta perfis do monitor com as câmeras que eles usam. Senhas nunca
   /// são incluídas; no outro dispositivo valem as credenciais de lá.
@@ -900,7 +900,7 @@ class AppStore extends ChangeNotifier {
       );
     } on Object {
       _message =
-          'Backup inválido. Confira se é um arquivo do RTSP View e tente novamente.';
+          'Backup inválido. Confira se é um arquivo do RTSP Hub e tente novamente.';
       notifyListeners();
       return false;
     }

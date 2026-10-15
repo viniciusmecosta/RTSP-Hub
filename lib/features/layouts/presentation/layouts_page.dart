@@ -459,14 +459,14 @@ class _SavedProfiles extends StatelessWidget {
     final content = store.exportMonitorProfiles();
     final now = DateTime.now();
     final filename =
-        'rtsp-view-perfis-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.json';
+        'rtsp-hub-perfis-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.json';
     try {
       String? path;
       if (!kIsWeb &&
           (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
         path = (await getSaveLocation(
           acceptedTypeGroups: const [
-            XTypeGroup(label: 'Perfis RTSP View', extensions: ['json']),
+            XTypeGroup(label: 'Perfis RTSP Hub', extensions: ['json']),
           ],
           suggestedName: filename,
         ))?.path;
@@ -509,7 +509,7 @@ class _SavedProfiles extends StatelessWidget {
     try {
       final file = await openFile(
         acceptedTypeGroups: const [
-          XTypeGroup(label: 'Perfis RTSP View', extensions: ['json']),
+          XTypeGroup(label: 'Perfis RTSP Hub', extensions: ['json']),
         ],
       );
       if (file == null) return;

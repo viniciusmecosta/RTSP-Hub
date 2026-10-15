@@ -29,7 +29,7 @@ class LinuxStartupService {
       await file.writeAsString(
         '[Desktop Entry]\n'
         'Type=Application\n'
-        'Name=RTSP View\n'
+        'Name=RTSP Hub\n'
         'Comment=Monitoramento de câmeras RTSP\n'
         'Exec="$appExecutable"\n'
         'Terminal=false\n'
@@ -43,14 +43,18 @@ class LinuxStartupService {
   }
 
   File? _entryFile() {
+    final root = _configRoot();
+    return root == null ? null : File('$root/autostart/rtsp-hub.desktop');
+  }
+
+  String? _configRoot() {
     final environment = Platform.environment;
     final configHome = this.configHome ?? environment['XDG_CONFIG_HOME'];
     final home = environment['HOME'];
-    final root = configHome != null && configHome.isNotEmpty
+    return configHome != null && configHome.isNotEmpty
         ? configHome
         : home != null && home.isNotEmpty
         ? '$home/.config'
         : null;
-    return root == null ? null : File('$root/autostart/rtsp-view.desktop');
   }
 }

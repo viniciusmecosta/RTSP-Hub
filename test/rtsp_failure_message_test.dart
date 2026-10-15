@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/features/monitor/domain/rtsp_failure_message.dart';
+import 'package:rtsp_hub/features/monitor/domain/rtsp_failure_message.dart';
 
 void main() {
   test('turns credential failures into an actionable message', () {

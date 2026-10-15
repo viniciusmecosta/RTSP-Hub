@@ -1,14 +1,14 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/app/data/app_configuration.dart';
-import 'package:rtsp_view/shared/infrastructure/storage/config_repository.dart';
+import 'package:rtsp_hub/app/data/app_configuration.dart';
+import 'package:rtsp_hub/shared/infrastructure/storage/config_repository.dart';
 
 void main() {
   late Directory directory;
 
   setUp(() async {
-    directory = await Directory.systemTemp.createTemp('rtsp-view-config-');
+    directory = await Directory.systemTemp.createTemp('rtsp-hub-config-');
   });
 
   tearDown(() async {

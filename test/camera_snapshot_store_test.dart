@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/features/camera_catalog/data/camera_snapshot_store.dart';
+import 'package:rtsp_hub/features/camera_catalog/data/camera_snapshot_store.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

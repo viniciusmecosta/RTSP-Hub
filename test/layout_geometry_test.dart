@@ -1,8 +1,8 @@
 import 'dart:ui' show Size;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/features/layouts/domain/layout_geometry.dart';
-import 'package:rtsp_view/features/layouts/domain/layout_preset.dart';
+import 'package:rtsp_hub/features/layouts/domain/layout_geometry.dart';
+import 'package:rtsp_hub/features/layouts/domain/layout_preset.dart';
 
 void main() {
   test('grade dinâmica acomoda mais de dezesseis câmeras', () {

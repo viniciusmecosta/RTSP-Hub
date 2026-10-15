@@ -30,7 +30,7 @@ class CameraSnapshotStore extends ChangeNotifier {
     final root =
         directory ??
         Directory(
-          '${(await getApplicationSupportDirectory()).path}/RTSPView/thumbnails',
+          '${(await getApplicationSupportDirectory()).path}/RTSPHub/thumbnails',
         );
     await root.create(recursive: true);
     return root;

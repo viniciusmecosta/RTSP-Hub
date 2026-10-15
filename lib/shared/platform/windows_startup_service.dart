@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 class WindowsStartupService {
   static const _registryPath =
       r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run';
-  static const _valueName = 'RTSP View';
+  static const _valueName = 'RTSP Hub';
 
   bool get supported => !kIsWeb && Platform.isWindows;
 

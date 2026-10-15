@@ -18,5 +18,5 @@ class CredentialStore {
 
   Future<void> delete(String cameraId) => _storage.delete(key: _key(cameraId));
 
-  String _key(String cameraId) => 'rtsp_view.camera.$cameraId.password';
+  String _key(String cameraId) => 'rtsp_hub.camera.$cameraId.password';
 }

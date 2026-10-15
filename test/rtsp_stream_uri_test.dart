@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/features/monitor/domain/rtsp_stream_uri.dart';
+import 'package:rtsp_hub/features/monitor/domain/rtsp_stream_uri.dart';
 
 void main() {
   test('encodes reserved characters in credentials without changing query', () {

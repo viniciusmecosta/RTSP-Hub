@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/features/monitor/domain/reconnect_policy.dart';
+import 'package:rtsp_hub/features/monitor/domain/reconnect_policy.dart';
 
 void main() {
   test(

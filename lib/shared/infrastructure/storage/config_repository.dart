@@ -19,7 +19,7 @@ class ConfigRepository {
     }
     final support = await getApplicationSupportDirectory();
     final directory = Directory(
-      '${support.path}${Platform.pathSeparator}RTSPView',
+      '${support.path}${Platform.pathSeparator}RTSPHub',
     );
     await directory.create(recursive: true);
     return directory;

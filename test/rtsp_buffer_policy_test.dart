@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/features/monitor/domain/rtsp_buffer_policy.dart';
+import 'package:rtsp_hub/features/monitor/domain/rtsp_buffer_policy.dart';
 
 void main() {
   test('reserves a bounded network buffer for each active stream', () {

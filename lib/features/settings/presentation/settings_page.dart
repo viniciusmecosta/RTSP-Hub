@@ -276,7 +276,7 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final backup = await openFile(
         acceptedTypeGroups: const [
-          XTypeGroup(label: 'Backup RTSP View', extensions: ['json']),
+          XTypeGroup(label: 'Backup RTSP Hub', extensions: ['json']),
         ],
       );
       if (backup == null) return;
@@ -337,7 +337,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final content = store.exportConfiguration();
     final now = DateTime.now();
     final filename =
-        'rtsp-view-backup-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}.json';
+        'rtsp-hub-backup-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}.json';
     try {
       String? path;
       if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
