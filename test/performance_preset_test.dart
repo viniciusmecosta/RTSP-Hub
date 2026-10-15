@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/features/settings/domain/performance_preset.dart';
+import 'package:rtsp_hub/features/settings/domain/performance_preset.dart';
 
 void main() {
   test('legacy eco mode maps to light mode for existing installations', () {

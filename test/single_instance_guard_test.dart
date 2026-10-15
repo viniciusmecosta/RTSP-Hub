@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/shared/infrastructure/single_instance/single_instance_guard.dart';
+import 'package:rtsp_hub/shared/infrastructure/single_instance/single_instance_guard.dart';
 
 void main() {
   test('blocks another process and releases lock after shutdown', () async {
-    final directory = await Directory.systemTemp.createTemp('rtsp-view-lock');
+    final directory = await Directory.systemTemp.createTemp('rtsp-hub-lock');
     final process = await Process.start('dart', [
       '--packages=${Directory.current.path}/.dart_tool/package_config.json',
       '${Directory.current.path}/tool/hold_single_instance.dart',

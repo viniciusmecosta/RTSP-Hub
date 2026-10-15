@@ -7,8 +7,8 @@ import 'state/app_store.dart';
 import '../shared/design_system/app_theme.dart';
 import 'app_shell.dart';
 
-class RtspViewApp extends StatefulWidget {
-  const RtspViewApp({
+class RtspHubApp extends StatefulWidget {
+  const RtspHubApp({
     this.forceConfiguration = false,
     this.desktopWindowManager = false,
     this.instanceGuard,
@@ -22,10 +22,12 @@ class RtspViewApp extends StatefulWidget {
   final AppStore? store;
 
   @override
-  State<RtspViewApp> createState() => _RtspViewAppState();
+  State<RtspHubApp> createState() => _RtspHubAppState();
 }
 
-class _RtspViewAppState extends State<RtspViewApp> {
+typedef RtspViewApp = RtspHubApp;
+
+class _RtspHubAppState extends State<RtspHubApp> {
   late final AppStore _store;
   late final ThemeData _lightTheme = AppTheme.light;
   late final ThemeData _darkTheme = AppTheme.dark;
@@ -51,7 +53,7 @@ class _RtspViewAppState extends State<RtspViewApp> {
       child: ValueListenableBuilder<ThemeMode>(
         valueListenable: _store.themeModeListenable,
         builder: (context, themeMode, _) => MaterialApp(
-          title: 'RTSP View',
+          title: 'RTSP Hub',
           debugShowCheckedModeBanner: false,
           theme: _lightTheme,
           darkTheme: _darkTheme,
@@ -66,6 +68,6 @@ class _RtspViewAppState extends State<RtspViewApp> {
   }
 }
 
-class MyApp extends RtspViewApp {
+class MyApp extends RtspHubApp {
   const MyApp({super.store, super.key});
 }

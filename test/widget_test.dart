@@ -1,16 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:rtsp_view/main.dart';
-import 'package:rtsp_view/app/data/app_configuration.dart';
-import 'package:rtsp_view/app/state/app_store.dart';
-import 'package:rtsp_view/features/camera_catalog/domain/camera_device.dart';
-import 'package:rtsp_view/features/layouts/domain/saved_monitor_profile.dart';
-import 'package:rtsp_view/shared/infrastructure/secure_store/credential_store.dart';
-import 'package:rtsp_view/shared/infrastructure/storage/config_repository.dart';
+import 'package:rtsp_hub/main.dart';
+import 'package:rtsp_hub/app/data/app_configuration.dart';
+import 'package:rtsp_hub/app/state/app_store.dart';
+import 'package:rtsp_hub/features/camera_catalog/domain/camera_device.dart';
+import 'package:rtsp_hub/features/layouts/domain/saved_monitor_profile.dart';
+import 'package:rtsp_hub/shared/infrastructure/secure_store/credential_store.dart';
+import 'package:rtsp_hub/shared/infrastructure/storage/config_repository.dart';
 
 void main() {
-  testWidgets('abre a tela inicial do RTSP View', (tester) async {
+  testWidgets('abre a tela inicial do RTSP Hub', (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
     await tester.tap(find.text('Entendi'));
@@ -46,7 +46,7 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    expect(find.text('Bem-vindo ao RTSP View'), findsOneWidget);
+    expect(find.text('Bem-vindo ao RTSP Hub'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

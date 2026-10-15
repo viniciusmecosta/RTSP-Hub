@@ -10,11 +10,11 @@ class SingleInstanceGuard {
     required Directory baseDirectory,
   }) async {
     final directory = Directory(
-      '${baseDirectory.path}${Platform.pathSeparator}RTSPView',
+      '${baseDirectory.path}${Platform.pathSeparator}RTSPHub',
     );
     await directory.create(recursive: true);
     final file = File(
-      '${directory.path}${Platform.pathSeparator}rtsp-view.lock',
+      '${directory.path}${Platform.pathSeparator}rtsp-hub.lock',
     );
     final handle = await file.open(mode: FileMode.append);
     if (await file.length() == 0) await handle.writeByte(0);

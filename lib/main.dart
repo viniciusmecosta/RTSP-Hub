@@ -9,7 +9,7 @@ import 'package:window_manager/window_manager.dart';
 import 'app/app.dart';
 import 'shared/infrastructure/single_instance/single_instance_guard.dart';
 
-export 'app/app.dart' show MyApp;
+export 'app/app.dart' show MyApp, RtspHubApp, RtspViewApp;
 
 Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +27,7 @@ Future<void> main(List<String> arguments) async {
       runApp(
         const _StartupNoticeApp(
           message:
-              'Não foi possível reservar o acesso exclusivo. Confira as permissões da pasta de dados do RTSP View.',
+              'Não foi possível reservar o acesso exclusivo. Confira as permissões da pasta de dados do RTSP Hub.',
         ),
       );
       return;
@@ -35,7 +35,7 @@ Future<void> main(List<String> arguments) async {
     if (guard == null) {
       runApp(
         const _StartupNoticeApp(
-          message: 'O RTSP View já está aberto nesta sessão.',
+          message: 'O RTSP Hub já está aberto nesta sessão.',
         ),
       );
       return;
@@ -47,7 +47,7 @@ Future<void> main(List<String> arguments) async {
           size: Size(1280, 800),
           minimumSize: Size(640, 480),
           center: true,
-          title: 'RTSP View',
+          title: 'RTSP Hub',
         ),
         () async {
           await windowManager.show();
@@ -57,7 +57,7 @@ Future<void> main(List<String> arguments) async {
     );
   }
   runApp(
-    RtspViewApp(
+    RtspHubApp(
       forceConfiguration:
           arguments.contains('--config') || arguments.contains('-c'),
       desktopWindowManager: desktop,
@@ -73,7 +73,7 @@ class _StartupNoticeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'RTSP View',
+    title: 'RTSP Hub',
     home: Scaffold(
       body: Center(
         child: Padding(

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/features/discovery/data/onvif_discovery_service.dart';
-import 'package:rtsp_view/features/discovery/domain/rtsp_channel_candidates.dart';
+import 'package:rtsp_hub/features/discovery/data/onvif_discovery_service.dart';
+import 'package:rtsp_hub/features/discovery/domain/rtsp_channel_candidates.dart';
 
 OnvifProfile _profile(
   String token,

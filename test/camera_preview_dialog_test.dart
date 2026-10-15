@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/features/camera_catalog/domain/camera_device.dart';
-import 'package:rtsp_view/features/camera_catalog/presentation/camera_preview_dialog.dart';
-import 'package:rtsp_view/features/monitor/application/rtsp_session.dart';
+import 'package:rtsp_hub/features/camera_catalog/domain/camera_device.dart';
+import 'package:rtsp_hub/features/camera_catalog/presentation/camera_preview_dialog.dart';
+import 'package:rtsp_hub/features/monitor/application/rtsp_session.dart';
 
 const camera = CameraDevice(
   id: 'camera',

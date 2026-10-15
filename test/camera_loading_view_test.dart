@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/features/monitor/application/rtsp_session.dart';
-import 'package:rtsp_view/features/monitor/presentation/camera_loading_view.dart';
+import 'package:rtsp_hub/features/monitor/application/rtsp_session.dart';
+import 'package:rtsp_hub/features/monitor/presentation/camera_loading_view.dart';
 
 void main() {
   Widget app({

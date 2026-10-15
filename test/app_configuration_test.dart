@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/app/data/app_configuration.dart';
+import 'package:rtsp_hub/app/data/app_configuration.dart';
 
 void main() {
   test('migrates legacy resource mode and restores the last used screen', () {

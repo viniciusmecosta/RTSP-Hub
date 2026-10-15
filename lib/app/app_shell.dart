@@ -75,7 +75,7 @@ class _AppShellState extends State<AppShell> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.tips_and_updates_outlined),
-        title: const Text('Bem-vindo ao RTSP View'),
+        title: const Text('Bem-vindo ao RTSP Hub'),
         content: const Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,7 +278,7 @@ class _DesktopSidebar extends StatelessWidget {
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
-                      'RTSP View',
+                      'RTSP Hub',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,

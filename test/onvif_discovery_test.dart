@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rtsp_view/features/discovery/data/onvif_discovery_service.dart';
+import 'package:rtsp_hub/features/discovery/data/onvif_discovery_service.dart';
 
 void main() {
   test('extracts the device endpoint and friendly name from a probe match', () {
