@@ -8,7 +8,7 @@
 PRODUCT_NAME = rtsp_hub
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.rtsp.rtspHub
+PRODUCT_BUNDLE_IDENTIFIER = com.rtsp.rtspView
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.rtsp. All rights reserved.

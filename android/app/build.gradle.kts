@@ -14,7 +14,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.rtsp.rtsp_hub"
+        applicationId = "com.rtsp.rtsp_view"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

@@ -51,6 +51,8 @@ Section: video
 Priority: optional
 Architecture: amd64
 Depends: libc6, libstdc++6
+Replaces: rtsp-view
+Conflicts: rtsp-view
 Maintainer: RTSP Hub
 Description: Visualizador multiplataforma de câmeras RTSP
  Monitoramento de múltiplas câmeras com reprodução RTSP nativa.

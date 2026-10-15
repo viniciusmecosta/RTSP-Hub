@@ -23,7 +23,30 @@ class CameraSnapshotStore extends ChangeNotifier {
   Future<File> fileFor(String id) async {
     final root = await (_resolvedDirectory ??= _directory());
     final key = sha256.convert(utf8.encode(id));
-    return File('${root.path}/$key.png');
+    final file = File('${root.path}/$key.png');
+    if (directory == null && !await file.exists() && !await File('${file.path}.removed').exists()) {
+      final support = await getApplicationSupportDirectory();
+      final paths = {
+        support.path,
+        support.path
+            .replaceAll('rtsp_hub', 'rtsp_view')
+            .replaceAll('rtspHub', 'rtspView')
+            .replaceAll('RTSP Hub', 'RTSP View'),
+        support.path
+            .replaceAll('rtsp_view', 'rtsp_hub')
+            .replaceAll('rtspView', 'rtspHub'),
+      };
+      for (final path in paths) {
+        for (final name in ['RTSPHub', 'RTSPView']) {
+          final legacy = File('$path/$name/thumbnails/$key.png');
+          if (legacy.path == file.path || !await legacy.exists()) continue;
+          if (await legacy.length() <= 4 * 1024 * 1024)
+            await legacy.copy(file.path);
+          return file;
+        }
+      }
+    }
+    return file;
   }
 
   Future<Directory> _directory() async {
@@ -36,10 +59,21 @@ class CameraSnapshotStore extends ChangeNotifier {
     return root;
   }
 
+  Future<Uint8List?> read(String id) async {
+    final file = await fileFor(id);
+    if (!await file.exists()) return null;
+    if (await file.length() > 4 * 1024 * 1024) {
+      throw const FormatException('Miniatura muito grande.');
+    }
+    return file.readAsBytes();
+  }
+
   Future<bool> save(String id, Uint8List bytes) async {
     if (bytes.isEmpty || bytes.length > 4 * 1024 * 1024) return false;
     try {
       final file = await fileFor(id);
+      final removed = File('${file.path}.removed');
+      if (await removed.exists()) await removed.delete();
       final temporary = File('${file.path}.tmp');
       await temporary.writeAsBytes(bytes, flush: true);
       if (await file.exists()) await file.delete();
@@ -59,6 +93,7 @@ class CameraSnapshotStore extends ChangeNotifier {
     try {
       final file = await fileFor(id);
       if (await file.exists()) await file.delete();
+      await File('${file.path}.removed').writeAsString('');
       for (final width in decodeWidths) {
         await ResizeImage(FileImage(file), width: width).evict();
       }
