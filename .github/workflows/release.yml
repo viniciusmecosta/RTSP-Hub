@@ -55,13 +55,15 @@ jobs:
           set -euo pipefail
           package=(dist/*.deb)
           test -f "${package[0]}"
-          test "$(dpkg-deb -f "${package[0]}" Package)" = "rtsp-view"
+          test "$(dpkg-deb -f "${package[0]}" Package)" = "rtsp-hub"
           install_root="$(mktemp -d)"
           dpkg-deb -x "${package[0]}" "$install_root"
-          test -x "$install_root/opt/rtsp-view/RTSPView"
-          test -x "$install_root/usr/bin/rtsp-view"
-          test -f "$install_root/usr/share/applications/rtsp-view.desktop"
-          test -n "$(find "$install_root/opt/rtsp-view/lib" -maxdepth 1 -name 'libmpv.so.*' -print -quit)"
+          test -x "$install_root/opt/rtsp-hub/RTSPHub"
+          test -x "$install_root/usr/bin/rtsp-hub"
+          test -f "$install_root/usr/share/applications/rtsp-hub.desktop"
+          test -f "$install_root/usr/share/icons/hicolor/256x256/apps/rtsp-hub.png"
+          test -f "$install_root/usr/share/pixmaps/rtsp-hub.png"
+          test -n "$(find "$install_root/opt/rtsp-hub/lib" -maxdepth 1 -name 'libmpv.so.*' -print -quit)"
           rm -rf "$install_root"
       - name: Testar instalação e abertura no Ubuntu
         shell: bash
@@ -69,9 +71,9 @@ jobs:
           set -euo pipefail
           sudo apt-get install -y xvfb
           sudo dpkg -i dist/*.deb
-          test -x /opt/rtsp-view/RTSPView
+          test -x /opt/rtsp-hub/RTSPHub
           set +e
-          timeout 12s xvfb-run -a rtsp-view --config
+          timeout 12s xvfb-run -a rtsp-hub --config
           exit_code=$?
           set -e
           test "$exit_code" -eq 124
@@ -96,7 +98,7 @@ jobs:
       - name: Validar executável Windows
         shell: pwsh
         run: |
-          if (!(Test-Path build\windows\x64\runner\Release\rtsp_view.exe)) { throw "Executável Windows ausente" }
+          if (!(Test-Path build\windows\x64\runner\Release\rtsp_hub.exe)) { throw "Executável Windows ausente" }
       - name: Incluir runtime Visual C++ no aplicativo
         shell: pwsh
         run: ./tool/package_windows_runtime.ps1 -ReleaseDir build\windows\x64\runner\Release
@@ -111,16 +113,16 @@ jobs:
       - name: Validar instalador Windows
         shell: pwsh
         run: |
-          $installer = Get-ChildItem dist\RTSP-View-Setup-*-x64.exe | Select-Object -First 1
+          $installer = Get-ChildItem dist\RTSP-Hub-Setup-*-x64.exe | Select-Object -First 1
           if ($null -eq $installer -or $installer.Length -lt 1000000) { throw "Instalador inválido ou vazio" }
       - name: Testar instalação e abertura no Windows
         shell: pwsh
         run: |
-          $installer = Get-ChildItem dist\RTSP-View-Setup-*-x64.exe | Select-Object -First 1
-          $installDir = Join-Path $env:RUNNER_TEMP 'rtsp-view-smoke'
+          $installer = Get-ChildItem dist\RTSP-Hub-Setup-*-x64.exe | Select-Object -First 1
+          $installDir = Join-Path $env:RUNNER_TEMP 'rtsp-hub-smoke'
           $result = Start-Process -FilePath $installer.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$installDir" -Wait -PassThru
           if ($result.ExitCode -ne 0) { throw "Instalação Windows falhou: $($result.ExitCode)" }
-          $application = Join-Path $installDir 'rtsp_view.exe'
+          $application = Join-Path $installDir 'rtsp_hub.exe'
           if (!(Test-Path $application)) { throw 'Executável instalado ausente' }
           foreach ($library in @('flutter_windows.dll', 'libmpv-2.dll', 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')) {
             if (!(Test-Path (Join-Path $installDir $library))) { throw "Biblioteca ausente no instalador: $library" }
@@ -163,5 +165,5 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release-assets/* --clobber
           else
-            gh release create "$TAG" release-assets/* --verify-tag --title "RTSP View $TAG" --notes "Instaladores para Windows e Ubuntu, além do APK para Android."
+            gh release create "$TAG" release-assets/* --verify-tag --title "RTSP Hub $TAG" --notes "Instaladores para Windows e Ubuntu, além do APK para Android."
           fi
