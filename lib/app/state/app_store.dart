@@ -115,8 +115,9 @@ class AppStore extends ChangeNotifier {
         final resolved = resolveCamera(camera);
         if (resolved.mainPath == path ||
             resolved.subPath == path ||
-            camera.savedPaths.contains(path))
+            camera.savedPaths.contains(path)) {
           return camera;
+        }
       }
     }
     return matches.length == 1 ? matches.single : null;
@@ -876,20 +877,190 @@ class AppStore extends ChangeNotifier {
     return saved ? added : null;
   }
 
+  static const maxBackupBytes = 64 * 1024 * 1024;
+
+  Future<String> exportBackup() async {
+    final config = _config;
+    final credentials = <String, String?>{};
+    final images = <String, String>{};
+    var imageBytes = 0;
+    for (final id in [
+      _networkDiscoveryCredentialId,
+      ...config.cameras.map((camera) => camera.id),
+    ]) {
+      credentials[id] = await _credentials.read(id);
+    }
+    for (final camera in config.cameras) {
+      final bytes = await snapshots.read(camera.id);
+      if (bytes != null) {
+        imageBytes += bytes.length;
+        if (imageBytes > 40 * 1024 * 1024) {
+          throw const FormatException('Miniaturas excedem o limite de backup.');
+        }
+        images[camera.id] = base64Encode(bytes);
+      }
+    }
+    if (!identical(config, _config))
+      throw StateError(
+        'As configurações mudaram durante o backup. Tente novamente.',
+      );
+    return jsonEncode({
+      'format': 'rtsp_hub_backup',
+      'version': 1,
+      'configuration': config.toJson(),
+      'credentials': credentials,
+      'thumbnails': images,
+    });
+  }
+
+  Future<bool> _restoreCompleteBackup(
+    AppConfiguration config,
+    Map decoded,
+  ) async {
+    if (decoded['version'] != 1 ||
+        decoded['credentials'] is! Map ||
+        decoded['thumbnails'] is! Map) {
+      throw const FormatException();
+    }
+    final allowed = {
+      _networkDiscoveryCredentialId,
+      ...config.cameras.map((camera) => camera.id),
+    };
+    final credentials = Map<String, Object?>.from(
+      decoded['credentials'] as Map,
+    );
+    if (credentials.keys.toSet().length != allowed.length ||
+        !allowed.containsAll(credentials.keys) ||
+        credentials.values.any(
+          (value) => value != null && (value is! String || value.length > 1024),
+        )) {
+      throw const FormatException();
+    }
+    final rawImages = Map<String, Object?>.from(decoded['thumbnails'] as Map);
+    final images = <String, Uint8List>{};
+    for (final entry in rawImages.entries) {
+      if (entry.key == _networkDiscoveryCredentialId ||
+          !allowed.contains(entry.key) ||
+          entry.value is! String) {
+        throw const FormatException();
+      }
+      final bytes = base64Decode(entry.value as String);
+      if (bytes.length > 4 * 1024 * 1024 ||
+          bytes.length < 24 ||
+          !listEquals(bytes.take(8).toList(), [
+            137,
+            80,
+            78,
+            71,
+            13,
+            10,
+            26,
+            10,
+          ])) {
+        throw const FormatException();
+      }
+      final header = ByteData.sublistView(bytes);
+      if (header.getUint32(16) > 640 ||
+          header.getUint32(20) > 4096 ||
+          header.getUint32(16) == 0 ||
+          header.getUint32(20) == 0) {
+        throw const FormatException();
+      }
+      images[entry.key] = bytes;
+    }
+    final affected = {
+      ...allowed,
+      ..._config.cameras.map((camera) => camera.id),
+    };
+    final oldCredentials = <String, String?>{};
+    final oldImages = <String, Uint8List?>{};
+    for (final id in affected) {
+      oldCredentials[id] = await _credentials.read(id);
+      if (id != _networkDiscoveryCredentialId) {
+        oldImages[id] = await snapshots.read(id);
+      }
+    }
+    try {
+      for (final id in affected) {
+        final secret = credentials[id] as String?;
+        if (secret == null || secret.isEmpty) {
+          await _credentials.delete(id);
+        } else {
+          await _credentials.write(id, secret);
+        }
+      }
+      for (final id in oldImages.keys) {
+        final bytes = images[id];
+        if (bytes != null) {
+          if (!await snapshots.save(id, bytes)) {
+            throw StateError('snapshot write failed');
+          }
+        } else {
+          await snapshots.remove(id);
+        }
+      }
+      if (!await _commit(config)) {
+        throw StateError('configuration write failed');
+      }
+      _passwords.clear();
+      for (final entry in credentials.entries) {
+        if (entry.value is String && (entry.value as String).isNotEmpty) {
+          _passwords[entry.key] = entry.value as String;
+        }
+      }
+      notifyListeners();
+      return true;
+    } on Object {
+      var restored = true;
+      for (final entry in oldCredentials.entries) {
+        try {
+          if (entry.value == null) {
+            await _credentials.delete(entry.key);
+          } else {
+            await _credentials.write(entry.key, entry.value!);
+          }
+        } on Object {
+          restored = false;
+        }
+      }
+      for (final entry in oldImages.entries) {
+        if (entry.value == null) {
+          await snapshots.remove(entry.key);
+        } else {
+          restored = await snapshots.save(entry.key, entry.value!) && restored;
+        }
+      }
+      _passwords.clear();
+      _message = restored
+          ? 'Não foi possível restaurar. Os dados anteriores foram mantidos.'
+          : 'A restauração foi interrompida pelo armazenamento. Confira as credenciais antes de conectar.';
+      notifyListeners();
+      return false;
+    }
+  }
+
   String exportConfiguration() =>
       const JsonEncoder.withIndent('  ').convert(_config.toJson());
 
   Future<bool> importConfiguration(String source) async {
-    if (source.length > 5 * 1024 * 1024) {
-      _message = 'O arquivo de backup excede o limite de 5 MB.';
+    if (utf8.encode(source).length > maxBackupBytes) {
+      _message = 'O arquivo de backup excede o limite de 64 MB.';
       notifyListeners();
       return false;
     }
     try {
       final decoded = jsonDecode(source);
       if (decoded is! Map) throw const FormatException();
+      final complete = decoded['format'] == 'rtsp_hub_backup';
+      final rawConfiguration = complete ? decoded['configuration'] : decoded;
+      if (rawConfiguration is! Map ||
+          rawConfiguration['cameras'] is! List ||
+          rawConfiguration['settings'] is! Map ||
+          rawConfiguration['layout'] is! Map) {
+        throw const FormatException();
+      }
       final configuration = AppConfiguration.fromJson(
-        Map<String, Object?>.from(decoded),
+        Map<String, Object?>.from(rawConfiguration),
       );
       if (configuration.schemaVersion > _config.schemaVersion) {
         throw const FormatException();
@@ -898,15 +1069,17 @@ class AppStore extends ChangeNotifier {
       final cameraAddresses = <String>{};
       for (final camera in configuration.cameras) {
         final addressKey =
-            '${camera.host.toLowerCase()}:${camera.effectivePort(configuration.defaultPort)}:${camera.mainPath}';
-        if (camera.id.isEmpty ||
+            '${camera.host.toLowerCase()}:${camera.effectivePort(configuration.defaultPort)}:${camera.mainPath.isEmpty ? configuration.defaultPath : camera.mainPath}';
+        if (camera.id == _networkDiscoveryCredentialId ||
+            camera.id.isEmpty ||
             camera.id.length > 80 ||
             camera.name.trim().length > 80 ||
             camera.username.length > 128 ||
             CameraFieldValidation.hostError(camera.host) != null ||
             camera.effectivePort(configuration.defaultPort) < 1 ||
             camera.effectivePort(configuration.defaultPort) > 65535 ||
-            CameraFieldValidation.pathError(camera.mainPath, optional: true) != null ||
+            CameraFieldValidation.pathError(camera.mainPath, optional: true) !=
+                null ||
             CameraFieldValidation.pathError(camera.subPath, optional: true) !=
                 null ||
             CameraFieldValidation.pathError(
@@ -916,6 +1089,9 @@ class AppStore extends ChangeNotifier {
                 null ||
             (camera.selectedPath.isNotEmpty &&
                 !camera.savedPaths.contains(camera.selectedPath)) ||
+            camera.savedPaths.any(
+              (path) => CameraFieldValidation.pathError(path) != null,
+            ) ||
             !cameraIds.add(camera.id) ||
             !cameraAddresses.add(addressKey)) {
           throw const FormatException();
@@ -930,6 +1106,11 @@ class AppStore extends ChangeNotifier {
           configuration.defaultPort > 65535 ||
           configuration.defaultUser.length > 128 ||
           CameraFieldValidation.pathError(configuration.defaultPath) != null ||
+          CameraFieldValidation.pathError(
+                configuration.defaultSubPath,
+                optional: true,
+              ) !=
+              null ||
           configuration.bufferMs < 100 ||
           configuration.bufferMs > 2000 ||
           configuration.lastMonitorPage < 0 ||
@@ -955,6 +1136,9 @@ class AppStore extends ChangeNotifier {
             profile.name.length > 60 ||
             !profileNames.add(profile.name.toLowerCase()) ||
             !layouts.contains(profile.layoutId) ||
+            profile.slotCameraIds.any(
+              (id) => id != null && !cameraIds.contains(id),
+            ) ||
             profile.slotCameraIds.length !=
                 LayoutPreset.byId(
                   profile.layoutId,
@@ -970,6 +1154,7 @@ class AppStore extends ChangeNotifier {
               configuration.slotCameraIds.whereType<String>().length) {
         throw const FormatException();
       }
+      if (complete) return await _restoreCompleteBackup(configuration, decoded);
       return await _commit(
         configuration.copyWith(
           resourceMode: configuration.resourceMode == 'eco'
@@ -977,9 +1162,10 @@ class AppStore extends ChangeNotifier {
               : configuration.resourceMode,
         ),
       );
-    } on Object {
-      _message =
-          'Backup inválido. Confira se é um arquivo do RTSP Hub e tente novamente.';
+    } catch (error) {
+      _message = error is FormatException || error is TypeError
+          ? 'Backup inválido. Confira se é um arquivo do RTSP Hub e tente novamente.'
+          : 'Não foi possível acessar o armazenamento ou o cofre para restaurar o backup.';
       notifyListeners();
       return false;
     }

@@ -3,14 +3,15 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:file_selector/file_selector.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../../shared/design_system/page_frame.dart';
 import '../../../shared/platform/windows_startup_service.dart';
 import '../../../shared/platform/linux_startup_service.dart';
-import '../../camera_catalog/domain/camera_field_validation.dart';
+import 'global_connection_page.dart';
 import '../domain/performance_preset.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -25,6 +26,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _linuxStartup = LinuxStartupService();
   bool _startupEnabled = false;
   bool _startupLoading = false;
+  bool _backupBusy = false;
 
   @override
   void initState() {
@@ -71,10 +73,12 @@ class _SettingsPageState extends State<SettingsPage> {
     final store = AppScope.of(context);
     return PageFrame(
       title: 'Ajustes',
-      subtitle: 'Aparência e uso de recursos neste dispositivo.',
+      subtitle: 'Personalize a experiência, o desempenho e seus dados.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const GlobalConnectionShortcut(),
+          const SizedBox(height: 20),
           Card(
             child: Column(
               children: [
@@ -109,34 +113,16 @@ class _SettingsPageState extends State<SettingsPage> {
                       'Automático escolhe o monitor quando há câmeras na grade; Última tela usada retoma onde você saiu.',
                   value: store.config.startupSection,
                   items: const [
-                    DropdownMenuItem(
-                      value: 'auto',
-                      child: Text('Automático'),
-                    ),
+                    DropdownMenuItem(value: 'auto', child: Text('Automático')),
                     DropdownMenuItem(
                       value: 'last',
                       child: Text('Última tela usada'),
                     ),
-                    DropdownMenuItem(
-                      value: 'dashboard',
-                      child: Text('Início'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'monitor',
-                      child: Text('Monitor'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'cameras',
-                      child: Text('Câmeras'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'layouts',
-                      child: Text('Layouts'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'settings',
-                      child: Text('Ajustes'),
-                    ),
+                    DropdownMenuItem(value: 'dashboard', child: Text('Início')),
+                    DropdownMenuItem(value: 'monitor', child: Text('Monitor')),
+                    DropdownMenuItem(value: 'cameras', child: Text('Câmeras')),
+                    DropdownMenuItem(value: 'layouts', child: Text('Layouts')),
+                    DropdownMenuItem(value: 'settings', child: Text('Ajustes')),
                   ],
                   onChanged: (value) {
                     if (value != null) {
@@ -219,8 +205,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 16),
-          const _GlobalConnectionCard(),
-          const SizedBox(height: 16),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -233,7 +217,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'O backup contém câmeras, layouts e preferências. Senhas são excluídas e permanecem apenas no cofre deste dispositivo.',
+                    'Transfira câmeras, perfis, preferências, miniaturas e todas as credenciais. O arquivo inclui senhas legíveis; guarde-o em um local privado.',
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -241,12 +225,24 @@ class _SettingsPageState extends State<SettingsPage> {
                     runSpacing: 10,
                     children: [
                       OutlinedButton.icon(
-                        onPressed: () => _exportBackup(context, store),
+                        onPressed: _backupBusy
+                            ? null
+                            : () => _runBackup(
+                                () => _exportBackup(context, store),
+                              ),
                         icon: const Icon(Icons.save_alt_outlined),
-                        label: const Text('Exportar backup'),
+                        label: Text(
+                          _backupBusy
+                              ? 'Processando…'
+                              : 'Exportar backup completo',
+                        ),
                       ),
                       FilledButton.tonalIcon(
-                        onPressed: () => _importBackup(context, store),
+                        onPressed: _backupBusy
+                            ? null
+                            : () => _runBackup(
+                                () => _importBackup(context, store),
+                              ),
                         icon: const Icon(Icons.restore_outlined),
                         label: const Text('Importar backup'),
                       ),
@@ -280,10 +276,10 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       );
       if (backup == null) return;
-      if (await backup.length() > 5 * 1024 * 1024) {
+      if (await backup.length() > AppStore.maxBackupBytes) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('O backup excede o limite de 5 MB.')),
+            const SnackBar(content: Text('O backup excede o limite de 64 MB.')),
           );
         }
         return;
@@ -305,7 +301,7 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context) => AlertDialog(
         title: const Text('Substituir configurações?'),
         content: const Text(
-          'Câmeras, layouts e preferências atuais serão substituídos. As senhas salvas neste dispositivo não serão exportadas nem apagadas.',
+          'O backup completo substituirá câmeras, layouts, preferências, miniaturas e credenciais deste dispositivo. Arquivos antigos de configuração continuam aceitos, mas não contêm senhas.',
         ),
         actions: [
           TextButton(
@@ -326,232 +322,80 @@ class _SettingsPageState extends State<SettingsPage> {
       SnackBar(
         content: Text(
           imported
-              ? 'Configurações importadas. Senhas ausentes devem ser informadas novamente.'
+              ? 'Restauração concluída. Backups antigos sem credenciais mantêm as senhas locais existentes.'
               : store.message ?? 'O backup não pôde ser importado.',
         ),
       ),
     );
   }
 
-  Future<void> _exportBackup(BuildContext context, AppStore store) async {
-    final content = store.exportConfiguration();
-    final now = DateTime.now();
-    final filename =
-        'rtsp-hub-backup-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}.json';
+  Future<void> _runBackup(Future<void> Function() operation) async {
+    if (_backupBusy) return;
+    setState(() => _backupBusy = true);
     try {
-      String? path;
-      if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-        if (Platform.isAndroid) {
-          final directory = await getDirectoryPath(
-            confirmButtonText: 'Salvar backup nesta pasta',
-          );
-          if (directory == null) return;
-          path =
-              '${Directory(directory).path}${Platform.pathSeparator}$filename';
-        } else {
-          await Clipboard.setData(ClipboardData(text: content));
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Backup copiado para a área de transferência.'),
-              ),
-            );
-          }
-          return;
-        }
-      } else if (!kIsWeb &&
-          (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
-        final location = await getSaveLocation(
-          acceptedTypeGroups: const [
-            XTypeGroup(label: 'Arquivo JSON', extensions: ['json']),
-          ],
-          suggestedName: filename,
-        );
-        path = location?.path;
-      }
-      if (path == null) return;
-      await File(path).writeAsString(content, flush: true);
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Backup salvo em $path.')));
-      }
+      await operation();
     } on Object {
-      if (context.mounted) {
-        await Clipboard.setData(ClipboardData(text: content));
-        if (!context.mounted) return;
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Não foi possível salvar o arquivo; o backup foi copiado.',
+              'Não foi possível concluir o backup. Confira o acesso aos arquivos e ao cofre.',
             ),
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
     }
   }
-}
 
-class _GlobalConnectionCard extends StatefulWidget {
-  const _GlobalConnectionCard();
-
-  @override
-  State<_GlobalConnectionCard> createState() => _GlobalConnectionCardState();
-}
-
-class _GlobalConnectionCardState extends State<_GlobalConnectionCard> {
-  final _formKey = GlobalKey<FormState>();
-  final _username = TextEditingController();
-  final _password = TextEditingController();
-  final _port = TextEditingController();
-  final _channel = TextEditingController();
-  bool _loaded = false;
-  bool _saving = false;
-  bool _obscure = true;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_loaded) return;
-    _loaded = true;
-    final store = AppScope.of(context);
-    _username.text = store.config.defaultUser;
-    _port.text = '${store.config.defaultPort}';
-    _channel.text = store.config.defaultPath;
-    unawaited(
-      store.networkDiscoveryPassword().then((password) {
-        if (mounted && password != null) _password.text = password;
-      }),
-    );
-  }
-
-  @override
-  void dispose() {
-    for (final controller in [_username, _password, _port, _channel]) {
-      controller.dispose();
+  Future<void> _exportBackup(BuildContext context, AppStore store) async {
+    final content = await store.exportBackup();
+    if (!context.mounted) return;
+    final now = DateTime.now();
+    final filename = 'rtsp-hub-backup-${now.millisecondsSinceEpoch}.json';
+    if (Platform.isAndroid || Platform.isIOS) {
+      final box = context.findRenderObject() as RenderBox?;
+      final origin = box == null
+          ? null
+          : box.localToGlobal(Offset.zero) & box.size;
+      final directory = Directory(
+        '${(await getTemporaryDirectory()).path}/hub-backup',
+      );
+      await directory.create(recursive: true);
+      await for (final entry in directory.list()) {
+        if (entry is File &&
+            DateTime.now().difference((await entry.stat()).modified).inDays >=
+                1) {
+          await entry.delete();
+        }
+      }
+      final file = File('${directory.path}/$filename');
+      await file.writeAsString(content, flush: true);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'application/json')],
+          sharePositionOrigin: origin,
+          title: 'Salvar backup completo',
+        ),
+      );
+      return;
     }
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    final store = AppScope.of(context);
-    final messenger = ScaffoldMessenger.of(context);
-    setState(() => _saving = true);
-    final path = _channel.text.trim();
-    await store.updateSettings(
-      defaultPort: int.parse(_port.text.trim()),
-      defaultPath: path.startsWith('/') ? path : '/$path',
+    final location = await getSaveLocation(
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'Backup RTSP Hub', extensions: ['json']),
+      ],
+      suggestedName: filename,
     );
-    final saved = await store.saveNetworkDiscoveryCredentials(
-      username: _username.text.trim(),
-      password: _password.text,
-    );
-    if (!mounted) return;
-    setState(() => _saving = false);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          saved
-              ? 'Conexão padrão salva. Novas câmeras sem esses dados usarão estes valores.'
-              : store.message ?? 'Não foi possível salvar a conexão padrão.',
+    if (location == null) return;
+    await File(location.path).writeAsString(content, flush: true);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Backup completo salvo com credenciais e miniaturas.'),
         ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final fields = <Widget>[
-      TextFormField(
-        controller: _username,
-        decoration: const InputDecoration(labelText: 'Usuário padrão'),
-        validator: (value) =>
-            (value?.length ?? 0) > 128 ? 'Use até 128 caracteres.' : null,
-      ),
-      TextFormField(
-        controller: _password,
-        obscureText: _obscure,
-        autocorrect: false,
-        enableSuggestions: false,
-        decoration: InputDecoration(
-          labelText: 'Senha padrão',
-          suffixIcon: IconButton(
-            tooltip: _obscure ? 'Mostrar senha' : 'Ocultar senha',
-            onPressed: () => setState(() => _obscure = !_obscure),
-            icon: Icon(
-              _obscure
-                  ? Icons.visibility_outlined
-                  : Icons.visibility_off_outlined,
-            ),
-          ),
-        ),
-        validator: (value) =>
-            (value?.length ?? 0) > 1024 ? 'Use até 1024 caracteres.' : null,
-      ),
-      TextFormField(
-        controller: _port,
-        keyboardType: TextInputType.number,
-        decoration: const InputDecoration(labelText: 'Porta padrão'),
-        validator: (value) => (value ?? '').trim().isEmpty
-            ? 'Informe a porta.'
-            : CameraFieldValidation.portError(value ?? ''),
-      ),
-      TextFormField(
-        controller: _channel,
-        decoration: const InputDecoration(
-          labelText: 'Canal padrão',
-          hintText: '/Streaming/Channels/101',
-        ),
-        validator: (value) => CameraFieldValidation.pathError(value ?? ''),
-      ),
-    ];
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Conexão padrão',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Usada quando uma câmera é cadastrada sem senha, porta ou canal. A senha fica no cofre seguro do dispositivo.',
-              ),
-              const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final columns = constraints.maxWidth >= 640 ? 2 : 1;
-                  final width =
-                      (constraints.maxWidth - (columns - 1) * 12) / columns;
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      for (final field in fields)
-                        SizedBox(width: width, child: field),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
-                  onPressed: _saving ? null : _save,
-                  icon: const Icon(Icons.save_outlined),
-                  label: const Text('Salvar conexão padrão'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+      );
+    }
   }
 }
 
