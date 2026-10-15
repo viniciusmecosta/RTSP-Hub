@@ -12,37 +12,46 @@ if [[ ! "$version" =~ ^[0-9]+([.][0-9]+)*([~+][A-Za-z0-9.-]+)?$ ]]; then
   exit 1
 fi
 
-root="$PWD/build/rtsp-view-deb"
-package="$PWD/dist/rtsp-view_${version}_amd64.deb"
+root="$PWD/build/rtsp-hub-deb"
+package="$PWD/dist/rtsp-hub_${version}_amd64.deb"
 "$PWD/tool/package_linux.sh"
 rm -rf "$root"
-mkdir -p "$root/opt/rtsp-view" "$root/usr/bin" "$root/usr/share/applications" "$root/DEBIAN" "$PWD/dist"
-cp -a "$PWD/build/rtsp-view-linux-x64/." "$root/opt/rtsp-view/"
+mkdir -p "$root/opt/rtsp-hub" "$root/usr/bin" "$root/usr/share/applications" "$root/usr/share/icons" "$root/usr/share/pixmaps" "$root/DEBIAN" "$PWD/dist"
+cp -a "$PWD/build/rtsp-hub-linux-x64/." "$root/opt/rtsp-hub/"
 
-cat > "$root/usr/bin/rtsp-view" <<'LAUNCHER'
+# Instalar ícones nos padrões do Linux/Debian
+if [[ -d "$PWD/linux/icons/hicolor" ]]; then
+  cp -a "$PWD/linux/icons/hicolor" "$root/usr/share/icons/"
+fi
+if [[ -f "$PWD/linux/icons/pixmaps/rtsp-hub.png" ]]; then
+  cp -a "$PWD/linux/icons/pixmaps/rtsp-hub.png" "$root/usr/share/pixmaps/rtsp-hub.png"
+fi
+
+cat > "$root/usr/bin/rtsp-hub" <<'LAUNCHER'
 #!/usr/bin/env sh
-exec /opt/rtsp-view/RTSPView "$@"
+exec /opt/rtsp-hub/RTSPHub "$@"
 LAUNCHER
-chmod 0755 "$root/usr/bin/rtsp-view"
+chmod 0755 "$root/usr/bin/rtsp-hub"
 
-cat > "$root/usr/share/applications/rtsp-view.desktop" <<'DESKTOP'
+cat > "$root/usr/share/applications/rtsp-hub.desktop" <<'DESKTOP'
 [Desktop Entry]
-Name=RTSP View
+Name=RTSP Hub
 Comment=Visualizador de câmeras RTSP
-Exec=/usr/bin/rtsp-view
+Exec=/usr/bin/rtsp-hub
+Icon=rtsp-hub
 Terminal=false
 Type=Application
 Categories=Video;AudioVideo;
 DESKTOP
 
 cat > "$root/DEBIAN/control" <<CONTROL
-Package: rtsp-view
+Package: rtsp-hub
 Version: $version
 Section: video
 Priority: optional
 Architecture: amd64
 Depends: libc6, libstdc++6
-Maintainer: RTSP View
+Maintainer: RTSP Hub
 Description: Visualizador multiplataforma de câmeras RTSP
  Monitoramento de múltiplas câmeras com reprodução RTSP nativa.
 CONTROL

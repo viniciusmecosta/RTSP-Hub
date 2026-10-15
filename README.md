@@ -1,4 +1,4 @@
-# RTSP View
+# RTSP Hub
 
 Aplicativo Flutter para cadastrar câmeras RTSP, localizar canais e monitorar vários fluxos em Android, Windows e Linux.
 

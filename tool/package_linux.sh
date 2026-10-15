@@ -24,8 +24,8 @@ if [[ -z "$mpv_path" || ! -f "$mpv_path" ]]; then
   exit 1
 fi
 
-stage="$PWD/build/rtsp-view-linux-x64"
-output="$PWD/dist/rtsp-view-linux-x64.tar.gz"
+stage="$PWD/build/rtsp-hub-linux-x64"
+output="$PWD/dist/rtsp-hub-linux-x64.tar.gz"
 rm -rf "$stage"
 mkdir -p "$stage/lib" "$(dirname "$output")"
 cp -a "$bundle/." "$stage/"
@@ -53,12 +53,12 @@ while ((${#queue[@]})); do
   done < <(ldd "$source" 2>/dev/null | awk '/=> \// { print $3 } /^\// { print $1 }')
 done
 
-cat > "$stage/RTSPView" <<'LAUNCHER'
+cat > "$stage/RTSPHub" <<'LAUNCHER'
 #!/usr/bin/env sh
 APP_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 export LD_LIBRARY_PATH="$APP_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-exec "$APP_DIR/rtsp_view" "$@"
+exec "$APP_DIR/rtsp_hub" "$@"
 LAUNCHER
-chmod +x "$stage/RTSPView"
+chmod +x "$stage/RTSPHub"
 tar -C "$PWD/build" -czf "$output" "$(basename "$stage")"
 printf 'Pacote pronto: %s\n' "$output"
