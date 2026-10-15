@@ -58,4 +58,22 @@ void main() {
 
     expect(await store.remove('camera'), isFalse);
   });
+
+  test(
+    'recovers the previous snapshot after an interrupted replacement',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('snapshots-test');
+      addTearDown(() => directory.delete(recursive: true));
+      final store = CameraSnapshotStore(directory: directory);
+      addTearDown(store.dispose);
+      final original = Uint8List.fromList([1, 2, 3]);
+      expect(await store.save('camera', original), isTrue);
+      final file = await store.fileFor('camera');
+      final backup = await file.rename('${file.path}.bak');
+
+      expect(await store.read('camera'), original);
+      expect(await file.exists(), isTrue);
+      expect(await backup.exists(), isFalse);
+    },
+  );
 }
