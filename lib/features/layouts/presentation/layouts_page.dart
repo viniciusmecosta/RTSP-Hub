@@ -12,6 +12,7 @@ import '../../../shared/design_system/page_frame.dart';
 import '../domain/layout_geometry.dart';
 import '../domain/layout_preset.dart';
 import '../domain/saved_monitor_profile.dart';
+import 'widgets/layout_preset_picker.dart';
 
 class LayoutsPage extends StatelessWidget {
   const LayoutsPage({super.key});
@@ -26,22 +27,9 @@ class LayoutsPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  for (final preset in LayoutPreset.all)
-                    ChoiceChip(
-                      label: Text(preset.name),
-                      selected: preset.id == layout.id,
-                      onSelected: (_) => store.setLayout(preset.id),
-                    ),
-                ],
-              ),
-            ),
+          LayoutPresetPicker(
+            selectedId: layout.id,
+            onSelected: store.setLayout,
           ),
           const SizedBox(height: 18),
           _SavedProfiles(
