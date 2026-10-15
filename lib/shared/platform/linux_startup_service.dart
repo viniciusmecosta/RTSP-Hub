@@ -8,14 +8,18 @@ class LinuxStartupService {
 
   Future<bool> isEnabled() async {
     if (!Platform.isLinux) return false;
-    final file = _entryFile();
-    final legacy = _legacyEntryFile();
-    if (file != null && await file.exists()) {
-      if (legacy != null && await legacy.exists()) await setEnabled(true);
-      return true;
+    try {
+      final file = _entryFile();
+      final legacy = _legacyEntryFile();
+      if (file != null && await file.exists()) {
+        if (legacy != null && await legacy.exists()) await setEnabled(true);
+        return true;
+      }
+      if (legacy == null || !await legacy.exists()) return false;
+      return setEnabled(true);
+    } on Object {
+      return false;
     }
-    if (legacy == null || !await legacy.exists()) return false;
-    return setEnabled(true);
   }
 
   Future<bool> setEnabled(bool enabled) async {
