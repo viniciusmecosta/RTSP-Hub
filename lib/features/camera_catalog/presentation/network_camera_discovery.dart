@@ -11,6 +11,7 @@ import '../../discovery/data/onvif_discovery_service.dart';
 import '../../discovery/domain/rtsp_channel_candidates.dart';
 import '../../monitor/application/rtsp_session.dart';
 import '../domain/camera_device.dart';
+import 'widgets/discovered_host_group.dart';
 
 class NetworkCameraDiscovery extends StatefulWidget {
   const NetworkCameraDiscovery({super.key});
@@ -33,11 +34,12 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
   final _hosts = <String>[];
   final _portsByHost = <String, int>{};
   final _hostLabels = <String, String>{};
-  final _channels = <_DetectedChannel>[];
+  final _channels = <DetectedChannel>[];
   final _selected = <String>{};
   final _onvifHosts = <String>{};
-  final _streamChoice = <String, _StreamChoice>{};
+  final _streamChoice = <String, StreamChoice>{};
   bool _expanded = false;
+  bool _portEdited = false;
   bool _busy = false;
   bool _cancel = false;
   bool _scanRecorderChannels = false;
@@ -66,6 +68,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (!_portEdited) _port.text = '${AppScope.of(context).config.defaultPort}';
     if (_defaultsLoaded) return;
     _defaultsLoaded = true;
     unawaited(_loadDefaults());
@@ -274,7 +277,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
         _hostLabels[host] = identity.isEmpty
             ? host
             : '${identity.join(' · ')} · $host';
-        final result = _DetectedChannel(
+        final result = DetectedChannel(
           host: host,
           port: port,
           number: number,
@@ -373,7 +376,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
           subPath = null;
           subQuality = null;
         }
-        final result = _DetectedChannel(
+        final result = DetectedChannel(
           host: host,
           port: _portsByHost[host]!,
           number: channel,
@@ -468,10 +471,10 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
           host: channel.host,
           port: channel.port,
           username: '',
-          mainPath: _choiceFor(channel) == _StreamChoice.sub
+          mainPath: _choiceFor(channel) == StreamChoice.sub
               ? channel.subPath!
               : channel.mainPath,
-          subPath: _choiceFor(channel) == _StreamChoice.both
+          subPath: _choiceFor(channel) == StreamChoice.both
               ? channel.subPath ?? ''
               : '',
           useGlobalCredentials: true,
@@ -482,9 +485,9 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
     _message('$saved de ${chosen.length} canais adicionados às câmeras.');
   }
 
-  _StreamChoice _choiceFor(_DetectedChannel channel) {
-    if (channel.subPath == null) return _StreamChoice.main;
-    return _streamChoice[channel.key] ?? _StreamChoice.both;
+  StreamChoice _choiceFor(DetectedChannel channel) {
+    if (channel.subPath == null) return StreamChoice.main;
+    return _streamChoice[channel.key] ?? StreamChoice.both;
   }
 
   void _cancelSearch() {
@@ -502,7 +505,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
       ..showSnackBar(SnackBar(content: Text(text)));
   }
 
-  List<_DetectedChannel> _matchingChannels([String? host]) {
+  List<DetectedChannel> _matchingChannels([String? host]) {
     final query = _resultFilter.text.trim().toLowerCase();
     return _channels
         .where((channel) {
@@ -585,6 +588,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
                       );
                       final port = TextField(
                         controller: _port,
+                        onChanged: (_) => _portEdited = true,
                         enabled: !_busy,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
@@ -732,7 +736,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
                       if (visibleChannels.any(
                         (channel) => channel.host == host,
                       ))
-                        _DiscoveredHostGroup(
+                        DiscoveredHostGroup(
                           host: host,
                           displayName: _hostLabels[host] ?? host,
                           channels: visibleChannels
@@ -792,116 +796,4 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
       ),
     );
   }
-}
-
-class _DiscoveredHostGroup extends StatelessWidget {
-  const _DiscoveredHostGroup({
-    required this.host,
-    required this.displayName,
-    required this.channels,
-    required this.selected,
-    required this.choiceFor,
-    required this.onChoice,
-    required this.onChanged,
-  });
-
-  final String host;
-  final String displayName;
-  final List<_DetectedChannel> channels;
-  final Set<String> selected;
-  final _StreamChoice Function(_DetectedChannel channel) choiceFor;
-  final void Function(_DetectedChannel channel, _StreamChoice choice) onChoice;
-  final void Function(_DetectedChannel channel, bool selected) onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: Text(
-                displayName,
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-            ),
-            for (final channel in channels) ...[
-              CheckboxListTile(
-                value: selected.contains(channel.key),
-                onChanged: (value) => onChanged(channel, value ?? false),
-                controlAffinity: ListTileControlAffinity.leading,
-                title: Text(
-                  'Câmera ${channel.number} · principal ${channel.mainQuality}',
-                ),
-                subtitle: Text(
-                  '${channel.verified ? 'Vídeo confirmado' : 'Informado por ONVIF · vídeo ainda não testado'}\nPrincipal: ${channel.mainPath}${channel.subPath == null ? '' : '\nSecundário: ${channel.subPath} · ${channel.subQuality}'}',
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (channel.subPath != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(56, 0, 16, 8),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SegmentedButton<_StreamChoice>(
-                      showSelectedIcon: false,
-                      segments: const [
-                        ButtonSegment(
-                          value: _StreamChoice.both,
-                          label: Text('Principal + sub'),
-                        ),
-                        ButtonSegment(
-                          value: _StreamChoice.main,
-                          label: Text('Só principal'),
-                        ),
-                        ButtonSegment(
-                          value: _StreamChoice.sub,
-                          label: Text('Só subfluxo'),
-                        ),
-                      ],
-                      selected: {choiceFor(channel)},
-                      onSelectionChanged: (value) =>
-                          onChoice(channel, value.first),
-                    ),
-                  ),
-                ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-enum _StreamChoice { both, main, sub }
-
-class _DetectedChannel {
-  const _DetectedChannel({
-    required this.host,
-    required this.port,
-    required this.number,
-    required this.username,
-    required this.password,
-    required this.mainPath,
-    required this.mainQuality,
-    required this.subPath,
-    required this.subQuality,
-    required this.verified,
-  });
-
-  final String host;
-  final int port;
-  final int number;
-  final String username;
-  final String password;
-  final String mainPath;
-  final String mainQuality;
-  final String? subPath;
-  final String? subQuality;
-  final bool verified;
-  String get key => '$host:$port:$number';
 }
