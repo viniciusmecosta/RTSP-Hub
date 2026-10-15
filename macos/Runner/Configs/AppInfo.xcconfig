@@ -5,10 +5,10 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = rtsp_view
+PRODUCT_NAME = rtsp_hub
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.rtsp.rtspView
+PRODUCT_BUNDLE_IDENTIFIER = com.rtsp.rtspHub
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.rtsp. All rights reserved.

@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.rtsp" "\0"
-            VALUE "FileDescription", "rtsp_view" "\0"
+            VALUE "FileDescription", "RTSP Hub" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "rtsp_view" "\0"
+            VALUE "InternalName", "rtsp_hub" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.rtsp. All rights reserved." "\0"
-            VALUE "OriginalFilename", "rtsp_view.exe" "\0"
-            VALUE "ProductName", "rtsp_view" "\0"
+            VALUE "OriginalFilename", "rtsp_hub.exe" "\0"
+            VALUE "ProductName", "RTSP Hub" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
