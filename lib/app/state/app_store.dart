@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import '../../features/camera_catalog/data/camera_snapshot_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -11,6 +10,7 @@ import '../../features/layouts/domain/layout_preset.dart';
 import '../../features/layouts/domain/saved_monitor_profile.dart';
 import '../../shared/infrastructure/secure_store/credential_store.dart';
 import '../../shared/infrastructure/storage/config_repository.dart';
+import '../data/app_backup_service.dart';
 import '../data/app_configuration.dart';
 
 class AppStore extends ChangeNotifier {
@@ -19,13 +19,16 @@ class AppStore extends ChangeNotifier {
     ConfigRepository? repository,
     CredentialStore? credentials,
     CameraSnapshotStore? snapshotStore,
+    AppBackupService? backupService,
   }) : _repository = repository ?? ConfigRepository(),
        _credentials = credentials ?? CredentialStore(),
-       snapshots = snapshotStore ?? CameraSnapshotStore();
+       snapshots = snapshotStore ?? CameraSnapshotStore(),
+       _backupService = backupService ?? const AppBackupService();
 
   final CameraSnapshotStore snapshots;
   final ConfigRepository _repository;
   final CredentialStore _credentials;
+  final AppBackupService _backupService;
   final Map<String, String> _passwords = {};
   final ValueNotifier<ThemeMode> themeModeListenable = ValueNotifier(
     ThemeMode.system,
@@ -702,474 +705,49 @@ class AppStore extends ChangeNotifier {
     await operation;
   }
 
-  static const profileExportFormat = 'rtsp-hub-profiles';
+  static const profileExportFormat = AppBackupService.profileExportFormat;
+  static const maxBackupBytes = AppBackupService.maxBackupBytes;
 
-  String exportMonitorProfiles([Set<String>? profileIds]) {
-    final profiles = _config.monitorProfiles
-        .where(
-          (profile) => profileIds == null || profileIds.contains(profile.id),
-        )
-        .toList(growable: false);
-    final cameraIds = {
-      for (final profile in profiles)
-        ...profile.slotCameraIds.whereType<String>(),
-    };
-    return const JsonEncoder.withIndent('  ').convert({
-      'format': profileExportFormat,
-      'version': 2,
-      'exportedAt': DateTime.now().toUtc().toIso8601String(),
-      'profiles': profiles.map((profile) => profile.toJson()).toList(),
-      'cameras': _config.cameras
-          .where((camera) => cameraIds.contains(camera.id))
-          .map(
-            (camera) => {
-              ...camera.toJson(),
-              'port': camera.effectivePort(_config.defaultPort),
-            },
-          )
-          .toList(),
-    });
-  }
-
-  Future<int?> importMonitorProfiles(String source) async {
-    final List<SavedMonitorProfile> incomingProfiles;
-    final List<CameraDevice> incomingCameras;
-    try {
-      if (utf8.encode(source).length > maxBackupBytes) {
-        throw const FormatException();
-      }
-      final decoded = jsonDecode(source);
-      if (decoded is! Map ||
-          !{
-            profileExportFormat,
-            'rtsp-view-profiles',
-          }.contains(decoded['format']) ||
-          !{1, 2}.contains(decoded['version'])) {
-        throw const FormatException();
-      }
-      incomingProfiles = (decoded['profiles'] as List? ?? const [])
-          .map(
-            (item) => SavedMonitorProfile.fromJson(
-              Map<String, Object?>.from(item as Map),
-            ),
-          )
-          .toList(growable: false);
-      incomingCameras = (decoded['cameras'] as List? ?? const [])
-          .map(
-            (item) =>
-                CameraDevice.fromJson(Map<String, Object?>.from(item as Map)),
-          )
-          .toList(growable: false);
-      final incomingIds = <String>{};
-      for (final camera in incomingCameras) {
-        if (camera.id == _networkDiscoveryCredentialId ||
-            camera.id.isEmpty ||
-            !incomingIds.add(camera.id) ||
-            camera.name.trim().isEmpty ||
-            camera.name.length > 80 ||
-            camera.username.length > 128 ||
-            CameraFieldValidation.hostError(camera.host) != null ||
-            (decoded['version'] == 2 && camera.port == null) ||
-            CameraFieldValidation.portError(
-                  '${camera.effectivePort(_config.defaultPort)}',
-                ) !=
-                null ||
-            CameraFieldValidation.pathError(camera.mainPath, optional: true) !=
-                null ||
-            CameraFieldValidation.pathError(camera.subPath, optional: true) !=
-                null ||
-            camera.savedPaths.any(
-              (path) => CameraFieldValidation.pathError(path) != null,
-            ) ||
-            CameraFieldValidation.pathError(
-                  camera.selectedPath,
-                  optional: true,
-                ) !=
-                null ||
-            (camera.selectedPath.isNotEmpty &&
-                !camera.savedPaths.contains(camera.selectedPath))) {
-          throw const FormatException();
-        }
-      }
-      for (final profile in incomingProfiles) {
-        if (profile.id.isEmpty ||
-            profile.name.trim().isEmpty ||
-            profile.name.length > 60 ||
-            !LayoutPreset.all.any((layout) => layout.id == profile.layoutId) ||
-            profile.slotCameraIds.length !=
-                LayoutPreset.byId(
-                  profile.layoutId,
-                  cameraCount: profile.slotCameraIds.length,
-                ).cameraCount ||
-            profile.slotCameraIds.any(
-              (id) => id != null && !incomingIds.contains(id),
-            ) ||
-            profile.slotCameraIds.whereType<String>().toSet().length !=
-                profile.slotCameraIds.whereType<String>().length) {
-          throw const FormatException();
-        }
-      }
-    } on Object {
-      _message = 'O arquivo não é uma exportação de perfis válida.';
-      notifyListeners();
-      return null;
-    }
-    String keyOf(CameraDevice camera) =>
-        '${camera.host.toLowerCase()}:${camera.effectivePort(_config.defaultPort)}:${camera.mainPath}';
-    final cameras = [..._config.cameras];
-    final byKey = {for (final camera in cameras) keyOf(camera): camera.id};
-    final idMap = <String, String>{};
-    for (final camera in incomingCameras) {
-      final existing = byKey[keyOf(camera)];
-      if (existing != null) {
-        idMap[camera.id] = existing;
-        continue;
-      }
-      final created = CameraDevice(
-        id: const Uuid().v4(),
-        name: camera.name,
-        host: camera.host,
-        port: camera.port,
-        username: camera.username,
-        mainPath: camera.mainPath,
-        subPath: camera.subPath,
-        useGlobalCredentials: camera.useGlobalCredentials,
-        savedPaths: camera.savedPaths,
-        selectedPath: camera.selectedPath,
+  String exportMonitorProfiles([Set<String>? profileIds]) =>
+      _backupService.exportMonitorProfiles(
+        config: _config,
+        profileIds: profileIds,
       );
-      cameras.add(created);
-      byKey[keyOf(created)] = created.id;
-      idMap[camera.id] = created.id;
-    }
-    final profiles = [..._config.monitorProfiles];
-    var added = 0;
-    for (final profile in incomingProfiles) {
-      if (profiles.length >= 20) break;
-      var name = profile.name.trim().isEmpty ? 'Perfil' : profile.name.trim();
-      final base = name.length > 48 ? name.substring(0, 48) : name;
-      var suffix = 1;
-      while (profiles.any((p) => p.name.toLowerCase() == name.toLowerCase())) {
-        suffix++;
-        name = '$base ($suffix)';
-      }
-      profiles.add(
-        SavedMonitorProfile(
-          id: const Uuid().v4(),
-          name: name,
-          layoutId: LayoutPreset.byId(profile.layoutId).id,
-          slotCameraIds: [
-            for (final id in profile.slotCameraIds)
-              id == null ? null : idMap[id],
-          ],
-          startupSection: profile.startupSection,
-        ),
+
+  Future<int?> importMonitorProfiles(String source) =>
+      _backupService.importMonitorProfiles(
+        source: source,
+        currentConfig: _config,
+        commit: _commit,
+        setMessage: (msg) {
+          _message = msg;
+          notifyListeners();
+        },
       );
-      added++;
-    }
-    if (added == 0) {
-      _message = 'Nenhum perfil novo pôde ser importado.';
-      notifyListeners();
-      return 0;
-    }
-    final saved = await _commit(
-      _config.copyWith(cameras: cameras, monitorProfiles: profiles),
-    );
-    return saved ? added : null;
-  }
 
-  static const maxBackupBytes = 64 * 1024 * 1024;
-
-  Future<String> exportBackup() async {
-    final config = _config;
-    final credentials = <String, String?>{};
-    final images = <String, String>{};
-    var imageBytes = 0;
-    for (final id in [
-      _networkDiscoveryCredentialId,
-      ...config.cameras.map((camera) => camera.id),
-    ]) {
-      credentials[id] = await _credentials.read(id);
-    }
-    for (final camera in config.cameras) {
-      final bytes = await snapshots.read(camera.id);
-      if (bytes != null) {
-        imageBytes += bytes.length;
-        if (imageBytes > 40 * 1024 * 1024) {
-          throw const FormatException('Miniaturas excedem o limite de backup.');
-        }
-        images[camera.id] = base64Encode(bytes);
-      }
-    }
-    if (!identical(config, _config))
-      throw StateError(
-        'As configurações mudaram durante o backup. Tente novamente.',
+  Future<String> exportBackup() => _backupService.exportBackup(
+        config: _config,
+        credentials: _credentials,
+        snapshots: snapshots,
+        getCurrentConfig: () => _config,
       );
-    return jsonEncode({
-      'format': 'rtsp_hub_backup',
-      'version': 1,
-      'configuration': config.toJson(),
-      'credentials': credentials,
-      'thumbnails': images,
-    });
-  }
 
-  Future<bool> _restoreCompleteBackup(
-    AppConfiguration config,
-    Map decoded,
-  ) async {
-    if (decoded['version'] != 1 ||
-        decoded['credentials'] is! Map ||
-        decoded['thumbnails'] is! Map) {
-      throw const FormatException();
-    }
-    final allowed = {
-      _networkDiscoveryCredentialId,
-      ...config.cameras.map((camera) => camera.id),
-    };
-    final credentials = Map<String, Object?>.from(
-      decoded['credentials'] as Map,
-    );
-    if (credentials.keys.toSet().length != allowed.length ||
-        !allowed.containsAll(credentials.keys) ||
-        credentials.values.any(
-          (value) => value != null && (value is! String || value.length > 1024),
-        )) {
-      throw const FormatException();
-    }
-    final rawImages = Map<String, Object?>.from(decoded['thumbnails'] as Map);
-    final images = <String, Uint8List>{};
-    for (final entry in rawImages.entries) {
-      if (entry.key == _networkDiscoveryCredentialId ||
-          !allowed.contains(entry.key) ||
-          entry.value is! String) {
-        throw const FormatException();
-      }
-      final bytes = base64Decode(entry.value as String);
-      if (bytes.length > 4 * 1024 * 1024 ||
-          bytes.length < 24 ||
-          !listEquals(bytes.take(8).toList(), [
-            137,
-            80,
-            78,
-            71,
-            13,
-            10,
-            26,
-            10,
-          ])) {
-        throw const FormatException();
-      }
-      final header = ByteData.sublistView(bytes);
-      if (header.getUint32(16) > 640 ||
-          header.getUint32(20) > 4096 ||
-          header.getUint32(16) == 0 ||
-          header.getUint32(20) == 0) {
-        throw const FormatException();
-      }
-      images[entry.key] = bytes;
-    }
-    final affected = {
-      ...allowed,
-      ..._config.cameras.map((camera) => camera.id),
-    };
-    final oldCredentials = <String, String?>{};
-    final oldImages = <String, Uint8List?>{};
-    for (final id in affected) {
-      oldCredentials[id] = await _credentials.read(id);
-      if (id != _networkDiscoveryCredentialId) {
-        oldImages[id] = await snapshots.read(id);
-      }
-    }
-    try {
-      for (final id in affected) {
-        final secret = credentials[id] as String?;
-        if (secret == null || secret.isEmpty) {
-          await _credentials.delete(id);
-        } else {
-          await _credentials.write(id, secret);
-        }
-      }
-      for (final id in oldImages.keys) {
-        final bytes = images[id];
-        if (bytes != null) {
-          if (!await snapshots.save(id, bytes)) {
-            throw StateError('snapshot write failed');
-          }
-        } else {
-          await snapshots.remove(id);
-        }
-      }
-      if (!await _commit(config)) {
-        throw StateError('configuration write failed');
-      }
-      _passwords.clear();
-      for (final entry in credentials.entries) {
-        if (entry.value is String && (entry.value as String).isNotEmpty) {
-          _passwords[entry.key] = entry.value as String;
-        }
-      }
-      notifyListeners();
-      return true;
-    } on Object {
-      var restored = true;
-      for (final entry in oldCredentials.entries) {
-        try {
-          if (entry.value == null) {
-            await _credentials.delete(entry.key);
-          } else {
-            await _credentials.write(entry.key, entry.value!);
-          }
-        } on Object {
-          restored = false;
-        }
-      }
-      for (final entry in oldImages.entries) {
-        if (entry.value == null) {
-          await snapshots.remove(entry.key);
-        } else {
-          restored = await snapshots.save(entry.key, entry.value!) && restored;
-        }
-      }
-      _passwords.clear();
-      _message = restored
-          ? 'Não foi possível restaurar. Os dados anteriores foram mantidos.'
-          : 'A restauração foi interrompida pelo armazenamento. Confira as credenciais antes de conectar.';
-      notifyListeners();
-      return false;
-    }
-  }
+  String exportConfiguration() => _backupService.exportConfiguration(_config);
 
-  String exportConfiguration() =>
-      const JsonEncoder.withIndent('  ').convert(_config.toJson());
-
-  Future<bool> importConfiguration(String source) async {
-    if (utf8.encode(source).length > maxBackupBytes) {
-      _message = 'O arquivo de backup excede o limite de 64 MB.';
-      notifyListeners();
-      return false;
-    }
-    try {
-      final decoded = jsonDecode(source);
-      if (decoded is! Map) throw const FormatException();
-      final complete = decoded['format'] == 'rtsp_hub_backup';
-      final rawConfiguration = complete ? decoded['configuration'] : decoded;
-      if (rawConfiguration is! Map ||
-          rawConfiguration['cameras'] is! List ||
-          rawConfiguration['settings'] is! Map ||
-          rawConfiguration['layout'] is! Map) {
-        throw const FormatException();
-      }
-      final configuration = AppConfiguration.fromJson(
-        Map<String, Object?>.from(rawConfiguration),
+  Future<bool> importConfiguration(String source) =>
+      _backupService.importConfiguration(
+        source: source,
+        currentConfig: _config,
+        credentials: _credentials,
+        snapshots: snapshots,
+        commit: _commit,
+        passwordsCache: _passwords,
+        setMessage: (msg) {
+          _message = msg;
+          notifyListeners();
+        },
+        notify: notifyListeners,
       );
-      if (configuration.schemaVersion > _config.schemaVersion) {
-        throw const FormatException();
-      }
-      final cameraIds = <String>{};
-      final cameraAddresses = <String>{};
-      for (final camera in configuration.cameras) {
-        final addressKey =
-            '${camera.host.toLowerCase()}:${camera.effectivePort(configuration.defaultPort)}:${camera.mainPath.isEmpty ? configuration.defaultPath : camera.mainPath}';
-        if (camera.id == _networkDiscoveryCredentialId ||
-            camera.id.isEmpty ||
-            camera.id.length > 80 ||
-            camera.name.trim().length > 80 ||
-            camera.username.length > 128 ||
-            CameraFieldValidation.hostError(camera.host) != null ||
-            camera.effectivePort(configuration.defaultPort) < 1 ||
-            camera.effectivePort(configuration.defaultPort) > 65535 ||
-            CameraFieldValidation.pathError(camera.mainPath, optional: true) !=
-                null ||
-            CameraFieldValidation.pathError(camera.subPath, optional: true) !=
-                null ||
-            CameraFieldValidation.pathError(
-                  camera.selectedPath,
-                  optional: true,
-                ) !=
-                null ||
-            (camera.selectedPath.isNotEmpty &&
-                !camera.savedPaths.contains(camera.selectedPath)) ||
-            camera.savedPaths.any(
-              (path) => CameraFieldValidation.pathError(path) != null,
-            ) ||
-            !cameraIds.add(camera.id) ||
-            !cameraAddresses.add(addressKey)) {
-          throw const FormatException();
-        }
-      }
-      final layouts = LayoutPreset.all.map((layout) => layout.id).toSet();
-      final profileNames = <String>{};
-      final profileIds = <String>{};
-      if (!layouts.contains(configuration.layoutId) ||
-          configuration.schemaVersion < 1 ||
-          configuration.defaultPort < 1 ||
-          configuration.defaultPort > 65535 ||
-          configuration.defaultUser.length > 128 ||
-          CameraFieldValidation.pathError(configuration.defaultPath) != null ||
-          CameraFieldValidation.pathError(
-                configuration.defaultSubPath,
-                optional: true,
-              ) !=
-              null ||
-          configuration.bufferMs < 100 ||
-          configuration.bufferMs > 2000 ||
-          configuration.lastMonitorPage < 0 ||
-          configuration.lastMonitorPage > 100 ||
-          !{
-            'light',
-            'eco',
-            'balanced',
-            'quality',
-          }.contains(configuration.resourceMode) ||
-          configuration.slotCameraIds.length !=
-              LayoutPreset.byId(
-                configuration.layoutId,
-                cameraCount: configuration.cameras.length,
-              ).cameraCount ||
-          configuration.monitorProfiles.length > 20) {
-        throw const FormatException();
-      }
-      for (final profile in configuration.monitorProfiles) {
-        if (profile.id.isEmpty ||
-            !profileIds.add(profile.id) ||
-            profile.name.trim().isEmpty ||
-            profile.name.length > 60 ||
-            !profileNames.add(profile.name.toLowerCase()) ||
-            !layouts.contains(profile.layoutId) ||
-            profile.slotCameraIds.any(
-              (id) => id != null && !cameraIds.contains(id),
-            ) ||
-            profile.slotCameraIds.length !=
-                LayoutPreset.byId(
-                  profile.layoutId,
-                  cameraCount: profile.slotCameraIds.length,
-                ).cameraCount) {
-          throw const FormatException();
-        }
-      }
-      if (configuration.slotCameraIds.any(
-            (id) => id != null && !cameraIds.contains(id),
-          ) ||
-          configuration.slotCameraIds.whereType<String>().toSet().length !=
-              configuration.slotCameraIds.whereType<String>().length) {
-        throw const FormatException();
-      }
-      if (complete) return await _restoreCompleteBackup(configuration, decoded);
-      return await _commit(
-        configuration.copyWith(
-          resourceMode: configuration.resourceMode == 'eco'
-              ? 'light'
-              : configuration.resourceMode,
-        ),
-      );
-    } catch (error) {
-      _message = error is FormatException || error is TypeError
-          ? 'Backup inválido. Confira se é um arquivo do RTSP Hub e tente novamente.'
-          : 'Não foi possível acessar o armazenamento ou o cofre para restaurar o backup.';
-      notifyListeners();
-      return false;
-    }
-  }
 
   void clearMessage() {
     _message = null;
