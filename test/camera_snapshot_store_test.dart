@@ -31,7 +31,7 @@ void main() {
       expect(changes, 1);
       expect(await store.save('../../camera', Uint8List.fromList([4])), isTrue);
       expect(await file.readAsBytes(), [4]);
-      await store.remove('../../camera');
+      expect(await store.remove('../../camera'), isTrue);
       expect(await file.exists(), isFalse);
       expect(changes, 3);
     },
@@ -45,5 +45,17 @@ void main() {
     expect(await store.save('a', Uint8List(0)), isFalse);
     expect(await store.save('a', Uint8List(4 * 1024 * 1024 + 1)), isFalse);
     expect(await directory.list().toList(), isEmpty);
+  });
+
+  test('reports a failed removal to callers', () async {
+    final directory = await Directory.systemTemp.createTemp('snapshots-test');
+    addTearDown(() => directory.delete(recursive: true));
+    final store = CameraSnapshotStore(directory: directory);
+    addTearDown(store.dispose);
+    expect(await store.save('camera', Uint8List.fromList([1, 2, 3])), isTrue);
+    final file = await store.fileFor('camera');
+    await Directory('${file.path}.removed').create();
+
+    expect(await store.remove('camera'), isFalse);
   });
 }

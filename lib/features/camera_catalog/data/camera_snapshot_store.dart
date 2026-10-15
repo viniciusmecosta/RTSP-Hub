@@ -92,7 +92,7 @@ class CameraSnapshotStore extends ChangeNotifier {
     }
   }
 
-  Future<void> remove(String id) async {
+  Future<bool> remove(String id) async {
     try {
       final file = await fileFor(id);
       if (await file.exists()) await file.delete();
@@ -102,8 +102,9 @@ class CameraSnapshotStore extends ChangeNotifier {
       }
       revision++;
       notifyListeners();
+      return true;
     } on Object {
-      return;
+      return false;
     }
   }
 }
