@@ -15,96 +15,120 @@ import '../domain/saved_monitor_profile.dart';
 import 'widgets/layout_preset_picker.dart';
 
 class LayoutsPage extends StatelessWidget {
-  const LayoutsPage({super.key});
+  const LayoutsPage({this.onOpenMonitor, super.key});
+
+  final VoidCallback? onOpenMonitor;
 
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
     final layout = store.activeLayout;
-    return PageFrame(
-      title: 'Layouts',
-      subtitle: 'Escolha a grade e associe câmeras a cada posição.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          LayoutPresetPicker(
-            selectedId: layout.id,
-            onSelected: store.setLayout,
-          ),
-          const SizedBox(height: 18),
-          _SavedProfiles(
-            profiles: store.config.monitorProfiles,
-            onSave: () => _saveProfile(context, store),
-            onApply: store.applyMonitorProfile,
-            onRemove: store.removeMonitorProfile,
-          ),
-          const SizedBox(height: 18),
-          _MonitorPreview(
-            layout: layout,
-            slotCameraIds: store.config.slotCameraIds,
-            cameraNames: {
-              for (final camera in store.cameras) camera.id: camera.name,
+    final cameraById = {for (final camera in store.cameras) camera.id: camera};
+    final controls = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LayoutPresetPicker(selectedId: layout.id, onSelected: store.setLayout),
+        const SizedBox(height: 18),
+        _SavedProfiles(
+          profiles: store.config.monitorProfiles,
+          onSave: () => _saveProfile(context, store),
+          onApply: store.applyMonitorProfile,
+          onRemove: store.removeMonitorProfile,
+        ),
+      ],
+    );
+    final editor = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _MonitorPreview(
+          layout: layout,
+          slotCameraIds: store.config.slotCameraIds,
+          cameraNames: {
+            for (final camera in store.cameras) camera.id: camera.name,
+          },
+        ),
+        const SizedBox(height: 24),
+        Text('Câmeras na grade', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 10),
+        if (store.cameras.isEmpty)
+          const EmptyPanel(
+            icon: Icons.videocam_outlined,
+            title: 'Adicione câmeras primeiro',
+            description:
+                'Depois você poderá selecionar uma câmera para cada posição da grade.',
+          )
+        else
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 900 ? 2 : 1;
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: layout.cameraCount,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 8,
+                  mainAxisExtent:
+                      MediaQuery.textScalerOf(context).scale(14) > 20 ? 92 : 76,
+                ),
+                itemBuilder: (context, index) {
+                  final selected = index < store.config.slotCameraIds.length
+                      ? store.config.slotCameraIds[index]
+                      : null;
+                  final camera = cameraById[selected];
+                  return _CameraSlotCard(
+                    position: index + 1,
+                    cameraName: camera?.name,
+                    cameraId: camera?.id,
+                    cameraDetail: camera == null
+                        ? null
+                        : '${camera.host}:${camera.effectivePort(store.config.defaultPort)} · ${camera.mainPath}',
+                    onTap: () => _selectCamera(context, store, index, selected),
+                  );
+                },
+              );
             },
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Câmeras na grade',
-            style: Theme.of(context).textTheme.titleLarge,
+        const SizedBox(height: 12),
+        if (layout.id != 'GRID_ALL')
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: store.clearSlots,
+              icon: const Icon(Icons.clear_all),
+              label: const Text('Limpar grade'),
+            ),
           ),
-          const SizedBox(height: 10),
-          if (store.cameras.isEmpty)
-            const EmptyPanel(
-              icon: Icons.videocam_outlined,
-              title: 'Adicione câmeras primeiro',
-              description:
-                  'Depois você poderá selecionar uma câmera para cada posição da grade.',
-            )
-          else
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final columns = constraints.maxWidth >= 900 ? 2 : 1;
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: layout.cameraCount,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columns,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 8,
-                    mainAxisExtent: 76,
-                  ),
-                  itemBuilder: (context, index) {
-                    final selected = index < store.config.slotCameraIds.length
-                        ? store.config.slotCameraIds[index]
-                        : null;
-                    final camera = store.cameras
-                        .where((item) => item.id == selected)
-                        .firstOrNull;
-                    return _CameraSlotCard(
-                      position: index + 1,
-                      cameraName: camera?.name,
-                      cameraId: camera?.id,
-                      cameraDetail: camera == null
-                          ? null
-                          : '${camera.host}:${camera.effectivePort(store.config.defaultPort)} · ${camera.mainPath}',
-                      onTap: () =>
-                          _selectCamera(context, store, index, selected),
-                    );
-                  },
-                );
-              },
-            ),
-          const SizedBox(height: 12),
-          if (layout.id != 'GRID_ALL')
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: store.clearSlots,
-                icon: const Icon(Icons.clear_all),
-                label: const Text('Limpar grade'),
+      ],
+    );
+    return PageFrame(
+      title: 'Layouts',
+      subtitle: 'Escolha a distribuição e prepare seu monitor.',
+      actions: [
+        if (onOpenMonitor != null)
+          FilledButton.icon(
+            onPressed: store.config.slotCameraIds.any((id) => id != null)
+                ? onOpenMonitor
+                : null,
+            icon: const Icon(Icons.monitor_outlined),
+            label: const Text('Abrir monitor'),
+          ),
+      ],
+      child: LayoutBuilder(
+        builder: (context, constraints) => constraints.maxWidth >= 1000
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 360, child: controls),
+                  const SizedBox(width: 24),
+                  Expanded(child: editor),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [controls, const SizedBox(height: 18), editor],
               ),
-            ),
-        ],
       ),
     );
   }

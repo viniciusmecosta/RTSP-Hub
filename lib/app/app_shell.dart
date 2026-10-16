@@ -198,7 +198,7 @@ class _AppShellState extends State<AppShell> {
       },
     ),
     const CameraCatalogPage(),
-    const LayoutsPage(),
+    LayoutsPage(onOpenMonitor: () => _selectIndex(3)),
     MonitorPage(
       onExit: () => _selectIndex(0),
       onConfigure: () => _selectIndex(1),
