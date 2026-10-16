@@ -8,7 +8,7 @@ import '../../settings/presentation/global_connection_page.dart';
 import '../domain/camera_device.dart';
 import 'camera_editor_dialog.dart';
 import 'camera_preview_dialog.dart';
-import 'camera_thumbnail.dart';
+import 'widgets/camera_preview_card.dart';
 import 'clone_camera_dialog.dart';
 import 'network_camera_discovery.dart';
 
@@ -20,7 +20,14 @@ class CameraCatalogPage extends StatefulWidget {
 }
 
 class _CameraCatalogPageState extends State<CameraCatalogPage> {
+  final _search = TextEditingController();
   String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,12 +59,22 @@ class _CameraCatalogPageState extends State<CameraCatalogPage> {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: TextField(
+              controller: _search,
               onChanged: (value) =>
                   setState(() => _query = value.trim().toLowerCase()),
               decoration: InputDecoration(
                 labelText: 'Buscar câmera ou IP',
                 prefixIcon: const Icon(Icons.search),
-                suffixText: '${cameras.length} câmeras',
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Limpar busca',
+                        onPressed: () {
+                          _search.clear();
+                          setState(() => _query = '');
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
               ),
             ),
           ),
@@ -87,14 +104,20 @@ class _CameraCatalogPageState extends State<CameraCatalogPage> {
         else
           SliverLayoutBuilder(
             builder: (context, constraints) {
-              final columns = constraints.crossAxisExtent >= 900
+              final columns = constraints.crossAxisExtent >= 1040
                   ? 3
                   : constraints.crossAxisExtent >= 580
                   ? 2
                   : 1;
               return SliverGrid(
                 delegate: SliverChildBuilderDelegate(
-                  (context, index) => _CameraCard(
+                  (context, index) => CameraPreviewCard(
+                    key: ValueKey(cameras[index].id),
+                    onPreview: () => CameraPreviewDialog.openSaved(
+                      context,
+                      store,
+                      cameras[index],
+                    ),
                     camera: cameras[index],
                     onEdit: () => _edit(context, cameras[index]),
                     onClone: () => _clone(context, store, cameras[index]),
@@ -106,10 +129,11 @@ class _CameraCatalogPageState extends State<CameraCatalogPage> {
                   crossAxisCount: columns,
                   crossAxisSpacing: 14,
                   mainAxisSpacing: 14,
-                  mainAxisExtent:
-                      MediaQuery.textScalerOf(context).scale(14) > 20
-                      ? 340
-                      : 280,
+                  mainAxisExtent: CameraPreviewCard.heightFor(
+                    (constraints.crossAxisExtent - 14 * (columns - 1)) /
+                        columns,
+                    MediaQuery.textScalerOf(context),
+                  ),
                 ),
               );
             },
@@ -190,83 +214,5 @@ class _CameraCatalogPageState extends State<CameraCatalogPage> {
         ).showSnackBar(SnackBar(content: Text(store.message!)));
       }
     }
-  }
-}
-
-class _CameraCard extends StatelessWidget {
-  const _CameraCard({
-    required this.camera,
-    required this.onEdit,
-    required this.onClone,
-    required this.onDelete,
-  });
-  final CameraDevice camera;
-  final VoidCallback onEdit;
-  final VoidCallback onClone;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final store = AppScope.of(context);
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                CameraThumbnail(cameraId: camera.id),
-                Center(
-                  child: IconButton.filled(
-                    onPressed: () =>
-                        CameraPreviewDialog.openSaved(context, store, camera),
-                    tooltip: 'Ver vídeo de ${camera.name}',
-                    icon: const Icon(Icons.play_arrow),
-                  ),
-                ),
-                const Positioned(
-                  left: 12,
-                  bottom: 8,
-                  child: Chip(
-                    visualDensity: VisualDensity.compact,
-                    label: Text('Prévia da câmera'),
-                    avatar: Icon(Icons.photo_outlined, size: 16),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ListTile(
-            title: Text(
-              camera.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: Text(
-              camera.host,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            onTap: onEdit,
-            trailing: PopupMenuButton<String>(
-              tooltip: 'Opções da câmera',
-              onSelected: (value) => switch (value) {
-                'edit' => onEdit(),
-                'clone' => onClone(),
-                'delete' => onDelete(),
-                _ => null,
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'edit', child: Text('Editar câmera')),
-                PopupMenuItem(value: 'clone', child: Text('Clonar câmera')),
-                PopupMenuItem(value: 'delete', child: Text('Remover')),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
