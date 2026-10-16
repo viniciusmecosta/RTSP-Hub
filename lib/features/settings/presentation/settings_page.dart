@@ -74,11 +74,17 @@ class _SettingsPageState extends State<SettingsPage> {
     return PageFrame(
       title: 'Ajustes',
       subtitle: 'Personalize a experiência, o desempenho e seus dados.',
+      maxContentWidth: 1040,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const GlobalConnectionShortcut(),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
+          Text(
+            'Aparência e inicialização',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 12),
           Card(
             child: Column(
               children: [
@@ -162,7 +168,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   onChanged: (value) =>
                       store.updateSettings(autoFullscreen: value),
                 ),
-                const Divider(height: 1),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Reprodução e desempenho',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Column(
+              children: [
                 _SettingDropdownTile<String>(
                   icon: Icons.memory_outlined,
                   title: 'Perfil de desempenho',
@@ -194,11 +211,15 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
                 const Divider(height: 1),
-                const ListTile(
-                  leading: Icon(Icons.lock_outline),
-                  title: Text('Credenciais protegidas'),
-                  subtitle: Text(
-                    'Senhas são guardadas no cofre seguro do sistema e nunca no arquivo de configuração.',
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+                  child: Text(
+                    PerformancePreset.fromId(
+                      store.config.resourceMode,
+                    ).description,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ],
@@ -249,16 +270,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     ],
                   ),
                 ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Text(
-                '${PerformancePreset.fromId(store.config.resourceMode).description} Todas as câmeras da grade são exibidas simultaneamente.',
-                style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
           ),
