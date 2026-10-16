@@ -6,9 +6,14 @@ import '../../../app/state/app_store.dart';
 import '../data/camera_snapshot_store.dart';
 
 class CameraThumbnail extends StatefulWidget {
-  const CameraThumbnail({required this.cameraId, super.key});
+  const CameraThumbnail({
+    required this.cameraId,
+    this.borderRadius = const BorderRadius.all(Radius.circular(12)),
+    super.key,
+  });
 
   final String cameraId;
+  final BorderRadius borderRadius;
 
   @override
   State<CameraThumbnail> createState() => _CameraThumbnailState();
@@ -63,7 +68,7 @@ class _CameraThumbnailState extends State<CameraThumbnail> {
       ),
     );
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: widget.borderRadius,
       child: FutureBuilder<File?>(
         future: _file,
         builder: (context, snapshot) {
