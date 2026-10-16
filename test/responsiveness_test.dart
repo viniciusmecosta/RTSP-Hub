@@ -20,7 +20,27 @@ void main() {
   const config = AppConfiguration(
     startupSection: 'dashboard',
     tutorialCompleted: true,
-    cameras: [camera],
+    cameras: [
+      camera,
+      CameraDevice(
+        id: 'garage',
+        name: 'Garagem',
+        host: '192.168.1.101',
+        mainPath: '/main',
+      ),
+      CameraDevice(
+        id: 'hall',
+        name: 'Corredor lateral e acesso de serviço',
+        host: '192.168.1.102',
+        mainPath: '/main',
+      ),
+      CameraDevice(
+        id: 'garden',
+        name: 'Quintal',
+        host: '192.168.1.103',
+        mainPath: '/main',
+      ),
+    ],
   );
 
   for (final size in [

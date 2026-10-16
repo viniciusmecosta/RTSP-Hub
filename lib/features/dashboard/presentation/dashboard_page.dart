@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../../../app/state/app_store.dart';
@@ -42,10 +44,66 @@ class _DashboardPageState extends State<DashboardPage> {
     final profile = store.lastSavedProfile;
     final selected = store.config.slotCameraIds.whereType<String>().length;
     final cameras = store.cameras.take(4).toList(growable: false);
+    final wideHeader =
+        MediaQuery.sizeOf(context).width >= 1000 &&
+        MediaQuery.textScalerOf(context).scale(14) <= 20;
+    final selector = DropdownButtonFormField<String>(
+      key: ValueKey(store.config.lastProfileId),
+      initialValue:
+          store.config.monitorProfiles.any(
+            (item) => item.id == store.config.lastProfileId,
+          )
+          ? store.config.lastProfileId
+          : null,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Perfil de visualização',
+        hintText: 'Grade atual',
+        prefixIcon: Icon(Icons.home_outlined),
+      ),
+      items: [
+        for (final item in store.config.monitorProfiles)
+          DropdownMenuItem(
+            value: item.id,
+            child: Text(
+              item.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: _applyingProfile || store.config.monitorProfiles.isEmpty
+          ? null
+          : _selectProfile,
+      hint: const Text('Grade atual'),
+    );
+    final open = FilledButton.icon(
+      onPressed: _applyingProfile
+          ? null
+          : store.cameras.isEmpty
+          ? widget.onAddCamera
+          : selected == 0
+          ? widget.onOpenLayouts ?? widget.onOpenMonitor
+          : widget.onOpenMonitor,
+      icon: Icon(store.cameras.isEmpty ? Icons.add : Icons.monitor_outlined),
+      label: Text(
+        store.cameras.isEmpty
+            ? 'Adicionar câmera'
+            : selected == 0
+            ? 'Montar monitor'
+            : 'Abrir monitor',
+      ),
+    );
     return PageFrame.slivers(
       title: 'Visão geral',
       subtitle: 'Suas câmeras, em um olhar.',
       maxContentWidth: 1200,
+      actions: [
+        if (wideHeader) ...[
+          SizedBox(width: 220, child: selector),
+          SizedBox(width: 180, child: open),
+        ],
+      ],
       slivers: [
         SliverToBoxAdapter(
           child: LayoutBuilder(
@@ -53,64 +111,14 @@ class _DashboardPageState extends State<DashboardPage> {
               final compact =
                   constraints.maxWidth < 620 ||
                   MediaQuery.textScalerOf(context).scale(14) > 20;
-              final selector = DropdownButtonFormField<String>(
-                key: ValueKey(store.config.lastProfileId),
-                initialValue:
-                    store.config.monitorProfiles.any(
-                      (item) => item.id == store.config.lastProfileId,
-                    )
-                    ? store.config.lastProfileId
-                    : null,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Perfil de visualização',
-                  hintText: 'Grade atual',
-                  prefixIcon: Icon(Icons.home_outlined),
-                ),
-                items: [
-                  for (final item in store.config.monitorProfiles)
-                    DropdownMenuItem(
-                      value: item.id,
-                      child: Text(
-                        item.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged:
-                    _applyingProfile || store.config.monitorProfiles.isEmpty
-                    ? null
-                    : _selectProfile,
-                hint: const Text('Grade atual'),
-              );
-              final open = FilledButton.icon(
-                onPressed: _applyingProfile
-                    ? null
-                    : store.cameras.isEmpty
-                    ? widget.onAddCamera
-                    : selected == 0
-                    ? widget.onOpenLayouts ?? widget.onOpenMonitor
-                    : widget.onOpenMonitor,
-                icon: Icon(
-                  store.cameras.isEmpty ? Icons.add : Icons.monitor_outlined,
-                ),
-                label: Text(
-                  store.cameras.isEmpty
-                      ? 'Adicionar câmera'
-                      : selected == 0
-                      ? 'Montar monitor'
-                      : 'Abrir monitor',
-                ),
-              );
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (compact) ...[
+                  if (!wideHeader && compact) ...[
                     selector,
                     const SizedBox(height: 14),
                     open,
-                  ] else
+                  ] else if (!wideHeader)
                     Row(
                       children: [
                         Expanded(child: selector),
@@ -130,28 +138,20 @@ class _DashboardPageState extends State<DashboardPage> {
                           color: colors.onSurfaceVariant,
                         ),
                       ),
-                      TextButton.icon(
-                        onPressed: widget.onOpenLayouts,
-                        icon: const Icon(Icons.grid_view_outlined, size: 18),
-                        label: const Text('Editar layout'),
-                      ),
+                      if (profile != null && widget.onOpenProfile != null)
+                        TextButton.icon(
+                          onPressed: _applyingProfile
+                              ? null
+                              : () => widget.onOpenProfile!(profile.id),
+                          icon: const Icon(Icons.history_rounded, size: 18),
+                          label: Text(
+                            'Acesso rápido · ${profile.name}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                     ],
                   ),
-                  if (profile != null && widget.onOpenProfile != null)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: _applyingProfile
-                            ? null
-                            : () => widget.onOpenProfile!(profile.id),
-                        icon: const Icon(Icons.history_rounded, size: 18),
-                        label: Text(
-                          'Acesso rápido · ${profile.name}',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
                   const SizedBox(height: 14),
                 ],
               );
@@ -205,10 +205,21 @@ class _DashboardPageState extends State<DashboardPage> {
                   crossAxisCount: columns,
                   crossAxisSpacing: 14,
                   mainAxisSpacing: 14,
-                  mainAxisExtent: CameraPreviewCard.heightFor(
-                    width,
-                    scaler,
-                    showHost: false,
+                  mainAxisExtent: min(
+                    constraints.crossAxisExtent >= 600
+                        ? max(
+                            180,
+                            (MediaQuery.sizeOf(context).height - 400) / 2,
+                          )
+                        : double.infinity,
+                    CameraPreviewCard.heightFor(
+                      width,
+                      scaler,
+                      showHost: false,
+                      imageAspectRatio: constraints.crossAxisExtent >= 600
+                          ? 2.8
+                          : 16 / 9,
+                    ),
                   ),
                 ),
                 delegate: SliverChildBuilderDelegate(

@@ -27,8 +27,9 @@ class CameraPreviewCard extends StatelessWidget {
     double width,
     TextScaler textScaler, {
     bool showHost = true,
+    double imageAspectRatio = 16 / 9,
   }) =>
-      width * 9 / 16 +
+      width / imageAspectRatio +
       max(
         48,
         textScaler.scale(22) + (showHost ? textScaler.scale(18) + 4 : 0),
@@ -69,7 +70,7 @@ class CameraPreviewCard extends StatelessWidget {
                           vertical: 5,
                         ),
                         child: Text(
-                          'Imagem salva',
+                          'Prévia',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: colors.onSurfaceVariant,
                           ),
