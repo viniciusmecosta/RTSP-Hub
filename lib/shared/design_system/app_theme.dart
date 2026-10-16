@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppTheme {
-  static const blue = Color(0xFF2563EB);
+  static const blue = Color(0xFF1764ED);
 
   static ThemeData get light => _build(Brightness.light);
 
@@ -14,23 +14,57 @@ abstract final class AppTheme {
           seedColor: blue,
           brightness: brightness,
           surface: brightness == Brightness.dark
-              ? const Color(0xFF111827)
-              : const Color(0xFFF8FAFC),
+              ? const Color(0xFF131E30)
+              : const Color(0xFFF7F9FD),
         ).copyWith(
           primary: isDark ? const Color(0xFF9FC2FF) : blue,
           onPrimary: isDark ? const Color(0xFF002558) : Colors.white,
           primaryContainer: isDark
-              ? const Color(0xFF16375E)
-              : const Color(0xFFE7EEFF),
+              ? const Color(0xFF19365C)
+              : const Color(0xFFE4EEFF),
           onPrimaryContainer: isDark
               ? const Color(0xFFD4E5FF)
               : const Color(0xFF143673),
+          surfaceContainerLowest: isDark
+              ? const Color(0xFF0B1220)
+              : Colors.white,
+          surfaceContainerLow: isDark
+              ? const Color(0xFF101C2E)
+              : const Color(0xFFEFF5FF),
+          surfaceContainer: isDark
+              ? const Color(0xFF162338)
+              : const Color(0xFFF0F4FA),
+          surfaceContainerHigh: isDark
+              ? const Color(0xFF1C2C43)
+              : const Color(0xFFEAF0F8),
+          surfaceContainerHighest: isDark
+              ? const Color(0xFF23344D)
+              : const Color(0xFFE1EAF6),
+          outlineVariant: isDark
+              ? const Color(0xFF293950)
+              : const Color(0xFFDCE5F1),
+          onSurface: isDark ? const Color(0xFFEDF3FF) : const Color(0xFF14213A),
+          onSurfaceVariant: isDark
+              ? const Color(0xFFAFBDD3)
+              : const Color(0xFF52627B),
         );
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
       textTheme: ThemeData(brightness: brightness).textTheme.copyWith(
+        headlineMedium: TextStyle(
+          fontSize: 30,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.8,
+          color: scheme.onSurface,
+        ),
+        headlineSmall: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.5,
+          color: scheme.onSurface,
+        ),
         titleLarge: TextStyle(
           fontSize: 22,
           fontWeight: FontWeight.w700,
@@ -49,24 +83,24 @@ abstract final class AppTheme {
         ),
       ),
       scaffoldBackgroundColor: isDark
-          ? const Color(0xFF080F1B)
-          : const Color(0xFFF4F6FA),
+          ? const Color(0xFF0B1220)
+          : const Color(0xFFF7F9FD),
       appBarTheme: AppBarTheme(
         backgroundColor: isDark
-            ? const Color(0xFF080F1B)
-            : const Color(0xFFF4F6FA),
+            ? const Color(0xFF0B1220)
+            : const Color(0xFFF7F9FD),
         foregroundColor: scheme.onSurface,
         elevation: 0,
         centerTitle: false,
       ),
       cardTheme: CardThemeData(
-        color: isDark ? const Color(0xFF101D2E) : Colors.white,
+        color: isDark ? const Color(0xFF131E30) : Colors.white,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(
-            color: isDark ? const Color(0xFF25334A) : const Color(0xFFE2E8F0),
+            color: isDark ? const Color(0xFF293950) : const Color(0xFFDCE5F1),
           ),
         ),
       ),
@@ -86,6 +120,22 @@ abstract final class AppTheme {
         selectedColor: scheme.onPrimaryContainer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: scheme.surfaceContainerLow,
+        indicatorColor: scheme.primaryContainer,
+        selectedIconTheme: IconThemeData(color: scheme.primary),
+        selectedLabelTextStyle: TextStyle(
+          color: scheme.primary,
+          fontWeight: FontWeight.w700,
+        ),
+        unselectedIconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+        unselectedLabelTextStyle: TextStyle(color: scheme.onSurfaceVariant),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: scheme.surfaceContainerLowest,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
       tooltipTheme: const TooltipThemeData(
         waitDuration: Duration(milliseconds: 400),
       ),
@@ -97,7 +147,7 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? const Color(0xFF0D1727) : const Color(0xFFF8FAFC),
+        fillColor: isDark ? const Color(0xFF0D1727) : const Color(0xFFF7F9FD),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: scheme.outlineVariant),
@@ -137,11 +187,31 @@ abstract final class AppTheme {
         backgroundColor: isDark
             ? const Color(0xFF101827)
             : const Color(0xFFFFFFFF),
-        indicatorColor: blue.withValues(alpha: 0.14),
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: scheme.primaryContainer,
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            fontSize: 12,
+            color: states.contains(WidgetState.selected)
+                ? scheme.primary
+                : scheme.onSurfaceVariant,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w700
+                : FontWeight.w500,
+          ),
+        ),
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? scheme.primary
+                : scheme.onSurfaceVariant,
+          ),
+        ),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
       dividerTheme: DividerThemeData(
-        color: isDark ? const Color(0xFF25334A) : const Color(0xFFE2E8F0),
+        color: isDark ? const Color(0xFF293950) : const Color(0xFFDCE5F1),
         thickness: 1,
       ),
     );
