@@ -202,6 +202,7 @@ class _AppShellState extends State<AppShell> {
     MonitorPage(
       onExit: () => _selectIndex(0),
       onConfigure: () => _selectIndex(1),
+      onOpenLayouts: () => _selectIndex(2),
     ),
     const SettingsPage(),
   ];

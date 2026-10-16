@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
@@ -17,11 +18,13 @@ class MonitorPage extends StatefulWidget {
   const MonitorPage({
     required this.onExit,
     required this.onConfigure,
+    this.onOpenLayouts,
     super.key,
   });
 
   final VoidCallback onExit;
   final VoidCallback onConfigure;
+  final VoidCallback? onOpenLayouts;
 
   @override
   State<MonitorPage> createState() => _MonitorPageState();
@@ -34,7 +37,9 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   final ValueNotifier<int> _diagnosticTick = ValueNotifier(0);
   int _page = 0;
   bool _mainStreams = false;
-  bool _showControls = true;
+  final ValueNotifier<bool> _controlsVisible = ValueNotifier(true);
+  DateTime _lastInteraction = DateTime.now();
+  bool get _showControls => _controlsVisible.value;
   bool _showDiagnostics = false;
   String? _focusedCameraId;
   int _generation = 0;
@@ -57,6 +62,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       if (!_appActive) {
         _appActive = true;
         _syncDiagnosticRefresh();
+        _revealControls();
         unawaited(_syncSessions());
       }
       return;
@@ -89,6 +95,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     _controlsTimer?.cancel();
     _diagnosticTimer?.cancel();
     _diagnosticTick.dispose();
+    _controlsVisible.dispose();
     unawaited(_releaseSessions(_sessions.values.toList()));
     _sessions.clear();
     super.dispose();
@@ -302,126 +309,139 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
           }
           return KeyEventResult.ignored;
         },
-        child: MouseRegion(
-          cursor: _showControls
-              ? SystemMouseCursors.basic
-              : SystemMouseCursors.none,
-          onHover: (_) => _revealControls(),
+        child: ValueListenableBuilder<bool>(
+          valueListenable: _controlsVisible,
+          builder: (context, visible, child) => MouseRegion(
+            cursor: visible
+                ? SystemMouseCursors.basic
+                : SystemMouseCursors.none,
+            onHover: (_) => _revealControls(),
+            child: Listener(
+              onPointerDown: (_) => _revealControls(),
+              child: child,
+            ),
+          ),
           child: Scaffold(
             backgroundColor: const Color(0xFF06090F),
             body: SafeArea(
-              child: Column(
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  if (_showControls) _toolbar(context, store, layout, pages),
-                  Expanded(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Positioned.fill(
-                          child: store.cameras.isEmpty
-                              ? const MonitorEmptyView(
-                                  message:
-                                      'Cadastre câmeras para começar a visualizar.',
-                                )
-                              : visibleCount == 0
-                              ? const MonitorEmptyView(
-                                  message:
-                                      'A grade está vazia. Associe câmeras em Layouts.',
-                                )
-                              : LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    final columns = min(
-                                      _columns(layout, constraints.maxWidth),
-                                      sqrt(visibleCount).ceil(),
-                                    );
-                                    final rows = (visibleCount / columns)
-                                        .ceil();
-                                    if (layout.focusIndex != null &&
-                                        constraints.maxWidth >= 600 &&
-                                        focusedIndex < 0 &&
-                                        from == 0 &&
-                                        visibleCount == layout.cameraCount) {
-                                      final rectangles = LayoutGeometry.tiles(
-                                        layout.id,
-                                        Size(
-                                          constraints.maxWidth,
-                                          constraints.maxHeight,
-                                        ),
-                                      );
-                                      if (rectangles.length == visibleCount) {
-                                        return Stack(
-                                          children: [
-                                            for (
-                                              var offset = 0;
-                                              offset < visibleCount;
-                                              offset++
-                                            )
-                                              Positioned.fromRect(
-                                                rect: rectangles[offset]
-                                                    .deflate(1.5),
-                                                child: _cameraTile(
-                                                  slots,
-                                                  offset,
-                                                  cameraById,
-                                                ),
-                                              ),
-                                          ],
-                                        );
-                                      }
-                                    }
-                                    final estimatedHeight =
-                                        rows *
-                                        ((constraints.maxWidth / columns) /
-                                            (16 / 10));
-                                    final shouldScroll =
-                                        constraints.maxWidth < 600 &&
-                                        estimatedHeight > constraints.maxHeight;
-                                    return GridView.builder(
-                                      padding: const EdgeInsets.all(3),
-                                      physics: shouldScroll
-                                          ? const ClampingScrollPhysics()
-                                          : const NeverScrollableScrollPhysics(),
-                                      itemCount: visibleCount,
-                                      gridDelegate:
-                                          SliverGridDelegateWithFixedCrossAxisCount(
-                                            crossAxisCount: columns,
-                                            mainAxisSpacing: 3,
-                                            crossAxisSpacing: 3,
-                                            childAspectRatio:
-                                                constraints.maxWidth < 600
-                                                ? 16 / 10
-                                                : (constraints.maxWidth /
-                                                          columns) /
-                                                      ((constraints.maxHeight /
-                                                              rows)
-                                                          .clamp(
-                                                            80,
-                                                            double.infinity,
-                                                          )),
+                  Positioned.fill(
+                    child: RepaintBoundary(
+                      key: const ValueKey('monitorViewport'),
+                      child: store.cameras.isEmpty
+                          ? const MonitorEmptyView(
+                              message:
+                                  'Cadastre câmeras para começar a visualizar.',
+                            )
+                          : visibleCount == 0
+                          ? const MonitorEmptyView(
+                              message:
+                                  'A grade está vazia. Associe câmeras em Layouts.',
+                            )
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                final columns = min(
+                                  _columns(layout, constraints.maxWidth),
+                                  sqrt(visibleCount).ceil(),
+                                );
+                                final rows = (visibleCount / columns).ceil();
+                                if (layout.focusIndex != null &&
+                                    constraints.maxWidth >= 600 &&
+                                    focusedIndex < 0 &&
+                                    from == 0 &&
+                                    visibleCount == layout.cameraCount) {
+                                  final rectangles = LayoutGeometry.tiles(
+                                    layout.id,
+                                    Size(
+                                      constraints.maxWidth,
+                                      constraints.maxHeight,
+                                    ),
+                                  );
+                                  if (rectangles.length == visibleCount) {
+                                    return Stack(
+                                      children: [
+                                        for (
+                                          var offset = 0;
+                                          offset < visibleCount;
+                                          offset++
+                                        )
+                                          Positioned.fromRect(
+                                            rect: rectangles[offset].deflate(
+                                              1.5,
+                                            ),
+                                            child: _cameraTile(
+                                              slots,
+                                              offset,
+                                              cameraById,
+                                            ),
                                           ),
-                                      itemBuilder: (context, offset) =>
-                                          _cameraTile(
-                                            slots,
-                                            from + offset,
-                                            cameraById,
-                                          ),
+                                      ],
                                     );
-                                  },
-                                ),
-                        ),
-                        if (_showDiagnostics)
-                          Positioned(
-                            top: 12,
-                            right: 12,
-                            child: ListenableBuilder(
-                              listenable: _diagnosticTick,
-                              builder: (context, _) =>
-                                  _diagnostics(context, store, slots),
+                                  }
+                                }
+                                final estimatedHeight =
+                                    rows *
+                                    ((constraints.maxWidth / columns) /
+                                        (16 / 10));
+                                final shouldScroll =
+                                    constraints.maxWidth < 600 &&
+                                    estimatedHeight > constraints.maxHeight;
+                                return GridView.builder(
+                                  padding: const EdgeInsets.all(3),
+                                  physics: shouldScroll
+                                      ? const ClampingScrollPhysics()
+                                      : const NeverScrollableScrollPhysics(),
+                                  itemCount: visibleCount,
+                                  gridDelegate:
+                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: columns,
+                                        mainAxisSpacing: 3,
+                                        crossAxisSpacing: 3,
+                                        childAspectRatio:
+                                            constraints.maxWidth < 600
+                                            ? 16 / 10
+                                            : (constraints.maxWidth / columns) /
+                                                  ((constraints.maxHeight /
+                                                          rows)
+                                                      .clamp(
+                                                        80,
+                                                        double.infinity,
+                                                      )),
+                                      ),
+                                  itemBuilder: (context, offset) => _cameraTile(
+                                    slots,
+                                    from + offset,
+                                    cameraById,
+                                  ),
+                                );
+                              },
                             ),
-                          ),
-                      ],
                     ),
                   ),
+
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: _controlsVisible,
+                      builder: (context, visible, _) => visible
+                          ? _toolbar(context, store, layout, pages)
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                  if (_showDiagnostics)
+                    Positioned(
+                      top: 76,
+                      right: 12,
+                      child: ListenableBuilder(
+                        listenable: _diagnosticTick,
+                        builder: (context, _) =>
+                            _diagnostics(context, store, slots),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -645,17 +665,26 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   }
 
   void _scheduleControlsHide() {
-    _controlsTimer?.cancel();
-    _controlsTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted && _showControls && !_showDiagnostics) {
-        setState(() => _showControls = false);
-      }
-    });
+    _lastInteraction = DateTime.now();
+    if (_controlsTimer?.isActive ?? false) return;
+    _controlsTimer = Timer(const Duration(seconds: 4), _hideControlsWhenIdle);
+  }
+
+  void _hideControlsWhenIdle() {
+    if (!mounted || !_appActive || _showDiagnostics) return;
+    final remaining =
+        const Duration(seconds: 4) -
+        DateTime.now().difference(_lastInteraction);
+    if (remaining > Duration.zero) {
+      _controlsTimer = Timer(remaining, _hideControlsWhenIdle);
+    } else {
+      _controlsVisible.value = false;
+    }
   }
 
   void _revealControls() {
-    _controlsTimer?.cancel();
-    if (!_showControls) setState(() => _showControls = true);
+    if (!_appActive) return;
+    _controlsVisible.value = true;
     _scheduleControlsHide();
   }
 
@@ -696,8 +725,16 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     LayoutPreset layout,
     int pages,
   ) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final desktop =
+        !kIsWeb &&
+        {
+          TargetPlatform.windows,
+          TargetPlatform.linux,
+          TargetPlatform.macOS,
+        }.contains(defaultTargetPlatform);
     return Material(
-      color: const Color(0xFF101722),
+      color: const Color(0xFF101C2E),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Row(
@@ -743,26 +780,27 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                 'MONITOR  ·  ${store.cameras.length} CÂMERAS',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white,
+                  fontSize: compact ? 12 : 14,
                   fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
+                  letterSpacing: 0.3,
                 ),
               ),
             ),
-            if (pages > 1 && _focusedCameraId == null)
+            if (pages > 1 && _focusedCameraId == null && !compact)
               IconButton(
                 onPressed: _page > 0
                     ? () => _changePage(_page - 1, store)
                     : null,
                 icon: const Icon(Icons.chevron_left, color: Colors.white),
               ),
-            if (pages > 1 && _focusedCameraId == null)
+            if (pages > 1 && _focusedCameraId == null && !compact)
               Text(
                 '${_page + 1}/$pages',
                 style: const TextStyle(color: Colors.white),
               ),
-            if (pages > 1 && _focusedCameraId == null)
+            if (pages > 1 && _focusedCameraId == null && !compact)
               IconButton(
                 onPressed: _page + 1 < pages
                     ? () => _changePage(_page + 1, store)
@@ -788,13 +826,62 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
               onSelected: (value) {
                 if (value.startsWith('layout:')) {
                   store.setLayout(value.substring(7));
+                } else if (value == 'cameras') {
+                  widget.onConfigure();
+                } else if (value == 'layouts') {
+                  widget.onOpenLayouts?.call();
+                } else if (value == 'previous') {
+                  _changePage(_page - 1, store);
+                } else if (value == 'next') {
+                  _changePage(_page + 1, store);
+                } else if (value == 'diagnostics') {
+                  setState(() => _showDiagnostics = !_showDiagnostics);
+                  _syncDiagnosticRefresh();
+                  _revealControls();
+                } else if (value == 'fullscreen') {
+                  unawaited(_toggleWindowFullscreen());
                 } else if (value == 'hide') {
-                  setState(() => _showControls = false);
+                  _controlsVisible.value = false;
                 } else if (value == 'shortcuts') {
                   _showKeyboardShortcuts(context);
                 }
               },
               itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'cameras',
+                  child: Text('Configurar câmeras'),
+                ),
+                if (widget.onOpenLayouts != null)
+                  const PopupMenuItem(
+                    value: 'layouts',
+                    child: Text('Editar layout e perfis'),
+                  ),
+                PopupMenuItem(
+                  value: 'diagnostics',
+                  child: Text(
+                    _showDiagnostics
+                        ? 'Fechar diagnósticos'
+                        : 'Diagnósticos das câmeras',
+                  ),
+                ),
+                if (desktop)
+                  const PopupMenuItem(
+                    value: 'fullscreen',
+                    child: Text('Alternar tela cheia'),
+                  ),
+                if (compact && pages > 1) ...[
+                  PopupMenuItem(
+                    value: 'previous',
+                    enabled: _page > 0,
+                    child: const Text('Página anterior'),
+                  ),
+                  PopupMenuItem(
+                    value: 'next',
+                    enabled: _page + 1 < pages,
+                    child: const Text('Próxima página'),
+                  ),
+                ],
+                const PopupMenuDivider(),
                 for (final preset in LayoutPreset.all.where(
                   (preset) =>
                       preset.id == 'SINGLE' ||
