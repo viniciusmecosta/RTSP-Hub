@@ -1,15 +1,124 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:rtsp_hub/main.dart';
 import 'package:rtsp_hub/app/data/app_configuration.dart';
 import 'package:rtsp_hub/app/state/app_store.dart';
 import 'package:rtsp_hub/features/camera_catalog/domain/camera_device.dart';
 import 'package:rtsp_hub/features/layouts/domain/saved_monitor_profile.dart';
+import 'package:rtsp_hub/features/camera_catalog/presentation/widgets/camera_preview_card.dart';
 import 'package:rtsp_hub/shared/infrastructure/secure_store/credential_store.dart';
 import 'package:rtsp_hub/shared/infrastructure/storage/config_repository.dart';
 
 void main() {
+  testWidgets('inicio mostra miniaturas e aplica perfil sem abrir players', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 1100);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final cameras = List.generate(
+      4,
+      (index) => CameraDevice(
+        id: 'cam-$index',
+        name: 'Câmera ${index + 1}',
+        host: '192.168.1.${index + 10}',
+        mainPath: '/main',
+      ),
+    );
+    await tester.pumpWidget(
+      _app(
+        configuration: AppConfiguration(
+          startupSection: 'dashboard',
+          tutorialCompleted: true,
+          cameras: cameras,
+          monitorProfiles: const [
+            SavedMonitorProfile(
+              id: 'single',
+              name: 'Somente garagem',
+              layoutId: 'SINGLE',
+              slotCameraIds: ['cam-1'],
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(CameraPreviewCard), findsNWidgets(4));
+    expect(find.byType(Video), findsNothing);
+    expect(find.text('AO VIVO'), findsNothing);
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Somente garagem').last);
+    await tester.pumpAndSettle();
+
+    final store = tester.widget<AppScope>(find.byType(AppScope)).notifier!;
+    expect(store.config.layoutId, 'SINGLE');
+    expect(store.config.slotCameraIds, ['cam-1']);
+    expect(find.text('Suas câmeras'), findsOneWidget);
+    expect(find.byType(Video), findsNothing);
+  });
+
+  testWidgets(
+    'ocultar controles preserva a grade e tocar no monitor os restaura',
+    (tester) async {
+      await tester.pumpWidget(
+        _app(
+          configuration: const AppConfiguration(
+            startupSection: 'monitor',
+            tutorialCompleted: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final viewport = find.byKey(const ValueKey('monitorViewport'));
+      final originalSize = tester.getSize(viewport);
+      await tester.tap(find.byTooltip('Ações do monitor'));
+      await tester.pumpAndSettle();
+      final originalWidget = tester.widget(viewport);
+      await tester.ensureVisible(find.text('Ocultar controles'));
+      await tester.tap(find.text('Ocultar controles'));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Ações do monitor'), findsNothing);
+      expect(tester.getSize(viewport), originalSize);
+      expect(identical(tester.widget(viewport), originalWidget), isTrue);
+      await tester.tapAt(tester.getCenter(viewport));
+      await tester.pump();
+      expect(find.byTooltip('Ações do monitor'), findsOneWidget);
+      expect(tester.getSize(viewport), originalSize);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('monitor permite diagnostico por toque em celular estreito', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpWidget(
+      _app(
+        configuration: const AppConfiguration(
+          startupSection: 'monitor',
+          tutorialCompleted: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Ações do monitor'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Diagnósticos das câmeras'));
+    await tester.pumpAndSettle();
+    expect(find.text('Diagnósticos da sessão'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('abre a tela inicial do RTSP Hub', (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
