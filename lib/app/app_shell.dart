@@ -10,6 +10,7 @@ import '../features/dashboard/presentation/dashboard_page.dart';
 import '../features/layouts/presentation/layouts_page.dart';
 import '../features/monitor/presentation/monitor_page.dart';
 import '../features/settings/presentation/settings_page.dart';
+import '../features/settings/presentation/global_connection_page.dart';
 import 'state/app_store.dart';
 
 enum AppSection { dashboard, cameras, layouts, monitor, settings }
@@ -134,6 +135,16 @@ class _AppShellState extends State<AppShell> {
                   backgroundColor: Theme.of(
                     context,
                   ).colorScheme.surfaceContainerLow,
+                  leading: shortLandscape
+                      ? null
+                      : Padding(
+                          padding: const EdgeInsets.only(bottom: 20, top: 12),
+                          child: Icon(
+                            Icons.videocam_rounded,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 30,
+                          ),
+                        ),
                   selectedIndex: _selectedIndex,
                   labelType: shortLandscape
                       ? NavigationRailLabelType.none
@@ -183,7 +194,7 @@ class _AppShellState extends State<AppShell> {
       onOpenProfile: (profileId) async {
         final store = AppScope.of(context);
         await store.applyMonitorProfile(profileId);
-        _selectIndex(3);
+        if (mounted) _selectIndex(3);
       },
     ),
     const CameraCatalogPage(),
@@ -200,6 +211,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _selectSection(AppSection section) {
+    if (_section == section) return;
     setState(() => _section = section);
     unawaited(AppScope.of(context).updateSettings(lastSection: section.name));
     _syncDesktopWindow(AppScope.of(context));
@@ -242,7 +254,7 @@ class _DesktopSidebar extends StatelessWidget {
   final ValueChanged<AppSection> onSelected;
 
   static const _items = <(AppSection, String, IconData)>[
-    (AppSection.dashboard, 'Visão geral', Icons.space_dashboard_outlined),
+    (AppSection.dashboard, 'Início', Icons.home_outlined),
     (AppSection.cameras, 'Câmeras', Icons.videocam_outlined),
     (AppSection.layouts, 'Layouts', Icons.grid_view_outlined),
     (AppSection.monitor, 'Monitor', Icons.monitor_outlined),
@@ -255,62 +267,64 @@ class _DesktopSidebar extends StatelessWidget {
     final colors = theme.colorScheme;
     return Container(
       key: const ValueKey('desktopSidebar'),
-      width: 248,
+      width: 220,
       color: colors.surfaceContainerLow,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 26, 16, 30),
+              padding: const EdgeInsets.fromLTRB(20, 30, 16, 30),
               child: Row(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.asset(
-                      'assets/logo.png',
-                      width: 42,
-                      height: 42,
-                      cacheWidth: 84,
-                      semanticLabel: 'RTSP Hub',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'RTSP Hub',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
+                  Icon(Icons.videocam_rounded, size: 30, color: colors.primary),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          const TextSpan(text: 'RTSP '),
+                          TextSpan(
+                            text: 'Hub',
+                            style: TextStyle(color: colors.primary),
                           ),
-                        ),
-                        Text(
-                          'CENTRAL DE CÂMERAS',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
+                      maxLines: 1,
+                      style: theme.textTheme.titleLarge,
                     ),
                   ),
                 ],
               ),
             ),
-            for (final item in _items)
-              _SidebarDestination(
-                section: item.$1,
-                label: item.$2,
-                icon: item.$3,
-                selected: item.$1 == section,
-                onTap: () => onSelected(item.$1),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final item in _items)
+                      _SidebarDestination(
+                        section: item.$1,
+                        label: item.$2,
+                        icon: item.$3,
+                        selected: item.$1 == section,
+                        onTap: () => onSelected(item.$1),
+                      ),
+                  ],
+                ),
               ),
-            const Spacer(),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Material(
+                color: Colors.transparent,
+                child: ListTile(
+                  leading: Icon(Icons.settings_ethernet, color: colors.primary),
+                  title: const Text('Conexão global'),
+                  onTap: () => GlobalConnectionPage.open(context),
+                ),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
               child: Row(
@@ -378,15 +392,7 @@ class _SidebarDestination extends StatelessWidget {
               height: 52,
               child: Row(
                 children: [
-                  Container(
-                    width: 3,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: selected ? colors.primary : Colors.transparent,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(width: 17),
+                  const SizedBox(width: 18),
                   Icon(icon, size: 22, color: foreground),
                   const SizedBox(width: 14),
                   Expanded(
