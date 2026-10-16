@@ -627,11 +627,15 @@ class AppStore extends ChangeNotifier {
     );
   }
 
-  Future<void> applyMonitorProfile(String id) async {
+  Future<bool> applyMonitorProfile(String id) async {
     final profile = _config.monitorProfiles
         .where((item) => item.id == id)
         .firstOrNull;
-    if (profile == null) return;
+    if (profile == null) {
+      _message = 'Este perfil não está mais disponível.';
+      notifyListeners();
+      return false;
+    }
     final layout = LayoutPreset.byId(
       profile.layoutId,
       cameraCount: _config.cameras.length,
@@ -646,7 +650,7 @@ class AppStore extends ChangeNotifier {
             }
           : null,
     );
-    await _commit(
+    return _commit(
       _config.copyWith(
         layoutId: layout.id,
         slotCameraIds: slots,
