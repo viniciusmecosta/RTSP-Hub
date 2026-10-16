@@ -263,6 +263,21 @@ void main() {
     expect(await store.passwordFor(store.cameras.single), 'private');
   });
 
+  test(
+    'a profile that could not be saved does not replace the active layout',
+    () async {
+      await store.setLayout('GRID_2H');
+      expect(await store.saveMonitorProfile(name: 'Portaria'), isTrue);
+      final id = store.config.monitorProfiles.single.id;
+      await store.setLayout('SINGLE');
+      repository.fail = true;
+
+      expect(await store.applyMonitorProfile(id), isFalse);
+      expect(store.activeLayout.id, 'SINGLE');
+      expect(store.message, isNotNull);
+    },
+  );
+
   test('failed global save rolls back configuration and credentials', () async {
     repository.fail = true;
     expect(

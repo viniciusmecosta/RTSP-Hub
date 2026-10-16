@@ -33,8 +33,16 @@ class _DashboardPageState extends State<DashboardPage> {
     if (id == null || _applyingProfile) return;
     final store = AppScope.of(context);
     setState(() => _applyingProfile = true);
-    await store.applyMonitorProfile(id);
-    if (mounted) setState(() => _applyingProfile = false);
+    final applied = await store.applyMonitorProfile(id);
+    if (!mounted) return;
+    setState(() => _applyingProfile = false);
+    if (!applied) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(store.message ?? 'Não foi possível abrir o perfil.'),
+        ),
+      );
+    }
   }
 
   @override

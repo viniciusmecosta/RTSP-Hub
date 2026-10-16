@@ -32,7 +32,18 @@ class LayoutsPage extends StatelessWidget {
         _SavedProfiles(
           profiles: store.config.monitorProfiles,
           onSave: () => _saveProfile(context, store),
-          onApply: store.applyMonitorProfile,
+          onApply: (id) async {
+            final applied = await store.applyMonitorProfile(id);
+            if (!applied && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    store.message ?? 'Não foi possível abrir o perfil.',
+                  ),
+                ),
+              );
+            }
+          },
           onRemove: store.removeMonitorProfile,
         ),
       ],

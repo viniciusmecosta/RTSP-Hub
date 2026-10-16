@@ -193,8 +193,19 @@ class _AppShellState extends State<AppShell> {
       onOpenLayouts: () => _selectIndex(2),
       onOpenProfile: (profileId) async {
         final store = AppScope.of(context);
-        await store.applyMonitorProfile(profileId);
-        if (mounted) _selectIndex(3);
+        final applied = await store.applyMonitorProfile(profileId);
+        if (!mounted) return;
+        if (applied) {
+          _selectIndex(3);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                store.message ?? 'Não foi possível abrir o perfil.',
+              ),
+            ),
+          );
+        }
       },
     ),
     const CameraCatalogPage(),
