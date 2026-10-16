@@ -74,7 +74,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Visão geral'), findsOneWidget);
-    expect(find.text('Comece pelo essencial'), findsOneWidget);
+    expect(find.text('Suas câmeras'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

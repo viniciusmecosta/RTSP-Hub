@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../app/state/app_store.dart';
 import '../../../shared/design_system/page_frame.dart';
 import '../../camera_catalog/presentation/camera_preview_dialog.dart';
-import '../../camera_catalog/presentation/camera_thumbnail.dart';
+import '../../camera_catalog/presentation/widgets/camera_preview_card.dart';
 import '../../settings/presentation/global_connection_page.dart';
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   const DashboardPage({
     required this.onAddCamera,
     required this.onOpenMonitor,
@@ -21,212 +21,273 @@ class DashboardPage extends StatelessWidget {
   final ValueChanged<String>? onOpenProfile;
 
   @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  bool _applyingProfile = false;
+
+  Future<void> _selectProfile(String? id) async {
+    if (id == null || _applyingProfile) return;
+    final store = AppScope.of(context);
+    setState(() => _applyingProfile = true);
+    await store.applyMonitorProfile(id);
+    if (mounted) setState(() => _applyingProfile = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
     final colors = Theme.of(context).colorScheme;
     final profile = store.lastSavedProfile;
     final selected = store.config.slotCameraIds.whereType<String>().length;
-    return PageFrame(
+    final cameras = store.cameras.take(4).toList(growable: false);
+    return PageFrame.slivers(
       title: 'Visão geral',
-      subtitle: 'RTSP Hub · Sua central de monitoramento',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.monitor, size: 28, color: colors.primary),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Monitor ao vivo',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    selected > 0
-                        ? '$selected câmeras selecionadas. Abra sua grade para acompanhar as imagens.'
-                        : 'Prepare suas câmeras e escolha como quer acompanhar as imagens.',
-                  ),
-                  const SizedBox(height: 18),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      Chip(
-                        avatar: const Icon(Icons.videocam_outlined, size: 18),
-                        label: Text('${store.cameras.length} cadastradas'),
-                      ),
-                      Chip(
-                        avatar: const Icon(Icons.grid_view, size: 18),
-                        label: Text(store.activeLayout.name),
-                      ),
-                      const Chip(
-                        avatar: Icon(Icons.devices, size: 18),
-                        label: Text('Dados neste dispositivo'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: store.cameras.isEmpty
-                            ? onAddCamera
-                            : onOpenMonitor,
-                        icon: Icon(
-                          store.cameras.isEmpty ? Icons.add : Icons.play_arrow,
-                        ),
-                        label: Text(
-                          store.cameras.isEmpty
-                              ? 'Adicionar câmera'
-                              : 'Abrir monitor',
-                        ),
-                      ),
-                      if (profile != null && onOpenProfile != null)
-                        OutlinedButton.icon(
-                          onPressed: () => onOpenProfile!(profile.id),
-                          icon: const Icon(Icons.history),
-                          label: Text(
-                            'Acesso rápido · ${profile.name}',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 28),
-          Text(
-            'Comece pelo essencial',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
+      subtitle: 'Suas câmeras, em um olhar.',
+      maxContentWidth: 1200,
+      slivers: [
+        SliverToBoxAdapter(
+          child: LayoutBuilder(
             builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 1000
-                  ? 3
-                  : constraints.maxWidth >= 660
-                  ? 2
-                  : 1;
-              final width =
-                  (constraints.maxWidth - 12 * (columns - 1)) / columns;
-              return Wrap(
-                spacing: 12,
-                runSpacing: 12,
+              final compact =
+                  constraints.maxWidth < 620 ||
+                  MediaQuery.textScalerOf(context).scale(14) > 20;
+              final selector = DropdownButtonFormField<String>(
+                key: ValueKey(store.config.lastProfileId),
+                initialValue:
+                    store.config.monitorProfiles.any(
+                      (item) => item.id == store.config.lastProfileId,
+                    )
+                    ? store.config.lastProfileId
+                    : null,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Perfil de visualização',
+                  hintText: 'Grade atual',
+                  prefixIcon: Icon(Icons.home_outlined),
+                ),
+                items: [
+                  for (final item in store.config.monitorProfiles)
+                    DropdownMenuItem(
+                      value: item.id,
+                      child: Text(
+                        item.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged:
+                    _applyingProfile || store.config.monitorProfiles.isEmpty
+                    ? null
+                    : _selectProfile,
+                hint: const Text('Grade atual'),
+              );
+              final open = FilledButton.icon(
+                onPressed: _applyingProfile
+                    ? null
+                    : store.cameras.isEmpty
+                    ? widget.onAddCamera
+                    : selected == 0
+                    ? widget.onOpenLayouts ?? widget.onOpenMonitor
+                    : widget.onOpenMonitor,
+                icon: Icon(
+                  store.cameras.isEmpty ? Icons.add : Icons.monitor_outlined,
+                ),
+                label: Text(
+                  store.cameras.isEmpty
+                      ? 'Adicionar câmera'
+                      : selected == 0
+                      ? 'Montar monitor'
+                      : 'Abrir monitor',
+                ),
+              );
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(
-                    width: width,
-                    child: _SetupCard(
-                      number: '01',
-                      title: 'Conexão global',
-                      description:
-                          'Defina usuário, senha, porta e canais uma vez.',
-                      icon: Icons.settings_ethernet,
-                      onTap: () => GlobalConnectionPage.open(context),
+                  if (compact) ...[
+                    selector,
+                    const SizedBox(height: 14),
+                    open,
+                  ] else
+                    Row(
+                      children: [
+                        Expanded(child: selector),
+                        const SizedBox(width: 16),
+                        SizedBox(width: 200, child: open),
+                      ],
                     ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        '${store.cameras.length} câmeras cadastradas · $selected na grade',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: widget.onOpenLayouts,
+                        icon: const Icon(Icons.grid_view_outlined, size: 18),
+                        label: const Text('Editar layout'),
+                      ),
+                    ],
                   ),
-                  SizedBox(
-                    width: width,
-                    child: _SetupCard(
-                      number: '02',
-                      title: 'Suas câmeras',
-                      description:
-                          'Cadastre por IP ou encontre dispositivos na rede.',
-                      icon: Icons.videocam_outlined,
-                      onTap: onAddCamera,
+                  if (profile != null && widget.onOpenProfile != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _applyingProfile
+                            ? null
+                            : () => widget.onOpenProfile!(profile.id),
+                        icon: const Icon(Icons.history_rounded, size: 18),
+                        label: Text(
+                          'Acesso rápido · ${profile.name}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ),
-                  ),
-                  SizedBox(
-                    width: width,
-                    child: _SetupCard(
-                      number: '03',
-                      title: 'Seu layout',
-                      description:
-                          'Escolha as posições e salve seus perfis de visualização.',
-                      icon: Icons.grid_view,
-                      onTap: onOpenLayouts ?? onOpenMonitor,
-                    ),
-                  ),
+                  const SizedBox(height: 14),
                 ],
               );
             },
           ),
-          if (store.cameras.isNotEmpty) ...[
-            const SizedBox(height: 28),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Acesso às câmeras',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
+        ),
+        SliverToBoxAdapter(
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Suas câmeras',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-                TextButton(
-                  onPressed: onAddCamera,
-                  child: const Text('Ver todas'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Card(
-              child: Column(
-                children: [
-                  for (final camera in store.cameras.take(4))
-                    ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      leading: SizedBox(
-                        width: 72,
-                        height: 48,
-                        child: CameraThumbnail(cameraId: camera.id),
-                      ),
-                      title: Text(
-                        camera.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(camera.host),
-                      trailing: const Icon(Icons.play_circle_outline),
-                      onTap: () =>
-                          CameraPreviewDialog.openSaved(context, store, camera),
-                    ),
-                ],
+              ),
+              TextButton(
+                onPressed: widget.onAddCamera,
+                child: const Text('Ver todas'),
+              ),
+            ],
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 10)),
+        if (cameras.isEmpty)
+          SliverToBoxAdapter(
+            child: EmptyPanel(
+              icon: Icons.videocam_outlined,
+              title: 'Sua primeira câmera começa aqui',
+              description:
+                  'Defina a conexão global e cadastre um IP ou encontre as câmeras da sua rede.',
+              action: FilledButton.icon(
+                onPressed: widget.onAddCamera,
+                icon: const Icon(Icons.add),
+                label: const Text('Adicionar câmera'),
               ),
             ),
-          ],
-        ],
-      ),
+          )
+        else
+          SliverLayoutBuilder(
+            builder: (context, constraints) {
+              final scaler = MediaQuery.textScalerOf(context);
+              final columns =
+                  constraints.crossAxisExtent < 300 ||
+                      scaler.scale(14) > 20 && constraints.crossAxisExtent < 650
+                  ? 1
+                  : 2;
+              final width =
+                  (constraints.crossAxisExtent - 14 * (columns - 1)) / columns;
+              return SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                  mainAxisExtent: CameraPreviewCard.heightFor(
+                    width,
+                    scaler,
+                    showHost: false,
+                  ),
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => CameraPreviewCard(
+                    key: ValueKey(cameras[index].id),
+                    camera: cameras[index],
+                    showHost: false,
+                    onPreview: () => CameraPreviewDialog.openSaved(
+                      context,
+                      store,
+                      cameras[index],
+                    ),
+                  ),
+                  childCount: cameras.length,
+                ),
+              );
+            },
+          ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 24),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 600;
+                final columns =
+                    constraints.maxWidth < 300 ||
+                        MediaQuery.textScalerOf(context).scale(14) > 20 &&
+                            compact
+                    ? 1
+                    : 2;
+                final width =
+                    (constraints.maxWidth - 14 * (columns - 1)) / columns;
+                return Wrap(
+                  spacing: 14,
+                  runSpacing: 14,
+                  children: [
+                    SizedBox(
+                      width: width,
+                      child: _DashboardAction(
+                        title: 'Layouts',
+                        description: compact
+                            ? null
+                            : 'Organize as câmeras e salve seus perfis.',
+                        icon: Icons.grid_view_outlined,
+                        onTap: widget.onOpenLayouts ?? widget.onOpenMonitor,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _DashboardAction(
+                        title: 'Conexão global',
+                        description: compact
+                            ? null
+                            : 'Usuário, senha, porta e canais padrão.',
+                        icon: Icons.settings_ethernet,
+                        onTap: () => GlobalConnectionPage.open(context),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _SetupCard extends StatelessWidget {
-  const _SetupCard({
-    required this.number,
+class _DashboardAction extends StatelessWidget {
+  const _DashboardAction({
     required this.title,
     required this.description,
     required this.icon,
     required this.onTap,
   });
-  final String number;
+
   final String title;
-  final String description;
+  final String? description;
   final IconData icon;
   final VoidCallback onTap;
 
@@ -238,29 +299,36 @@ class _SetupCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.all(16),
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Icon(icon, color: colors.primary),
-                  const Spacer(),
-                  Text(
-                    number,
-                    style: TextStyle(
-                      color: colors.onSurfaceVariant,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ],
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colors.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Icon(icon, color: colors.primary),
+                ),
               ),
-              const SizedBox(height: 16),
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Text(
-                description,
-                style: TextStyle(color: colors.onSurfaceVariant, height: 1.4),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    if (description != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        description!,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ],
           ),
