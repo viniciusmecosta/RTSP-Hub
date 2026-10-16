@@ -18,10 +18,7 @@ class CameraLoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final loading =
-        status == CameraPlaybackStatus.idle ||
-        status == CameraPlaybackStatus.connecting ||
-        status == CameraPlaybackStatus.reconnecting;
+    final loading = status == CameraPlaybackStatus.connecting;
     final title = switch (status) {
       CameraPlaybackStatus.idle => 'Preparando câmera',
       CameraPlaybackStatus.connecting => 'Conectando à câmera',
@@ -69,8 +66,10 @@ class CameraLoadingView extends StatelessWidget {
                         ),
                       )
                     else if (!tiny && status != CameraPlaybackStatus.error)
-                      const Icon(
-                        Icons.videocam_outlined,
+                      Icon(
+                        status == CameraPlaybackStatus.reconnecting
+                            ? Icons.sync_problem_outlined
+                            : Icons.videocam_outlined,
                         size: 24,
                         color: Color(0xFF8FB7FF),
                       ),

@@ -302,6 +302,7 @@ class RtspSession extends ChangeNotifier {
   }
 
   Future<void> pause() async {
+    if (_disposed) return;
     ++_generation;
     _retryTimer?.cancel();
     _stallTimer?.cancel();
@@ -310,6 +311,7 @@ class RtspSession extends ChangeNotifier {
     final player = _player;
     _player = null;
     _videoController = null;
+    firstFrameRendered.value = false;
     await _errorSubscription?.cancel();
     await _playingSubscription?.cancel();
     await _positionSubscription?.cancel();
@@ -369,6 +371,7 @@ class RtspSession extends ChangeNotifier {
     _progressTimer?.cancel();
     _player = null;
     _videoController = null;
+    firstFrameRendered.value = false;
     _errorSubscription?.cancel();
     _playingSubscription?.cancel();
     _positionSubscription?.cancel();

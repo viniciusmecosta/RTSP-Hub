@@ -46,6 +46,7 @@ void main() {
 
     expect(find.text('Reconectando à câmera'), findsOneWidget);
     expect(find.textContaining('Nova tentativa em 4 s'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

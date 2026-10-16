@@ -69,7 +69,9 @@ class MonitorCameraTile extends StatelessWidget {
                   style: TextStyle(color: Color(0xFF8A98AA)),
                 ),
               ),
-            if (camera != null && session?.firstFrameRendered.value != true)
+            if (camera != null &&
+                (session?.videoController == null ||
+                    session?.firstFrameRendered.value != true))
               Positioned.fill(
                 child: CameraLoadingView(
                   status: session?.status.value ?? CameraPlaybackStatus.idle,
@@ -81,25 +83,31 @@ class MonitorCameraTile extends StatelessWidget {
             if (camera != null)
               Positioned(
                 left: 8,
+                right: 8,
                 bottom: 8,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.58),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 4,
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.58),
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(
-                      camera!.savedPaths.length > 1
-                          ? '${camera!.name} (${camera!.playbackPath(useMainStream: true)})'
-                          : camera!.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 4,
+                      ),
+                      child: Text(
+                        camera!.savedPaths.length > 1
+                            ? '${camera!.name} (${camera!.playbackPath(useMainStream: true)})'
+                            : camera!.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
