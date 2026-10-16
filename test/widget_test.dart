@@ -59,7 +59,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Entendi'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Layouts'));
+    await tester.tap(find.byKey(const ValueKey('sidebar_layouts')));
     await tester.pumpAndSettle();
 
     expect(find.text('Prévia do monitor'), findsOneWidget);
