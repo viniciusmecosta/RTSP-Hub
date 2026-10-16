@@ -321,7 +321,14 @@ class _DesktopSidebar extends StatelessWidget {
                 color: Colors.transparent,
                 child: ListTile(
                   leading: Icon(Icons.settings_ethernet, color: colors.primary),
-                  title: const Text('Conexão global'),
+                  minLeadingWidth: 24,
+                  horizontalTitleGap: 10,
+                  title: Text(
+                    'Conexão global',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
                   onTap: () => GlobalConnectionPage.open(context),
                 ),
               ),
