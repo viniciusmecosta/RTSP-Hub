@@ -19,6 +19,7 @@ class CameraSnapshotStore extends ChangeNotifier {
   final Directory? directory;
   Future<Directory>? _resolvedDirectory;
   int revision = 0;
+  String? lastChangedId;
 
   Future<File> fileFor(String id) async {
     final root = await (_resolvedDirectory ??= _directory());
@@ -100,6 +101,7 @@ class CameraSnapshotStore extends ChangeNotifier {
         await ResizeImage(FileImage(file), width: width).evict();
       }
       revision++;
+      lastChangedId = id;
       notifyListeners();
       return true;
     } on Object {
@@ -120,6 +122,7 @@ class CameraSnapshotStore extends ChangeNotifier {
         await ResizeImage(FileImage(file), width: width).evict();
       }
       revision++;
+      lastChangedId = id;
       notifyListeners();
       return true;
     } on Object {

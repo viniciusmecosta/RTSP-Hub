@@ -22,6 +22,7 @@ class CameraThumbnail extends StatefulWidget {
 class _CameraThumbnailState extends State<CameraThumbnail> {
   CameraSnapshotStore? _store;
   Future<File?>? _file;
+  int _imageRevision = 0;
 
   @override
   void didChangeDependencies() {
@@ -30,13 +31,17 @@ class _CameraThumbnailState extends State<CameraThumbnail> {
     if (identical(store, _store)) return;
     _store?.removeListener(_reload);
     _store = store..addListener(_reload);
+    _imageRevision = store.revision;
     _file = _read();
   }
 
   @override
   void didUpdateWidget(CameraThumbnail oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.cameraId != widget.cameraId) _file = _read();
+    if (oldWidget.cameraId != widget.cameraId) {
+      _imageRevision = _store?.revision ?? 0;
+      _file = _read();
+    }
   }
 
   Future<File?> _read() async {
@@ -49,7 +54,12 @@ class _CameraThumbnailState extends State<CameraThumbnail> {
   }
 
   void _reload() {
-    if (mounted) setState(() => _file = _read());
+    if (mounted && _store?.lastChangedId == widget.cameraId) {
+      setState(() {
+        _imageRevision = _store!.revision;
+        _file = _read();
+      });
+    }
   }
 
   @override
@@ -76,7 +86,7 @@ class _CameraThumbnailState extends State<CameraThumbnail> {
           if (file == null) return placeholder;
           return LayoutBuilder(
             builder: (context, constraints) => Image(
-              key: ValueKey(_store!.revision),
+              key: ValueKey((widget.cameraId, _imageRevision)),
               image: ResizeImage(
                 FileImage(file),
                 width: CameraSnapshotStore.decodeWidth(
