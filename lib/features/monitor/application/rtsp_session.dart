@@ -10,6 +10,7 @@ import '../domain/rtsp_buffer_policy.dart';
 import '../domain/reconnect_policy.dart';
 import '../domain/rtsp_failure_message.dart';
 import '../domain/rtsp_stream_uri.dart';
+import '../domain/rtsp_playback_health.dart';
 import 'rtsp_connection_coordinator.dart';
 
 enum CameraPlaybackStatus {
@@ -55,7 +56,6 @@ class RtspSession extends ChangeNotifier {
   StreamSubscription<bool>? _playingSubscription;
   StreamSubscription<Duration>? _positionSubscription;
   Timer? _retryTimer;
-  Timer? _stallTimer;
   Timer? _progressTimer;
   Future<void>? _starting;
   Future<void>? _closing;
@@ -66,8 +66,10 @@ class RtspSession extends ChangeNotifier {
   bool _disposed = false;
   int? _firstFrameLatencyMs;
   Duration? _nextRetryDelay;
-  Duration _lastPosition = Duration.zero;
-  DateTime? _lastPositionAdvanced;
+  final _health = RtspPlaybackHealth();
+  final _healthClock = Stopwatch()..start();
+  final _unavailableHealthProperties = <String>{};
+  bool _checkingHealth = false;
   bool authenticationFailed = false;
   String? _hardwareDecoder;
   int? _droppedFrames;
@@ -174,8 +176,7 @@ class RtspSession extends ChangeNotifier {
     _progressTimer?.cancel();
     _nextRetryDelay = null;
     authenticationFailed = false;
-    _lastPosition = Duration.zero;
-    _lastPositionAdvanced = null;
+    _unavailableHealthProperties.clear();
     _hardwareDecoder = null;
     _droppedFrames = null;
     final generation = ++_generation;
@@ -251,44 +252,16 @@ class RtspSession extends ChangeNotifier {
       });
       _positionSubscription = player.stream.position.listen((position) {
         if (generation != _generation || _disposed) return;
-        if (position > _lastPosition ||
-            (position > Duration.zero && position < _lastPosition)) {
-          _lastPositionAdvanced = DateTime.now();
-        }
-        _lastPosition = position;
+        _health.positionChanged(position, _healthClock.elapsed);
       });
       _progressTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-        if (generation != _generation ||
-            _disposed ||
-            !firstFrameRendered.value ||
-            !player.state.playing) {
-          return;
-        }
-        final advanced = _lastPositionAdvanced;
-        if (advanced != null &&
-            DateTime.now().difference(advanced) > const Duration(seconds: 12)) {
-          _markFailure(
-            'O vídeo parou de avançar. Tentando restabelecer a conexão.',
-          );
-        }
+        unawaited(_checkPlaybackHealth(player, generation));
       });
       _playingSubscription = player.stream.playing.listen((playing) {
         if (generation != _generation || _disposed) return;
         if (playing) {
-          _stallTimer?.cancel();
           status.value = CameraPlaybackStatus.playing;
           error.value = null;
-        } else if (firstFrameRendered.value) {
-          _stallTimer?.cancel();
-          _stallTimer = Timer(const Duration(seconds: 10), () {
-            if (!_disposed &&
-                generation == _generation &&
-                _player?.state.playing == false) {
-              _markFailure(
-                'O vídeo parou de responder. Tentando restabelecer a conexão.',
-              );
-            }
-          });
         }
         notifyListeners();
       });
@@ -307,6 +280,7 @@ class RtspSession extends ChangeNotifier {
       if (generation == _generation && !_disposed) {
         _firstFrameLatencyMs = started.elapsedMilliseconds;
         _failures = 0;
+        _health.begin(_healthClock.elapsed);
         firstFrameRendered.value = true;
         status.value = CameraPlaybackStatus.playing;
         error.value = null;
@@ -327,13 +301,71 @@ class RtspSession extends ChangeNotifier {
     }
   }
 
+  Future<void> _checkPlaybackHealth(Player player, int generation) async {
+    if (_disposed ||
+        generation != _generation ||
+        !firstFrameRendered.value ||
+        _checkingHealth) {
+      return;
+    }
+    final now = _healthClock.elapsed;
+    if (!_health.needsProbe(now) &&
+        player.state.playing &&
+        !player.state.buffering &&
+        !player.state.completed) {
+      return;
+    }
+    _checkingHealth = true;
+    try {
+      final backend = player.platform;
+      Future<double?> property(String name) async {
+        if (backend is! NativePlayer ||
+            _unavailableHealthProperties.contains(name)) {
+          return null;
+        }
+        try {
+          final value = await backend
+              .getProperty(name)
+              .timeout(const Duration(milliseconds: 750));
+          final parsed = double.tryParse(value);
+          if (parsed == null) _unavailableHealthProperties.add(name);
+          return parsed;
+        } on Object {
+          _unavailableHealthProperties.add(name);
+          return null;
+        }
+      }
+
+      final values = await Future.wait([
+        property('video-pts'),
+        property('cache-speed'),
+      ]);
+      if (_disposed || generation != _generation || !identical(_player, player)) {
+        return;
+      }
+      if (_health.isStalled(
+        _healthClock.elapsed,
+        playing: player.state.playing,
+        buffering: player.state.buffering,
+        videoPts: values[0],
+        inputBytesPerSecond: values[1],
+        endOfStream: player.state.completed,
+      )) {
+        _markFailure(
+          'O vídeo parou de responder. Tentando restabelecer a conexão.',
+        );
+      }
+    } finally {
+      _checkingHealth = false;
+    }
+  }
+
   Future<void> pause() async {
     if (_disposed) return;
     ++_generation;
     _connectionTicket?.cancel();
     _connectionTicket = null;
     _retryTimer?.cancel();
-    _stallTimer?.cancel();
     _progressTimer?.cancel();
     _nextRetryDelay = null;
     final player = _player;
@@ -365,7 +397,6 @@ class RtspSession extends ChangeNotifier {
     _connectionTicket?.cancel();
     _connectionTicket = null;
     _retryTimer?.cancel();
-    _stallTimer?.cancel();
     _progressTimer?.cancel();
     await _errorSubscription?.cancel();
     await _playingSubscription?.cancel();
@@ -400,7 +431,6 @@ class RtspSession extends ChangeNotifier {
     _connectionTicket?.cancel();
     _connectionTicket = null;
     final oldPlayer = _player;
-    _stallTimer?.cancel();
     _progressTimer?.cancel();
     _player = null;
     _videoController = null;
