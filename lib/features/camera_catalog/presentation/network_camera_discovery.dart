@@ -714,10 +714,14 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       FilledButton.icon(
-                        onPressed: _busy ? _cancelSearch : _search,
+                        onPressed: _busy
+                            ? (_cancel ? null : _cancelSearch)
+                            : _search,
                         icon: Icon(_busy ? Icons.stop : Icons.search),
                         label: Text(
-                          _busy ? 'Cancelar pesquisa' : 'Buscar câmeras',
+                          _busy
+                              ? (_cancel ? 'Cancelando…' : 'Cancelar pesquisa')
+                              : 'Buscar câmeras',
                         ),
                       ),
                       if (_busy)
@@ -727,7 +731,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
                             value: _total == 0 ? null : _completed / _total,
                           ),
                         ),
-                      if (_busy) Text(_stage),
+                      if (_stage.isNotEmpty) Text(_stage),
                     ],
                   ),
                   if (_channels.isNotEmpty) ...[
