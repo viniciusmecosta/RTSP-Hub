@@ -10,6 +10,7 @@ import '../domain/rtsp_buffer_policy.dart';
 import '../domain/reconnect_policy.dart';
 import '../domain/rtsp_failure_message.dart';
 import '../domain/rtsp_stream_uri.dart';
+import 'rtsp_connection_coordinator.dart';
 
 enum CameraPlaybackStatus {
   idle,
@@ -29,6 +30,8 @@ class RtspSession extends ChangeNotifier {
     required this.useMainStream,
     this.firstFrameTimeout = const Duration(seconds: 8),
     this.retryEnabled = true,
+    this.connectionCoordinator,
+    this.connectionPriority = 0,
   });
 
   final CameraDevice camera;
@@ -38,6 +41,9 @@ class RtspSession extends ChangeNotifier {
   final bool useMainStream;
   final Duration firstFrameTimeout;
   final bool retryEnabled;
+  final RtspConnectionCoordinator? connectionCoordinator;
+  final int connectionPriority;
+  RtspConnectionTicket? _connectionTicket;
   final ValueNotifier<CameraPlaybackStatus> status = ValueNotifier(
     CameraPlaybackStatus.idle,
   );
@@ -173,7 +179,8 @@ class RtspSession extends ChangeNotifier {
     _hardwareDecoder = null;
     _droppedFrames = null;
     final generation = ++_generation;
-    final started = Stopwatch()..start();
+    final started = Stopwatch();
+    RtspConnectionLease? lease;
     status.value = _failures == 0
         ? CameraPlaybackStatus.connecting
         : CameraPlaybackStatus.reconnecting;
@@ -184,6 +191,15 @@ class RtspSession extends ChangeNotifier {
       final closing = _closing;
       if (closing != null) await closing;
       if (generation != _generation || _disposed) return;
+      final coordinator = connectionCoordinator;
+      if (coordinator != null) {
+        final ticket = coordinator.request(priority: connectionPriority);
+        _connectionTicket = ticket;
+        lease = await ticket.ready;
+        if (identical(_connectionTicket, ticket)) _connectionTicket = null;
+        if (lease == null || generation != _generation || _disposed) return;
+      }
+      started.start();
       MediaKit.ensureInitialized();
       final player = Player(
         configuration: PlayerConfiguration(
@@ -306,12 +322,16 @@ class RtspSession extends ChangeNotifier {
           retry: RtspFailureMessage.canRetry(exception),
         );
       }
+    } finally {
+      lease?.release();
     }
   }
 
   Future<void> pause() async {
     if (_disposed) return;
     ++_generation;
+    _connectionTicket?.cancel();
+    _connectionTicket = null;
     _retryTimer?.cancel();
     _stallTimer?.cancel();
     _progressTimer?.cancel();
@@ -342,6 +362,8 @@ class RtspSession extends ChangeNotifier {
   Future<void> _disposeSession() async {
     _disposed = true;
     ++_generation;
+    _connectionTicket?.cancel();
+    _connectionTicket = null;
     _retryTimer?.cancel();
     _stallTimer?.cancel();
     _progressTimer?.cancel();
@@ -375,6 +397,8 @@ class RtspSession extends ChangeNotifier {
 
   void _markFailure(String message, {bool retry = true}) {
     ++_generation;
+    _connectionTicket?.cancel();
+    _connectionTicket = null;
     final oldPlayer = _player;
     _stallTimer?.cancel();
     _progressTimer?.cancel();
