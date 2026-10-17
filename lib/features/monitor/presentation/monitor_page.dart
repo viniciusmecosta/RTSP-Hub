@@ -13,6 +13,7 @@ import '../../../features/layouts/domain/layout_preset.dart';
 import '../../../features/layouts/domain/layout_geometry.dart';
 import '../application/rtsp_session.dart';
 import '../application/rtsp_connection_coordinator.dart';
+import '../domain/stream_selection_policy.dart';
 import 'widgets/monitor_camera_tile.dart';
 
 class MonitorPage extends StatefulWidget {
@@ -38,7 +39,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   Timer? _diagnosticTimer;
   final ValueNotifier<int> _diagnosticTick = ValueNotifier(0);
   int _page = 0;
-  bool _mainStreams = false;
+  bool? _mainStreams;
   final ValueNotifier<bool> _controlsVisible = ValueNotifier(true);
   DateTime _lastInteraction = DateTime.now();
   bool get _showControls => _controlsVisible.value;
@@ -163,11 +164,12 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       if (!mounted || generation != _generation) return;
       final effectiveCamera = store.resolveCamera(camera);
       final existing = _sessions[id];
-      final mainStream =
-          _mainStreams ||
-          _focusedCameraId == id ||
-          store.config.resourceMode == 'quality' ||
-          effectiveCamera.activeChannel?.sub == null;
+      final mainStream = StreamSelectionPolicy.useMainStream(
+        resourceMode: store.config.resourceMode,
+        manualChoice: _mainStreams,
+        focused: _focusedCameraId == id,
+        hasSubStream: effectiveCamera.activeChannel?.sub != null,
+      );
       if (existing != null &&
           _sameCamera(existing.camera, effectiveCamera) &&
           existing.password == secret &&
@@ -736,6 +738,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     int pages,
   ) {
     final compact = MediaQuery.sizeOf(context).width < 600;
+    final mainStreams = _mainStreams ?? store.config.resourceMode == 'quality';
     final desktop =
         !kIsWeb &&
         {
@@ -818,15 +821,14 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                 icon: const Icon(Icons.chevron_right, color: Colors.white),
               ),
             IconButton(
-              tooltip: _mainStreams ? 'Fluxo principal' : 'Fluxo econômico',
+              tooltip:
+                  '${mainStreams ? 'Fluxo principal' : 'Fluxo econômico'}${_mainStreams == null ? ' · automático' : ' · escolha manual'}',
               onPressed: () {
-                setState(() => _mainStreams = !_mainStreams);
+                setState(() => _mainStreams = !mainStreams);
                 unawaited(_restartSessions());
               },
               icon: Icon(
-                _mainStreams
-                    ? Icons.high_quality
-                    : Icons.data_saver_on_outlined,
+                mainStreams ? Icons.high_quality : Icons.data_saver_on_outlined,
                 color: Colors.white,
               ),
             ),
@@ -836,6 +838,9 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
               onSelected: (value) {
                 if (value.startsWith('layout:')) {
                   store.setLayout(value.substring(7));
+                } else if (value == 'auto-quality') {
+                  setState(() => _mainStreams = null);
+                  unawaited(_restartSessions());
                 } else if (value == 'cameras') {
                   widget.onConfigure();
                 } else if (value == 'layouts') {
@@ -857,6 +862,11 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                 }
               },
               itemBuilder: (_) => [
+                if (_mainStreams != null)
+                  const PopupMenuItem(
+                    value: 'auto-quality',
+                    child: Text('Usar qualidade automática'),
+                  ),
                 const PopupMenuItem(
                   value: 'cameras',
                   child: Text('Configurar câmeras'),

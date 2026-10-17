@@ -72,16 +72,26 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
     WidgetsBinding.instance.addObserver(this);
     _prober = CameraChannelProber();
     final camera = widget.camera;
+    final selected = camera?.channels.isNotEmpty == true
+        ? camera!.activeChannel
+        : null;
     _name = TextEditingController(text: camera?.name ?? '');
-    _host = TextEditingController(text: camera?.host ?? '');
-    _portOverride = camera?.port != null;
+    _host = TextEditingController(
+      text: selected?.main.host ?? camera?.host ?? '',
+    );
+    _portOverride = camera?.port != null || selected?.main.port != null;
     _port = TextEditingController(
-      text: '${camera?.port ?? widget.store.config.defaultPort}',
+      text:
+          '${selected?.main.port ?? camera?.port ?? widget.store.config.defaultPort}',
     );
     _username = TextEditingController(text: camera?.username ?? '');
     _password = TextEditingController(text: widget.password ?? '');
-    _mainPath = TextEditingController(text: camera?.mainPath ?? '');
-    _subPath = TextEditingController(text: camera?.subPath ?? '');
+    _mainPath = TextEditingController(
+      text: selected?.main.path ?? camera?.mainPath ?? '',
+    );
+    _subPath = TextEditingController(
+      text: selected == null ? camera?.subPath ?? '' : selected.sub?.path ?? '',
+    );
     final initialPaths = <String>[
       if (camera != null && camera.mainPath.trim().isNotEmpty)
         camera.mainPath.trim(),
