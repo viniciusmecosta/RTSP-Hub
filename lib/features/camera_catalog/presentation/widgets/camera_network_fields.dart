@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/state/app_store.dart';
 import '../../domain/camera_device.dart';
 import '../../domain/camera_field_validation.dart';
+import 'global_field_hint.dart';
 
 class CameraNetworkFields extends StatelessWidget {
   const CameraNetworkFields({
@@ -13,6 +14,7 @@ class CameraNetworkFields extends StatelessWidget {
     required this.store,
     required this.editingCamera,
     required this.onPortChanged,
+    this.portOverridden = false,
     required this.onPortReset,
     super.key,
   });
@@ -24,6 +26,7 @@ class CameraNetworkFields extends StatelessWidget {
   final AppStore store;
   final CameraDevice? editingCamera;
   final ValueChanged<String> onPortChanged;
+  final bool portOverridden;
   final VoidCallback onPortReset;
 
   @override
@@ -85,7 +88,11 @@ class CameraNetworkFields extends StatelessWidget {
           decoration: InputDecoration(
             labelText: 'Porta',
             hintText: '$defaultPort',
-            helperText: 'Padrão: $defaultPort',
+            helper: GlobalFieldHint(
+              controller: portController,
+              globalValue: '$defaultPort',
+              isInherited: !portOverridden,
+            ),
             suffixIcon: IconButton(
               tooltip: 'Usar porta global',
               icon: const Icon(Icons.restart_alt),

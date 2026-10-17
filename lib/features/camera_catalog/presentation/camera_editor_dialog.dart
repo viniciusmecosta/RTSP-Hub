@@ -184,7 +184,9 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
                           mainPathController: _mainPath,
                           store: widget.store,
                           editingCamera: widget.camera,
-                          onPortChanged: (_) => _portOverride = true,
+                          portOverridden: _portOverride,
+                          onPortChanged: (_) =>
+                              setState(() => _portOverride = true),
                           onPortReset: () => setState(() {
                             _portOverride = false;
                             _port.text = '${widget.store.config.defaultPort}';
@@ -195,6 +197,8 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
                           usernameController: _username,
                           passwordController: _password,
                           defaultUser: widget.store.config.defaultUser,
+                          hasGlobalPassword:
+                              widget.globalPassword?.isNotEmpty == true,
                           obscurePassword: _obscure,
                           onToggleObscure: () =>
                               setState(() => _obscure = !_obscure),
@@ -205,6 +209,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
                           subPathController: _subPath,
                           defaultPath: widget.store.config.defaultPath,
                           defaultSubPath: widget.store.config.defaultSubPath,
+                          inheritsSubPath: _channels.isEmpty,
                           savedPaths: _savedPaths,
                           channels: _channels.isNotEmpty
                               ? _channels

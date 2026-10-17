@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/camera_field_validation.dart';
 import '../../domain/camera_channel.dart';
+import 'global_field_hint.dart';
 
 class CameraPathFields extends StatelessWidget {
   const CameraPathFields({
@@ -12,6 +13,7 @@ class CameraPathFields extends StatelessWidget {
     required this.savedPaths,
     this.channels = const [],
     this.selectedChannelId = '',
+    this.inheritsSubPath = true,
     required this.onAddSavedPath,
     required this.onSelectSavedPath,
     required this.onRemoveSavedPath,
@@ -28,6 +30,7 @@ class CameraPathFields extends StatelessWidget {
   final List<String> savedPaths;
   final List<CameraChannel> channels;
   final String selectedChannelId;
+  final bool inheritsSubPath;
   final void Function(String path) onAddSavedPath;
   final void Function(String path) onSelectSavedPath;
   final void Function(String path) onRemoveSavedPath;
@@ -45,9 +48,10 @@ class CameraPathFields extends StatelessWidget {
           decoration: InputDecoration(
             labelText: 'Canal / caminho específico',
             hintText: defaultPath,
-            helperText: savedPaths.isEmpty
-                ? 'Vazio usa o canal padrão'
-                : 'Selecione na lista suspensa/opções ou informe o canal',
+            helper: GlobalFieldHint(
+              controller: mainPathController,
+              globalValue: defaultPath,
+            ),
             suffixIcon: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -138,7 +142,21 @@ class CameraPathFields extends StatelessWidget {
           decoration: InputDecoration(
             labelText: 'Subfluxo específico (opcional)',
             hintText: defaultSubPath,
-            helperText: 'Vazio usa o subfluxo global',
+            helper: inheritsSubPath
+                ? GlobalFieldHint(
+                    controller: subPathController,
+                    globalValue: defaultSubPath.isEmpty
+                        ? 'sem subfluxo'
+                        : defaultSubPath,
+                  )
+                : ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: subPathController,
+                    builder: (_, value, _) => Text(
+                      value.text.trim().isEmpty
+                          ? 'Este canal usa apenas o fluxo principal'
+                          : 'Subfluxo específico deste canal',
+                    ),
+                  ),
           ),
           validator: (value) =>
               CameraFieldValidation.pathError(value ?? '', optional: true),

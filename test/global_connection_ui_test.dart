@@ -51,6 +51,7 @@ void main() {
           '70000',
         );
         await tester.ensureVisible(find.text('Salvar conexão global'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Salvar conexão global'));
         await tester.pumpAndSettle();
         expect(store.config.defaultUser, 'admin');
@@ -59,6 +60,7 @@ void main() {
           '8554',
         );
         await tester.ensureVisible(find.text('Salvar conexão global'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Salvar conexão global'));
         await tester.pumpAndSettle();
         expect(store.config.defaultPort, 8554);
