@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../../shared/design_system/page_frame.dart';
@@ -28,6 +29,15 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _startupEnabled = false;
   bool _startupLoading = false;
   bool _backupBusy = false;
+  final Future<PackageInfo?> _packageInfo = _readPackageInfo();
+
+  static Future<PackageInfo?> _readPackageInfo() async {
+    try {
+      return await PackageInfo.fromPlatform();
+    } on Object {
+      return null;
+    }
+  }
 
   @override
   void initState() {
@@ -273,6 +283,22 @@ class _SettingsPageState extends State<SettingsPage> {
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: 16),
+          FutureBuilder<PackageInfo?>(
+            future: _packageInfo,
+            builder: (context, snapshot) {
+              final info = snapshot.data;
+              return ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: const Text('RTSP Hub'),
+                subtitle: Text(
+                  info == null
+                      ? 'Informações de versão indisponíveis'
+                      : 'Versão ${info.version} · compilação ${info.buildNumber}',
+                ),
+              );
+            },
           ),
         ],
       ),

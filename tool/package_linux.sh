@@ -11,7 +11,14 @@ if ! pkg-config --exists gtk+-3.0 mpv epoxy libsecret-1; then
   exit 1
 fi
 
-flutter build linux --release
+build_args=(--release)
+if [[ -n "${RELEASE_VERSION:-}" ]]; then
+  build_args+=(--build-name "$RELEASE_VERSION")
+fi
+if [[ -n "${RELEASE_BUILD_NUMBER:-}" ]]; then
+  build_args+=(--build-number "$RELEASE_BUILD_NUMBER")
+fi
+flutter build linux "${build_args[@]}"
 bundle="$PWD/build/linux/x64/release/bundle"
 mpv_plugin="$bundle/lib/libmedia_kit_video_plugin.so"
 if [[ ! -f "$mpv_plugin" ]]; then
