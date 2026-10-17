@@ -20,6 +20,7 @@ if [[ -n "${RELEASE_BUILD_NUMBER:-}" ]]; then
 fi
 flutter build linux "${build_args[@]}"
 bundle="$PWD/build/linux/x64/release/bundle"
+python3 "$PWD/tool/release_version.py" --linux-bundle "$bundle"
 mpv_plugin="$bundle/lib/libmedia_kit_video_plugin.so"
 if [[ ! -f "$mpv_plugin" ]]; then
   printf '%s\n' 'O plugin de vídeo não foi incluído no build Linux.' >&2

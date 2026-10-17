@@ -296,7 +296,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   subtitle: Text(
                     info == null
                         ? 'Informações de versão indisponíveis'
-                        : 'Versão ${info.version} · compilação ${info.buildNumber}',
+                        : 'Versão ${info.version}${info.buildNumber.isEmpty ? '' : ' · compilação ${info.buildNumber}'}',
                   ),
                 ),
               );
