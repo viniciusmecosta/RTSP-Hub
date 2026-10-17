@@ -6,6 +6,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../discovery/application/stream_quality.dart';
+import '../../discovery/application/discovery_cancellation.dart';
 import '../../discovery/data/local_network_scanner.dart';
 import '../../discovery/data/onvif_discovery_service.dart';
 import '../../discovery/domain/rtsp_channel_candidates.dart';
@@ -49,6 +50,8 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
   int _total = 0;
   String _stage = '';
   RtspSession? _probe;
+  DiscoveryCancellation? _cancellation;
+  bool _hostAuthenticationFailed = false;
 
   @override
   void initState() {
@@ -79,6 +82,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _cancel = true;
+    _cancellation?.cancel();
     unawaited(_probe?.disposeSession());
     _range.dispose();
     _port.dispose();
@@ -154,6 +158,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
     setState(() {
       _busy = true;
       _cancel = false;
+      _cancellation = DiscoveryCancellation();
       _hosts.clear();
       _portsByHost.clear();
       _hostLabels.clear();
@@ -214,7 +219,9 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
         setState(() {
           _busy = false;
           _probe = null;
-          _stage = '';
+          _stage = _cancel
+              ? 'Busca cancelada. Os resultados encontrados foram mantidos.'
+              : '';
         });
       }
     }
@@ -234,6 +241,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
     final probes = await _onvif.discover(
       _interfaces,
       isCancelled: () => _cancel,
+      cancellation: _cancellation,
     );
     for (final probe in probes) {
       if (!mounted || _cancel) return;
@@ -248,12 +256,23 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
           ? _password.text
           : await store.passwordFor(known) ?? '';
       if (!mounted || _cancel) return;
-      final device = await _onvif.loadProfiles(
-        probe,
-        username: username,
-        password: password,
-        isCancelled: () => _cancel,
-      );
+      OnvifDevice? device;
+      try {
+        device = await _onvif.loadProfiles(
+          probe,
+          username: username,
+          password: password,
+          isCancelled: () => _cancel,
+          cancellation: _cancellation,
+        );
+      } on OnvifAuthenticationFailure {
+        if (!_cancel) {
+          _message(
+            '${probe.sourceAddress}: acesso ONVIF recusado. Confira as credenciais.',
+          );
+        }
+        continue;
+      }
       if (device == null) continue;
       final pairs = OnvifStreamPair.group(device.profiles);
       var groupIndex = 0;
@@ -333,6 +352,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
       _total = targets.length * lastChannel;
     });
     for (final host in targets) {
+      _hostAuthenticationFailed = false;
       for (var channel = 1; channel <= lastChannel; channel++) {
         if (!mounted || _cancel) return;
         if (_channels.any(
@@ -357,12 +377,13 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
             password: password,
             path: path,
           );
-          if (mainQuality != null || _cancel) {
+          if (mainQuality != null || _cancel || _hostAuthenticationFailed) {
             if (mainQuality != null) mainPath = path;
             break;
           }
         }
         if (_cancel) return;
+        if (_hostAuthenticationFailed) break;
         if (mainPath == null) continue;
         String? subPath;
         String? subQuality;
@@ -449,6 +470,12 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
     final quality = session.firstFrameRendered.value
         ? describeStreamQuality(session)
         : null;
+    if (!_cancel && session.authenticationFailed) {
+      _hostAuthenticationFailed = true;
+      _message(
+        '$host: a câmera recusou o usuário ou a senha. Confira a conexão global ou os dados específicos.',
+      );
+    }
     session.removeListener(_refreshProbe);
     await session.disposeSession();
     if (identical(_probe, session)) {
@@ -529,6 +556,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
 
   void _cancelSearch() {
     _cancel = true;
+    _cancellation?.cancel();
     unawaited(_probe?.disposeSession());
     setState(() {
       _stage = 'Cancelando pesquisa';

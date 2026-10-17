@@ -299,7 +299,13 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
           onPressed: _busy || _testing
               ? null
               : _finding
-              ? () => setState(() => _cancelFinding = true)
+              ? () {
+                  _prober.cancel();
+                  setState(() {
+                    _cancelFinding = true;
+                    _findingStage = 'Busca cancelada';
+                  });
+                }
               : _findChannels,
           icon: _finding
               ? const SizedBox.square(
@@ -425,10 +431,17 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
     );
     if (!mounted) return;
     setState(() => _finding = false);
-    if (_cancelFinding) return;
+    if (_cancelFinding) {
+      setState(() {
+        _probeMessage = 'Busca cancelada. Nenhuma câmera foi alterada.';
+        _probeSucceeded = null;
+      });
+      return;
+    }
     if (found.isEmpty) {
       setState(() {
         _probeMessage =
+            _prober.lastFailure ??
             'Nenhum canal de vídeo respondeu. Confira IP, porta e credenciais.';
         _probeSucceeded = false;
       });

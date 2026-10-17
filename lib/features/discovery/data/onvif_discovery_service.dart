@@ -6,6 +6,8 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:xml/xml.dart';
 
+import '../application/discovery_cancellation.dart';
+
 class OnvifDiscoveryService {
   static final _multicastAddress = InternetAddress('239.255.255.250');
   static const _deviceAction =
@@ -21,14 +23,21 @@ class OnvifDiscoveryService {
     List<NetworkInterface> interfaces, {
     Duration listenDuration = const Duration(milliseconds: 1800),
     bool Function()? isCancelled,
+    DiscoveryCancellation? cancellation,
   }) async {
     final devices = <String, OnvifProbeDevice>{};
     for (final interface in interfaces) {
-      if (isCancelled?.call() ?? false) break;
+      if ((cancellation?.isCancelled ?? false) ||
+          (isCancelled?.call() ?? false)) {
+        break;
+      }
       for (final address in interface.addresses.where(
         (item) => item.type == InternetAddressType.IPv4 && !item.isLoopback,
       )) {
-        if (isCancelled?.call() ?? false) break;
+        if ((cancellation?.isCancelled ?? false) ||
+            (isCancelled?.call() ?? false)) {
+          break;
+        }
         RawDatagramSocket? socket;
         StreamSubscription<RawSocketEvent>? subscription;
         try {
@@ -48,7 +57,9 @@ class OnvifDiscoveryService {
           });
           socket.send(utf8.encode(_probeMessage()), _multicastAddress, 3702);
           var elapsed = Duration.zero;
-          while (elapsed < listenDuration && !(isCancelled?.call() ?? false)) {
+          while (elapsed < listenDuration &&
+              !((cancellation?.isCancelled ?? false) ||
+                  (isCancelled?.call() ?? false))) {
             const interval = Duration(milliseconds: 100);
             await Future<void>.delayed(interval);
             elapsed += interval;
@@ -70,6 +81,7 @@ class OnvifDiscoveryService {
     required String password,
     Duration timeout = const Duration(seconds: 3),
     bool Function()? isCancelled,
+    DiscoveryCancellation? cancellation,
   }) async {
     final capabilityFuture = _soapRequest(
       device.deviceServiceUri,
@@ -78,6 +90,7 @@ class OnvifDiscoveryService {
       username: username,
       password: password,
       timeout: timeout,
+      cancellation: cancellation,
     );
     final informationFuture = _soapRequest(
       device.deviceServiceUri,
@@ -86,10 +99,17 @@ class OnvifDiscoveryService {
       username: username,
       password: password,
       timeout: timeout,
+      cancellation: cancellation,
     );
-    final capabilityResponse = await capabilityFuture;
-    final informationResponse = await informationFuture;
-    if (isCancelled?.call() ?? false) return null;
+    final responses = await Future.wait([
+      capabilityFuture,
+      informationFuture,
+    ], eagerError: true);
+    final capabilityResponse = responses[0];
+    final informationResponse = responses[1];
+    if ((cancellation?.isCancelled ?? false) || (isCancelled?.call() ?? false)) {
+      return null;
+    }
     if (capabilityResponse == null) return null;
     final information = parseDeviceInformation(informationResponse ?? '');
     final mediaUri =
@@ -101,6 +121,7 @@ class OnvifDiscoveryService {
       username: username,
       password: password,
       timeout: timeout,
+      cancellation: cancellation,
     );
     if (profilesResponse == null) return null;
     final profilesDocument = XmlDocument.parse(profilesResponse);
@@ -109,7 +130,10 @@ class OnvifDiscoveryService {
         .toList(growable: false);
     final profiles = <OnvifProfile>[];
     for (final profile in profileElements) {
-      if (isCancelled?.call() ?? false) return null;
+      if ((cancellation?.isCancelled ?? false) ||
+          (isCancelled?.call() ?? false)) {
+        return null;
+      }
       final token = _attribute(profile, 'token');
       if (token == null || token.isEmpty) continue;
       final video = _firstDescendant(profile, 'VideoEncoderConfiguration');
@@ -131,6 +155,7 @@ class OnvifDiscoveryService {
         username: username,
         password: password,
         timeout: timeout,
+        cancellation: cancellation,
       );
       if (uriResponse == null) continue;
       final streamText = _textElement(XmlDocument.parse(uriResponse), 'Uri');
@@ -213,9 +238,11 @@ class OnvifDiscoveryService {
     required String username,
     required String password,
     required Duration timeout,
+    DiscoveryCancellation? cancellation,
   }) async {
+    if (cancellation?.isCancelled ?? false) return null;
     final client = HttpClient()..connectionTimeout = timeout;
-    try {
+    Future<String?> request() async {
       final request = await client.postUrl(uri).timeout(timeout);
       request.headers.set(
         HttpHeaders.contentTypeHeader,
@@ -226,9 +253,22 @@ class OnvifDiscoveryService {
         _soapEnvelope(body, username: username, password: password),
       );
       final response = await request.close().timeout(timeout);
-      final content = await utf8.decoder.bind(response).join().timeout(timeout);
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        throw const OnvifAuthenticationFailure();
+      }
       if (response.statusCode < 200 || response.statusCode >= 300) return null;
-      return content;
+      return utf8.decoder.bind(response).join().timeout(timeout);
+    }
+
+    try {
+      final operation = request();
+      return await (cancellation == null
+          ? operation
+          : cancellation.bind(operation));
+    } on DiscoveryCancelled {
+      return null;
+    } on OnvifAuthenticationFailure {
+      rethrow;
     } on Object {
       return null;
     } finally {
@@ -444,4 +484,8 @@ class OnvifProfile {
     if (framesPerSecond != null && framesPerSecond! > 0) '$framesPerSecond fps',
     if (encoding != null && encoding!.isNotEmpty) encoding!.toUpperCase(),
   ].join(' · ');
+}
+
+class OnvifAuthenticationFailure implements Exception {
+  const OnvifAuthenticationFailure();
 }

@@ -62,6 +62,7 @@ class RtspSession extends ChangeNotifier {
   Duration? _nextRetryDelay;
   Duration _lastPosition = Duration.zero;
   DateTime? _lastPositionAdvanced;
+  bool authenticationFailed = false;
   String? _hardwareDecoder;
   int? _droppedFrames;
 
@@ -166,6 +167,7 @@ class RtspSession extends ChangeNotifier {
     _retryTimer?.cancel();
     _progressTimer?.cancel();
     _nextRetryDelay = null;
+    authenticationFailed = false;
     _lastPosition = Duration.zero;
     _lastPositionAdvanced = null;
     _hardwareDecoder = null;
@@ -223,6 +225,9 @@ class RtspSession extends ChangeNotifier {
       _errorSubscription = player.stream.error.listen((message) {
         if (generation != _generation || _disposed) return;
         if (firstFrameRendered.value && player.state.playing) return;
+        authenticationFailed = RtspFailureMessage.isAuthenticationFailure(
+          message,
+        );
         _markFailure(
           RtspFailureMessage.describe(message),
           retry: RtspFailureMessage.canRetry(message),
@@ -293,6 +298,9 @@ class RtspSession extends ChangeNotifier {
       }
     } on Object catch (exception) {
       if (generation == _generation && !_disposed) {
+        authenticationFailed = RtspFailureMessage.isAuthenticationFailure(
+          exception,
+        );
         _markFailure(
           RtspFailureMessage.describe(exception),
           retry: RtspFailureMessage.canRetry(exception),

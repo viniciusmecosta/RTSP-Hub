@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rtsp_hub/features/discovery/application/discovery_cancellation.dart';
 import 'package:rtsp_hub/features/camera_catalog/application/camera_channel_prober.dart';
 import 'package:rtsp_hub/features/discovery/data/onvif_discovery_service.dart';
 
@@ -13,6 +14,7 @@ class _Onvif extends OnvifDiscoveryService {
     required String password,
     Duration timeout = const Duration(seconds: 3),
     bool Function()? isCancelled,
+    DiscoveryCancellation? cancellation,
   }) async => this.device;
 }
 
