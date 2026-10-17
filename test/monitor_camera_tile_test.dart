@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rtsp_hub/shared/design_system/app_theme.dart';
 import 'package:rtsp_hub/features/camera_catalog/domain/camera_device.dart';
 import 'package:rtsp_hub/features/monitor/application/rtsp_session.dart';
 import 'package:rtsp_hub/features/monitor/presentation/widgets/monitor_camera_tile.dart';
@@ -83,6 +84,49 @@ void main() {
     expect(find.text('Entrada (/channel-2)'), findsOneWidget);
     expect(find.text('Entrada (/main)'), findsNothing);
   });
+  for (final theme in [AppTheme.light, AppTheme.dark]) {
+    testWidgets('channel menu uses theme contrast in ${theme.brightness}', (
+      tester,
+    ) async {
+      const camera = CameraDevice(
+        id: 'a',
+        name: 'Entrada',
+        host: '10.0.0.2',
+        mainPath: '/main',
+        savedPaths: ['/main', '/other'],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: const Scaffold(
+            body: SizedBox(
+              width: 480,
+              height: 270,
+              child: MonitorCameraTile(
+                camera: camera,
+                session: null,
+                onTap: _noop,
+                onFocus: _noop,
+                onRetry: null,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byTooltip('Opções da câmera'));
+      await tester.pumpAndSettle();
+      final icon = tester.widget<Icon>(
+        find.byIcon(Icons.radio_button_unchecked),
+      );
+      expect(icon.color, theme.colorScheme.onSurfaceVariant);
+      final foreground = icon.color!.computeLuminance();
+      final background = theme.colorScheme.surfaceContainer.computeLuminance();
+      final lighter = foreground > background ? foreground : background;
+      final darker = foreground > background ? background : foreground;
+      expect((lighter + 0.05) / (darker + 0.05), greaterThanOrEqualTo(3));
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
 
 void _noop() {}
