@@ -14,8 +14,12 @@ class DetectedChannel {
     required this.subPath,
     required this.subQuality,
     required this.verified,
+    this.subHost,
+    this.subPort,
   });
 
+  final String? subHost;
+  final int? subPort;
   final String host;
   final int port;
   final int number;
