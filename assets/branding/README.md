@@ -15,6 +15,8 @@ Os ícones nativos são gerados diretamente do SVG:
 - Linux: PNGs de 16 a 512 pixels, versão escalável em SVG e fallback de 256 pixels.
 - Recursos web existentes: favicon, ícones e versões com área segura para máscaras.
 
+As telas de abertura de Android e iOS usam a mesma marca, com fundos claro e escuro. A abertura é estática, sem espera adicional. No Linux, o bundle também contém uma cópia do ícone para abrir fora do instalador. O pacote Debian registra o lançador com o identificador GTK existente e preserva um atalho de compatibilidade oculto, para manter o nome e a imagem corretos sem duplicar a entrada no menu.
+
 ## Regenerar
 
 Em um ambiente de desenvolvimento Linux com Python 3, Cairo e librsvg:
@@ -26,7 +28,7 @@ python3 tool/generate_brand_assets.py
 
 Essas ferramentas são usadas apenas para gerar recursos durante o desenvolvimento. Não são dependências para instalar ou executar o aplicativo.
 
-Os arquivos gerados já estão no repositório; os builds e a pipeline não precisam executar a geração. Para conferir se todos correspondem ao SVG, usando apenas a biblioteca padrão do Python:
+Os arquivos gerados já estão no repositório; os builds e a pipeline não precisam executar a geração. O gerador também mantém os recursos XML de abertura do Android. Para conferir se todos correspondem ao SVG, usando apenas a biblioteca padrão do Python:
 
 ```sh
 python3 tool/generate_brand_assets.py --check

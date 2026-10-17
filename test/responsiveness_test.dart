@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rtsp_hub/shared/design_system/app_logo.dart';
 import 'package:rtsp_hub/main.dart';
 import 'package:rtsp_hub/app/data/app_configuration.dart';
 import 'package:rtsp_hub/app/state/app_store.dart';
@@ -96,6 +97,7 @@ void main() {
     expect(find.text('Visão geral'), findsOneWidget);
     expect(find.text('Suas câmeras'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(AppLogo), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -130,6 +132,13 @@ void main() {
       );
       expect(sidebar.decoration, isNull);
       expect(sidebar.color, isNotNull);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('desktopSidebar')),
+          matching: find.byType(AppLogo),
+        ),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey('sidebar_dashboard')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('sidebar_layouts')));
       await tester.pumpAndSettle();
