@@ -129,7 +129,21 @@ class CameraChannelProber {
       }
     } on OnvifAuthenticationFailure {
       lastFailure =
-          'A câmera recusou as credenciais ONVIF. Confira o usuário e a senha específicos ou globais.';
+          'ONVIF não aceitou a autenticação. Confira o acesso ONVIF; o teste RTSP usa as credenciais informadas.';
+      if (!isCancelled()) {
+        onProgress('ONVIF indisponível. Testando os caminhos RTSP');
+        await _probeCandidates(
+          host: host,
+          port: port,
+          username: username,
+          password: password,
+          defaultPath: defaultPath,
+          searchRecorderChannels: searchRecorderChannels,
+          isCancelled: isCancelled,
+          onProgress: onProgress,
+          found: found,
+        );
+      }
     } on Object {
       lastFailure =
           'Não foi possível consultar os canais. Confira o endereço, a porta e a conexão.';

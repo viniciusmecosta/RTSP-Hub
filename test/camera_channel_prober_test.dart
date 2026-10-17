@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rtsp_hub/features/camera_catalog/domain/found_channel.dart';
 import 'package:rtsp_hub/features/discovery/application/discovery_cancellation.dart';
 import 'package:rtsp_hub/features/camera_catalog/application/camera_channel_prober.dart';
 import 'package:rtsp_hub/features/discovery/data/onvif_discovery_service.dart';
@@ -6,6 +7,7 @@ import 'package:rtsp_hub/features/discovery/data/onvif_discovery_service.dart';
 class _Onvif extends OnvifDiscoveryService {
   _Onvif(this.device);
   final OnvifDevice? device;
+  bool rejectAuthentication = false;
 
   @override
   Future<OnvifDevice?> loadProfiles(
@@ -15,10 +17,13 @@ class _Onvif extends OnvifDiscoveryService {
     Duration timeout = const Duration(seconds: 3),
     bool Function()? isCancelled,
     DiscoveryCancellation? cancellation,
-  }) async => this.device;
+  }) async {
+    if (rejectAuthentication) throw const OnvifAuthenticationFailure();
+    return this.device;
+  }
 }
 
-Future<List<dynamic>> _find(
+Future<List<FoundChannel>> _find(
   CameraChannelProber prober, {
   bool recorder = false,
 }) => prober.findChannels(
@@ -33,6 +38,29 @@ Future<List<dynamic>> _find(
 );
 
 void main() {
+  test(
+    'ONVIF authentication challenges do not suppress usable RTSP streams',
+    () async {
+      final onvif = _Onvif(null)..rejectAuthentication = true;
+      final prober = CameraChannelProber(
+        onvif: onvif,
+        qualityProbe:
+            ({
+              required host,
+              required port,
+              required username,
+              required password,
+              required path,
+              required isCancelled,
+            }) async => path == '/default' ? '1920×1080' : null,
+      );
+      final found = await _find(prober);
+      expect(found, hasLength(1));
+      expect(found.single.mainPath, '/default');
+      await prober.dispose();
+    },
+  );
+
   test('keeps ONVIF host and distinct stream ports', () async {
     final prober = CameraChannelProber(
       onvif: _Onvif(
