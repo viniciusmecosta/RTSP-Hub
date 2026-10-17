@@ -157,6 +157,7 @@ class AppStore extends ChangeNotifier {
     List<CameraChannel>? channels,
     String? selectedChannelId,
     Uint8List? thumbnail,
+    DateTime? thumbnailCapturedAt,
   }) async {
     final normalizedHost = host.trim();
     final parsedPort = port.trim().isEmpty
@@ -251,6 +252,7 @@ class AppStore extends ChangeNotifier {
       selectedPath: allSavedPaths.contains(selection) ? selection : '',
       channels: effectiveChannels,
       selectedChannelId: selectedChannelId ?? previous?.selectedChannelId ?? '',
+      thumbnailCapturedAt: previous?.thumbnailCapturedAt,
     );
     final previousCamera = _config.cameras
         .where((item) => item.id == camera.id)
@@ -299,7 +301,11 @@ class AppStore extends ChangeNotifier {
       }
       var thumbnailUpdated = true;
       if (thumbnail != null) {
-        thumbnailUpdated = await snapshots.save(camera.id, thumbnail);
+        thumbnailUpdated = await updateCameraSnapshot(
+          camera.id,
+          thumbnail,
+          capturedAt: thumbnailCapturedAt ?? DateTime.now().toUtc(),
+        );
       } else if (previousCamera != null &&
           (previousCamera.host != camera.host ||
               previousCamera.port != camera.port ||
@@ -331,6 +337,37 @@ class AppStore extends ChangeNotifier {
         }
       }
       _message = 'Não foi possível salvar. Verifique o acesso ao cofre seguro.';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateCameraSnapshot(
+    String id,
+    Uint8List bytes, {
+    required DateTime capturedAt,
+  }) async {
+    if (!cameras.any((c) => c.id == id)) return false;
+    Uint8List? previous;
+    try {
+      previous = await snapshots.read(id);
+      if (!await snapshots.save(id, bytes)) return false;
+      final updated = _config.cameras
+          .map(
+            (camera) => camera.id == id
+                ? camera.copyWith(thumbnailCapturedAt: capturedAt.toUtc())
+                : camera,
+          )
+          .toList();
+      if (await _commit(_config.copyWith(cameras: updated))) return true;
+      if (previous == null) {
+        await snapshots.remove(id);
+      } else {
+        await snapshots.save(id, previous);
+      }
+      return false;
+    } on Object {
+      _message = 'Não foi possível atualizar a miniatura salva.';
       notifyListeners();
       return false;
     }

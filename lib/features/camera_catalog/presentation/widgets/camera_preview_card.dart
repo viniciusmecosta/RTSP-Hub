@@ -54,32 +54,11 @@ class CameraPreviewCard extends StatelessWidget {
                 children: [
                   CameraThumbnail(
                     cameraId: camera.id,
+                    showCaptureDate: true,
                     borderRadius: BorderRadius.zero,
                   ),
                   Positioned(
-                    left: 10,
-                    top: 10,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: colors.surfaceContainerLowest,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 5,
-                        ),
-                        child: Text(
-                          'Prévia',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 6,
+                    top: 6,
                     right: 6,
                     child: IconButton.filled(
                       onPressed: onPreview,

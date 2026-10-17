@@ -4,15 +4,18 @@ import 'package:flutter/material.dart';
 
 import '../../../app/state/app_store.dart';
 import '../data/camera_snapshot_store.dart';
+import 'saved_frame_label.dart';
 
 class CameraThumbnail extends StatefulWidget {
   const CameraThumbnail({
     required this.cameraId,
+    this.showCaptureDate = false,
     this.borderRadius = const BorderRadius.all(Radius.circular(12)),
     super.key,
   });
 
   final String cameraId;
+  final bool showCaptureDate;
   final BorderRadius borderRadius;
 
   @override
@@ -84,20 +87,67 @@ class _CameraThumbnailState extends State<CameraThumbnail> {
         builder: (context, snapshot) {
           final file = snapshot.data;
           if (file == null) return placeholder;
-          return LayoutBuilder(
-            builder: (context, constraints) => Image(
-              key: ValueKey((widget.cameraId, _imageRevision)),
-              image: ResizeImage(
-                FileImage(file),
-                width: CameraSnapshotStore.decodeWidth(
-                  constraints.maxWidth * MediaQuery.devicePixelRatioOf(context),
+          final capturedAt = AppScope.of(context).cameras
+              .where((c) => c.id == widget.cameraId)
+              .firstOrNull
+              ?.thumbnailCapturedAt;
+          final label = savedFrameLabel(capturedAt);
+          return Tooltip(
+            message: label,
+            child: Semantics(
+              label: label,
+              image: true,
+              child: LayoutBuilder(
+                builder: (context, constraints) => Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image(
+                      key: ValueKey((widget.cameraId, _imageRevision)),
+                      image: ResizeImage(
+                        FileImage(file),
+                        width: CameraSnapshotStore.decodeWidth(
+                          constraints.maxWidth *
+                              MediaQuery.devicePixelRatioOf(context),
+                        ),
+                      ),
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      excludeFromSemantics: true,
+                      errorBuilder: (_, error, stack) => placeholder,
+                    ),
+                    if (widget.showCaptureDate &&
+                        constraints.maxWidth >= 140 &&
+                        constraints.maxHeight >= 70)
+                      Positioned(
+                        left: 6,
+                        right: 6,
+                        bottom: 6,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black87,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 4,
+                            ),
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-              excludeFromSemantics: true,
-              errorBuilder: (_, error, stack) => placeholder,
             ),
           );
         },
