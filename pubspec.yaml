@@ -1,7 +1,7 @@
 name: rtsp_hub
 description: Aplicativo multiplataforma para visualização de câmeras RTSP.
 publish_to: none
-version: 0.0.1
+version: 0.0.4
 
 environment:
   sdk: ^3.12.2

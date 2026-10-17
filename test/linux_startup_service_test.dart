@@ -21,6 +21,11 @@ void main() {
       await entry.readAsString(),
       contains('Exec="/opt/RTSP Hub/rtsp_hub"'),
     );
+    expect(await entry.readAsString(), contains('Icon=rtsp-hub'));
+    expect(
+      await entry.readAsString(),
+      contains('StartupWMClass=com.rtsp.rtsp_view'),
+    );
     expect(await service.isEnabled(), isTrue);
     expect(await service.setEnabled(false), isTrue);
     expect(await service.isEnabled(), isFalse);

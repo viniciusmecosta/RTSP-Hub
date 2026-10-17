@@ -34,16 +34,20 @@ exec /opt/rtsp-hub/RTSPHub "$@"
 LAUNCHER
 chmod 0755 "$root/usr/bin/rtsp-hub"
 
-cat > "$root/usr/share/applications/rtsp-hub.desktop" <<'DESKTOP'
+cat > "$root/usr/share/applications/com.rtsp.rtsp_view.desktop" <<'DESKTOP'
 [Desktop Entry]
 Name=RTSP Hub
 Comment=Visualizador de câmeras RTSP
 Exec=/usr/bin/rtsp-hub
 Icon=rtsp-hub
+StartupWMClass=com.rtsp.rtsp_view
 Terminal=false
 Type=Application
 Categories=Video;AudioVideo;
 DESKTOP
+
+cp "$root/usr/share/applications/com.rtsp.rtsp_view.desktop" "$root/usr/share/applications/rtsp-hub.desktop"
+printf '%s\n' 'NoDisplay=true' >> "$root/usr/share/applications/rtsp-hub.desktop"
 
 cat > "$root/DEBIAN/control" <<CONTROL
 Package: rtsp-hub
