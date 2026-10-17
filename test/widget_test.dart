@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:rtsp_hub/main.dart';
+import 'package:rtsp_hub/shared/design_system/app_logo.dart';
 import 'package:rtsp_hub/app/data/app_configuration.dart';
 import 'package:rtsp_hub/app/state/app_store.dart';
 import 'package:rtsp_hub/features/camera_catalog/domain/camera_device.dart';
@@ -74,6 +75,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       final viewport = find.byKey(const ValueKey('monitorViewport'));
+      expect(find.byType(AppLogo), findsNothing);
       final originalSize = tester.getSize(viewport);
       await tester.tap(find.byTooltip('Ações do monitor'));
       await tester.pumpAndSettle();
@@ -156,6 +158,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Bem-vindo ao RTSP Hub'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(AppLogo),
+      ),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
