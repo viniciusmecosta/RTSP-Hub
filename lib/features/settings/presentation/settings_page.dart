@@ -289,13 +289,15 @@ class _SettingsPageState extends State<SettingsPage> {
             future: _packageInfo,
             builder: (context, snapshot) {
               final info = snapshot.data;
-              return ListTile(
-                leading: const Icon(Icons.info_outline),
-                title: const Text('RTSP Hub'),
-                subtitle: Text(
-                  info == null
-                      ? 'Informações de versão indisponíveis'
-                      : 'Versão ${info.version} · compilação ${info.buildNumber}',
+              return Card(
+                child: ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: const Text('RTSP Hub'),
+                  subtitle: Text(
+                    info == null
+                        ? 'Informações de versão indisponíveis'
+                        : 'Versão ${info.version} · compilação ${info.buildNumber}',
+                  ),
                 ),
               );
             },
