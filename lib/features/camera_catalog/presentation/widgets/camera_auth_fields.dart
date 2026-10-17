@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
+import 'global_field_hint.dart';
+
 class CameraAuthFields extends StatelessWidget {
   const CameraAuthFields({
     required this.usernameController,
     required this.passwordController,
     required this.defaultUser,
+    this.hasGlobalPassword = false,
     required this.obscurePassword,
     required this.onToggleObscure,
     super.key,
@@ -13,6 +16,7 @@ class CameraAuthFields extends StatelessWidget {
   final TextEditingController usernameController;
   final TextEditingController passwordController;
   final String defaultUser;
+  final bool hasGlobalPassword;
   final bool obscurePassword;
   final VoidCallback onToggleObscure;
 
@@ -26,7 +30,10 @@ class CameraAuthFields extends StatelessWidget {
           decoration: InputDecoration(
             labelText: 'Usuário específico',
             hintText: defaultUser,
-            helperText: 'Vazio usa o usuário global',
+            helper: GlobalFieldHint(
+              controller: usernameController,
+              globalValue: defaultUser.isEmpty ? 'sem usuário' : defaultUser,
+            ),
           ),
           maxLength: 128,
           buildCounter:
@@ -41,8 +48,13 @@ class CameraAuthFields extends StatelessWidget {
           controller: passwordController,
           decoration: InputDecoration(
             labelText: 'Senha específica',
-            helperText:
-                'Vazia usa a senha global. Apague para voltar ao padrão.',
+            helper: GlobalFieldHint(
+              controller: passwordController,
+              globalValue: hasGlobalPassword
+                  ? 'senha configurada no cofre'
+                  : 'sem senha configurada',
+              trim: false,
+            ),
             suffixIcon: IconButton(
               tooltip: obscurePassword ? 'Mostrar senha' : 'Ocultar senha',
               onPressed: onToggleObscure,
