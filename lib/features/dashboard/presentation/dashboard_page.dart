@@ -7,6 +7,7 @@ import '../../../shared/design_system/page_frame.dart';
 import '../../camera_catalog/presentation/camera_preview_dialog.dart';
 import '../../camera_catalog/presentation/widgets/camera_preview_card.dart';
 import '../../settings/presentation/global_connection_page.dart';
+import '../../layouts/presentation/widgets/monitor_profile_status.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({
@@ -153,13 +154,14 @@ class _DashboardPageState extends State<DashboardPage> {
                               : () => widget.onOpenProfile!(profile.id),
                           icon: const Icon(Icons.history_rounded, size: 18),
                           label: Text(
-                            'Acesso rápido · ${profile.name}',
+                            'Acesso rápido · ${profile.name}${store.isMonitorProfileModified && store.activeMonitorProfile?.id == profile.id ? ' · versão salva' : ''}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                     ],
                   ),
+                  const MonitorProfileStatus(showWhenUnchanged: false),
                   const SizedBox(height: 14),
                 ],
               );
