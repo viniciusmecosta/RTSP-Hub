@@ -268,7 +268,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
       } on OnvifAuthenticationFailure {
         if (!_cancel) {
           _message(
-            '${probe.sourceAddress}: acesso ONVIF recusado. Confira as credenciais.',
+            '${probe.sourceAddress}: ONVIF não aceitou a autenticação. A busca continuará pelas portas RTSP.',
           );
         }
         continue;
