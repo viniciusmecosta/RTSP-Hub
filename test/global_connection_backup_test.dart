@@ -311,6 +311,35 @@ void main() {
   );
 
   test(
+    'thumbnail metadata is rolled back when configuration cannot be saved',
+    () async {
+      await save(path: '/camera');
+      final camera = store.cameras.single;
+      final original = Uint8List.fromList([1, 2, 3]);
+      final firstTime = DateTime.utc(2026, 10, 1);
+      expect(
+        await store.updateCameraSnapshot(
+          camera.id,
+          original,
+          capturedAt: firstTime,
+        ),
+        isTrue,
+      );
+      repository.fail = true;
+      expect(
+        await store.updateCameraSnapshot(
+          camera.id,
+          Uint8List.fromList([4, 5]),
+          capturedAt: DateTime.utc(2026, 10, 2),
+        ),
+        isFalse,
+      );
+      expect(await snapshots.read(camera.id), original);
+      expect(store.cameras.single.thumbnailCapturedAt, firstTime);
+    },
+  );
+
+  test(
     'complete backup clones secrets, photos, profiles and inherited values',
     () async {
       await save(user: 'specific', password: 'p@ss: ç?#', path: '/camera');
@@ -318,7 +347,15 @@ void main() {
       final png = base64Decode(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ9kAAAAASUVORK5CYII=',
       );
-      expect(await snapshots.save(camera.id, png), isTrue);
+      final capturedAt = DateTime.utc(2026, 10, 12, 10, 30);
+      expect(
+        await store.updateCameraSnapshot(
+          camera.id,
+          png,
+          capturedAt: capturedAt,
+        ),
+        isTrue,
+      );
       await store.saveMonitorProfile(
         name: 'Portaria',
         startupSection: 'monitor',
@@ -344,6 +381,7 @@ void main() {
         );
         expect(await destination.networkDiscoveryPassword(), 'global:@ç#?');
         expect(destination.config.monitorProfiles.single.name, 'Portaria');
+        expect(destination.cameras.single.thumbnailCapturedAt, capturedAt);
         expect(
           destination.resolveCamera(destination.cameras.single).port,
           8554,

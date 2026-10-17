@@ -14,6 +14,7 @@ class CameraDevice {
     this.selectedPath = '',
     this.channels = const [],
     this.selectedChannelId = '',
+    this.thumbnailCapturedAt,
   });
 
   final String id;
@@ -28,6 +29,7 @@ class CameraDevice {
   final String selectedPath;
   final List<CameraChannel> channels;
   final String selectedChannelId;
+  final DateTime? thumbnailCapturedAt;
 
   List<CameraChannel> get availableChannels => channels.isNotEmpty
       ? channels
@@ -83,6 +85,8 @@ class CameraDevice {
     String? selectedPath,
     List<CameraChannel>? channels,
     String? selectedChannelId,
+    DateTime? thumbnailCapturedAt,
+    bool clearThumbnailCapturedAt = false,
   }) {
     return CameraDevice(
       id: id,
@@ -97,6 +101,9 @@ class CameraDevice {
       selectedPath: selectedPath ?? this.selectedPath,
       channels: channels ?? this.channels,
       selectedChannelId: selectedChannelId ?? this.selectedChannelId,
+      thumbnailCapturedAt: clearThumbnailCapturedAt
+          ? null
+          : thumbnailCapturedAt ?? this.thumbnailCapturedAt,
     );
   }
 
@@ -113,6 +120,7 @@ class CameraDevice {
     'selectedPath': selectedPath,
     'channels': channels.map((c) => c.toJson()).toList(),
     'selectedChannelId': selectedChannelId,
+    'thumbnailCapturedAt': thumbnailCapturedAt?.toUtc().toIso8601String(),
   };
 
   factory CameraDevice.fromJson(Map<String, Object?> json) {
@@ -138,6 +146,9 @@ class CameraDevice {
           )
           .toList(growable: false),
       selectedChannelId: json['selectedChannelId'] as String? ?? '',
+      thumbnailCapturedAt: json['thumbnailCapturedAt'] == null
+          ? null
+          : DateTime.parse(json['thumbnailCapturedAt'] as String).toUtc(),
     );
   }
 }

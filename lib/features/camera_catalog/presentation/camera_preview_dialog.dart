@@ -10,6 +10,12 @@ import '../../monitor/application/rtsp_session.dart';
 import '../../monitor/presentation/camera_loading_view.dart';
 import '../domain/camera_device.dart';
 
+class CameraPreviewCapture {
+  const CameraPreviewCapture(this.bytes, this.capturedAt);
+  final Uint8List bytes;
+  final DateTime capturedAt;
+}
+
 class CameraPreviewDialog extends StatefulWidget {
   const CameraPreviewDialog({
     required this.camera,
@@ -35,7 +41,7 @@ class CameraPreviewDialog extends StatefulWidget {
   ) async {
     final password = await store.passwordFor(camera);
     if (!context.mounted) return;
-    final bytes = await showDialog<Uint8List>(
+    final capture = await showDialog<CameraPreviewCapture>(
       context: context,
       builder: (_) => CameraPreviewDialog(
         camera: store.resolveCamera(camera),
@@ -44,7 +50,22 @@ class CameraPreviewDialog extends StatefulWidget {
         bufferMs: store.config.bufferMs,
       ),
     );
-    if (bytes != null) await store.snapshots.save(camera.id, bytes);
+    if (capture != null) {
+      final saved = await store.updateCameraSnapshot(
+        camera.id,
+        capture.bytes,
+        capturedAt: capture.capturedAt,
+      );
+      if (!saved && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'O vídeo abriu, mas não foi possível salvar a miniatura.',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -55,6 +76,7 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
     with WidgetsBindingObserver {
   late final RtspSession _session;
   Uint8List? _snapshot;
+  DateTime? _capturedAt;
   bool _capturing = false;
   bool _closing = false;
   Timer? _deadline;
@@ -97,6 +119,7 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
         const Duration(seconds: 3),
       );
       if (bytes == null || !mounted) return;
+      final capturedAt = DateTime.now().toUtc();
       final codec = await ui.instantiateImageCodec(
         bytes,
         targetWidth: 640,
@@ -109,7 +132,10 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
             format: ui.ImageByteFormat.png,
           );
           if (mounted && data != null) {
-            setState(() => _snapshot = data.buffer.asUint8List());
+            setState(() {
+              _snapshot = data.buffer.asUint8List();
+              _capturedAt = capturedAt;
+            });
           }
         } finally {
           frame.image.dispose();
@@ -134,7 +160,10 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
     if (!mounted || _closing) return;
     _closing = true;
     _deadline?.cancel();
-    Navigator.pop(context, _snapshot);
+    Navigator.pop(
+      context,
+      _snapshot == null ? null : CameraPreviewCapture(_snapshot!, _capturedAt!),
+    );
   }
 
   @override

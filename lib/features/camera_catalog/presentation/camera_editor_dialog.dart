@@ -11,6 +11,7 @@ import '../domain/camera_channel.dart';
 import '../domain/camera_field_validation.dart';
 import '../domain/found_channel.dart';
 import 'camera_preview_dialog.dart';
+import 'saved_frame_label.dart';
 import 'widgets/camera_auth_fields.dart';
 import 'widgets/camera_network_fields.dart';
 import 'widgets/camera_path_fields.dart';
@@ -50,6 +51,8 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
   late List<CameraChannel> _channels;
   String _selectedChannelId = '';
   Uint8List? _thumbnail;
+  DateTime? _thumbnailCapturedAt;
+  bool _newThumbnail = false;
   String? _thumbnailIdentity;
   late final String _initialIdentity;
   bool _obscure = true;
@@ -103,6 +106,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
       setState(() {
         _thumbnail = bytes;
         _thumbnailIdentity = identity;
+        _thumbnailCapturedAt = widget.camera?.thumbnailCapturedAt;
       });
     } on Object {
       return;
@@ -287,9 +291,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Miniatura capturada. Ela aparecerá no catálogo e nos layouts.',
-        ),
+        Text(savedFrameLabel(_thumbnailCapturedAt)),
       ],
     );
   }
@@ -367,7 +369,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
     );
     setState(() => _testing = true);
     final identity = _captureIdentity;
-    final thumbnail = await showDialog<Uint8List>(
+    final capture = await showDialog<CameraPreviewCapture>(
       context: context,
       barrierDismissible: false,
       builder: (_) => CameraPreviewDialog(
@@ -383,8 +385,10 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
     if (!mounted) return;
     setState(() {
       _testing = false;
-      _thumbnail = thumbnail;
-      _thumbnailIdentity = thumbnail == null ? null : identity;
+      _thumbnail = capture?.bytes;
+      _thumbnailCapturedAt = capture?.capturedAt;
+      _newThumbnail = capture != null;
+      _thumbnailIdentity = capture == null ? null : identity;
     });
   }
 
@@ -579,7 +583,8 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
       selectedPath: _channels.isEmpty
           ? widget.camera?.selectedPath
           : _mainPath.text.trim(),
-      thumbnail: _thumbnail,
+      thumbnail: _newThumbnail ? _thumbnail : null,
+      thumbnailCapturedAt: _thumbnailCapturedAt,
     );
     if (!mounted) return;
     if (saved) {
