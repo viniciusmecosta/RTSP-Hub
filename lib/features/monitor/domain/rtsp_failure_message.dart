@@ -1,6 +1,16 @@
 import 'dart:async';
 
 class RtspFailureMessage {
+  static bool isAuthenticationFailure(Object failure) {
+    final text = failure.toString().toLowerCase();
+    return text.contains('401') ||
+        text.contains('403') ||
+        text.contains('unauthorized') ||
+        text.contains('authentication') ||
+        text.contains('auth failed') ||
+        text.contains('access denied');
+  }
+
   static bool canRetry(Object failure) {
     final text = failure.toString().toLowerCase();
     return failure is! FormatException &&
@@ -25,6 +35,7 @@ class RtspFailureMessage {
       return 'A câmera não respondeu a tempo. Confira a rede, a porta e se o fluxo está ativo.';
     }
     if (text.contains('401') ||
+        text.contains('403') ||
         text.contains('unauthorized') ||
         text.contains('authentication') ||
         text.contains('auth failed') ||
