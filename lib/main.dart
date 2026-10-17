@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
+import 'shared/design_system/app_logo.dart';
+import 'shared/design_system/app_theme.dart';
 import 'shared/infrastructure/single_instance/single_instance_guard.dart';
 import 'shared/platform/linux_startup_service.dart';
 import 'shared/platform/windows_startup_service.dart';
@@ -81,6 +83,8 @@ class _StartupNoticeApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'RTSP Hub',
+    theme: AppTheme.light,
+    darkTheme: AppTheme.dark,
     home: Scaffold(
       body: Center(
         child: Padding(
@@ -88,7 +92,7 @@ class _StartupNoticeApp extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.info_outline, size: 42),
+              const AppLogo(size: 64, semanticLabel: 'RTSP Hub'),
               const SizedBox(height: 12),
               Text(message),
               const SizedBox(height: 12),

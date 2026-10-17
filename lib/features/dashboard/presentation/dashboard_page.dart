@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../../shared/design_system/page_frame.dart';
+import '../../../shared/design_system/app_logo.dart';
 import '../../camera_catalog/presentation/camera_preview_dialog.dart';
 import '../../camera_catalog/presentation/widgets/camera_preview_card.dart';
 import '../../settings/presentation/global_connection_page.dart';
@@ -106,6 +107,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return PageFrame.slivers(
       title: 'Visão geral',
       subtitle: 'Suas câmeras, em um olhar.',
+      leading: MediaQuery.sizeOf(context).width < 640 ? const AppLogo() : null,
       maxContentWidth: 1200,
       actions: [
         if (wideHeader) ...[
