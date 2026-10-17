@@ -522,6 +522,34 @@ void main() {
     },
   );
 
+  test('editing a camera preserves the selected channel', () async {
+    await store.saveCamera(
+      id: '',
+      name: 'Entrada',
+      host: '10.0.0.2',
+      port: '554',
+      username: '',
+      password: '',
+      mainPath: '/main',
+      subPath: '/sub',
+      savedPaths: ['/other'],
+    );
+    final camera = store.cameras.single;
+    await store.switchCameraChannel(camera.id, '/other');
+    await store.saveCamera(
+      id: camera.id,
+      name: 'Entrada nova',
+      host: camera.host,
+      port: '554',
+      username: '',
+      password: '',
+      mainPath: '/main',
+      subPath: '/sub',
+      savedPaths: ['/other'],
+    );
+    expect(store.cameras.single.activeChannel!.main.path, '/other');
+  });
+
   test('camera model serializes and restores savedPaths', () {
     const original = CameraDevice(
       id: 'cam1',
