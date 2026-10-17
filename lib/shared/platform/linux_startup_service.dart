@@ -43,6 +43,8 @@ class LinuxStartupService {
         'Type=Application\n'
         'Name=RTSP Hub\n'
         'Comment=Monitoramento de câmeras RTSP\n'
+        'Icon=rtsp-hub\n'
+        'StartupWMClass=com.rtsp.rtsp_view\n'
         'Exec="$appExecutable"\n'
         'Terminal=false\n'
         'X-GNOME-Autostart-enabled=true\n',
