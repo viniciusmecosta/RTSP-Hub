@@ -13,6 +13,7 @@ import '../domain/layout_geometry.dart';
 import '../domain/layout_preset.dart';
 import '../domain/saved_monitor_profile.dart';
 import 'widgets/layout_preset_picker.dart';
+import 'widgets/monitor_profile_status.dart';
 
 class LayoutsPage extends StatelessWidget {
   const LayoutsPage({this.onOpenMonitor, super.key});
@@ -29,6 +30,7 @@ class LayoutsPage extends StatelessWidget {
       children: [
         LayoutPresetPicker(selectedId: layout.id, onSelected: store.setLayout),
         const SizedBox(height: 18),
+        const MonitorProfileStatus(),
         _SavedProfiles(
           profiles: store.config.monitorProfiles,
           onSave: () => _saveProfile(context, store),

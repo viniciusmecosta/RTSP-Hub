@@ -52,6 +52,18 @@ class AppStore extends ChangeNotifier {
   LayoutPreset get activeLayout =>
       LayoutPreset.byId(_config.layoutId, cameraCount: _config.cameras.length);
 
+  SavedMonitorProfile? get activeMonitorProfile => _config.monitorProfiles
+      .where((p) => p.id == _config.lastProfileId)
+      .firstOrNull;
+
+  bool get isMonitorProfileModified {
+    final profile = activeMonitorProfile;
+    return profile != null &&
+        (profile.layoutId != _config.layoutId ||
+            !listEquals(profile.slotCameraIds, _config.slotCameraIds) ||
+            profile.startupSection != _config.startupSection);
+  }
+
   SavedMonitorProfile? get lastSavedProfile {
     final id = _config.lastProfileId;
     if (id != null) {

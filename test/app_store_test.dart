@@ -550,6 +550,28 @@ void main() {
     expect(store.cameras.single.activeChannel!.main.path, '/other');
   });
 
+  test(
+    'tracks profile changes and saves updates without creating duplicates',
+    () async {
+      await saveCamera();
+      await store.saveMonitorProfile(name: 'Portaria');
+      final id = store.activeMonitorProfile!.id;
+      expect(store.isMonitorProfileModified, isFalse);
+      await store.setLayout('GRID_2H');
+      expect(store.isMonitorProfileModified, isTrue);
+      await store.applyMonitorProfile(id);
+      expect(store.isMonitorProfileModified, isFalse);
+      expect(store.config.layoutId, 'GRID_4');
+      await store.setLayout('GRID_2H');
+      await store.saveMonitorProfile(id: id, name: 'Portaria');
+      expect(store.isMonitorProfileModified, isFalse);
+      expect(store.config.monitorProfiles, hasLength(1));
+      expect(store.activeMonitorProfile!.layoutId, 'GRID_2H');
+      await store.updateSettings(startupSection: 'monitor');
+      expect(store.isMonitorProfileModified, isTrue);
+    },
+  );
+
   test('camera model serializes and restores savedPaths', () {
     const original = CameraDevice(
       id: 'cam1',
