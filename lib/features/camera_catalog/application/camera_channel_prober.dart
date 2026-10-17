@@ -9,11 +9,22 @@ import '../../monitor/application/rtsp_session.dart';
 import '../domain/camera_device.dart';
 import '../domain/found_channel.dart';
 
+typedef ChannelQualityProbe =
+    Future<String?> Function({
+      required String host,
+      required int port,
+      required String username,
+      required String password,
+      required String path,
+      required bool Function() isCancelled,
+    });
+
 class CameraChannelProber {
-  CameraChannelProber({OnvifDiscoveryService? onvif})
+  CameraChannelProber({OnvifDiscoveryService? onvif, this.qualityProbe})
     : _onvif = onvif ?? OnvifDiscoveryService();
 
   final OnvifDiscoveryService _onvif;
+  final ChannelQualityProbe? qualityProbe;
   RtspSession? _activeProbe;
 
   RtspSession? get activeProbe => _activeProbe;
@@ -54,12 +65,30 @@ class CameraChannelProber {
         isCancelled: isCancelled,
       );
       for (final pair in OnvifStreamPair.group(device?.profiles ?? const [])) {
+        final mainUri = pair.main.streamUri;
+        final subUri = pair.sub?.streamUri;
+        if (mainUri.host.isEmpty ||
+            (mainUri.hasPort && (mainUri.port < 1 || mainUri.port > 65535))) {
+          continue;
+        }
         String path(Uri uri) => uri.hasQuery
             ? '${uri.path}?${uri.query}'
             : (uri.path.isEmpty ? '/' : uri.path);
         found.add(
           FoundChannel(
-            number: found.length + 1,
+            number:
+                int.tryParse(
+                  RegExp(r'\d+').firstMatch(pair.sourceKey)?.group(0) ?? '',
+                ) ??
+                found.length + 1,
+            host: mainUri.host,
+            port: mainUri.hasPort ? mainUri.port : 554,
+            subHost: subUri?.host,
+            subPort: subUri == null
+                ? null
+                : subUri.hasPort
+                ? subUri.port
+                : 554,
             mainPath: path(pair.main.streamUri),
             mainQuality: pair.main.quality,
             subPath: pair.sub == null ? null : path(pair.sub!.streamUri),
@@ -121,7 +150,7 @@ class CameraChannelProber {
           break;
         }
       }
-      if (mainPath == null) return;
+      if (mainPath == null) continue;
       String? subPath;
       String? subQuality;
       for (final path in RtspChannelCandidates.subForChannel(channel)) {
@@ -147,6 +176,8 @@ class CameraChannelProber {
       found.add(
         FoundChannel(
           number: channel,
+          host: host,
+          port: port,
           mainPath: mainPath,
           mainQuality: mainQuality!,
           subPath: subPath,
@@ -165,6 +196,16 @@ class CameraChannelProber {
     required bool Function() isCancelled,
     void Function()? onSessionUpdate,
   }) async {
+    if (qualityProbe != null) {
+      return qualityProbe!(
+        host: host,
+        port: port,
+        username: username,
+        password: password,
+        path: path,
+        isCancelled: isCancelled,
+      );
+    }
     final session = RtspSession(
       camera: CameraDevice(
         id: 'channel-search',

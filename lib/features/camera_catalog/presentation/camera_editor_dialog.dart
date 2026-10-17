@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../../../app/state/app_store.dart';
 import '../application/camera_channel_prober.dart';
 import '../domain/camera_device.dart';
+import '../domain/camera_channel.dart';
 import '../domain/camera_field_validation.dart';
 import '../domain/found_channel.dart';
 import 'camera_preview_dialog.dart';
@@ -46,6 +47,8 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
   late final TextEditingController _mainPath;
   late final TextEditingController _subPath;
   late List<String> _savedPaths;
+  late List<CameraChannel> _channels;
+  String _selectedChannelId = '';
   Uint8List? _thumbnail;
   String? _thumbnailIdentity;
   late final String _initialIdentity;
@@ -84,6 +87,8 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
       ...?camera?.savedPaths.map((p) => p.trim()).where((p) => p.isNotEmpty),
     ];
     _savedPaths = initialPaths.toSet().toList();
+    _channels = camera?.channels.toList() ?? [];
+    _selectedChannelId = camera?.activeChannel?.id ?? '';
     _mainPath.addListener(_onMainPathChanged);
     _initialIdentity = _captureIdentity;
     if (camera != null) {
@@ -201,12 +206,18 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
                           defaultPath: widget.store.config.defaultPath,
                           defaultSubPath: widget.store.config.defaultSubPath,
                           savedPaths: _savedPaths,
+                          channels: _channels.isNotEmpty
+                              ? _channels
+                              : CameraChannel.migrate(
+                                  mainPath: _mainPath.text.trim(),
+                                  subPath: _subPath.text.trim(),
+                                  savedPaths: _savedPaths,
+                                ),
+                          selectedChannelId: _selectedChannelId,
                           onAddSavedPath: (path) =>
                               setState(() => _savedPaths.add(path)),
-                          onSelectSavedPath: (path) =>
-                              setState(() => _mainPath.text = path),
-                          onRemoveSavedPath: (path) =>
-                              setState(() => _savedPaths.remove(path)),
+                          onSelectSavedPath: _selectChannel,
+                          onRemoveSavedPath: _removeChannel,
                           searchRecorderChannels: _searchRecorderChannels,
                           onToggleSearchRecorderChannels: (v) =>
                               setState(() => _searchRecorderChannels = v),
@@ -430,20 +441,97 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
     if (chosen == null || !mounted) return;
     final (channel, useSubOnly) = chosen;
     setState(() {
-      _mainPath.text = useSubOnly ? channel.subPath! : channel.mainPath;
-      _subPath.text = useSubOnly ? '' : channel.subPath ?? '';
-      for (final ch in found) {
-        if (!_savedPaths.contains(ch.mainPath)) _savedPaths.add(ch.mainPath);
-        if (ch.subPath != null &&
-            ch.subPath!.isNotEmpty &&
-            !_savedPaths.contains(ch.subPath!)) {
-          _savedPaths.add(ch.subPath!);
-        }
+      _channels = [
+        for (final ch in found)
+          ch.toChannel(subOnly: ch == channel && useSubOnly),
+      ];
+      final selected = _channels.firstWhere((c) => c.id == channel.mainPath);
+      _selectedChannelId = selected.id;
+      _mainPath.text = selected.main.path;
+      _subPath.text = selected.sub?.path ?? '';
+      if (selected.main.host != null) _host.text = selected.main.host!;
+      if (selected.main.port != null) {
+        _port.text = '${selected.main.port}';
+        _portOverride = selected.main.port != widget.store.config.defaultPort;
       }
+      _savedPaths = {
+        for (final c in _channels) ...[
+          c.main.path,
+          if (c.sub != null) c.sub!.path,
+        ],
+      }.toList();
       _probeMessage =
-          'Canal ${channel.number} selecionado: ${useSubOnly ? channel.subQuality : channel.mainQuality}.';
+          'Canal ${channel.number} selecionado: ${useSubOnly ? channel.subQuality : channel.mainQuality}. A qualidade será escolhida no monitor.';
       _probeSucceeded = true;
     });
+  }
+
+  void _selectChannel(String id) {
+    final channels = _channels.isNotEmpty
+        ? _channels
+        : CameraChannel.migrate(
+            mainPath: _mainPath.text.trim(),
+            subPath: _subPath.text.trim(),
+            savedPaths: _savedPaths,
+          );
+    final channel = channels
+        .where((c) => c.id == id || c.containsPath(id))
+        .firstOrNull;
+    if (channel == null) return;
+    setState(() {
+      _channels = channels;
+      _selectedChannelId = channel.id;
+      _mainPath.text = channel.main.path;
+      _subPath.text = channel.sub?.path ?? '';
+      if (channel.main.host != null) _host.text = channel.main.host!;
+      if (channel.main.port != null) {
+        _port.text = '${channel.main.port}';
+        _portOverride = channel.main.port != widget.store.config.defaultPort;
+      }
+    });
+  }
+
+  void _removeChannel(String id) {
+    setState(() {
+      final channel = _channels.where((c) => c.id == id).firstOrNull;
+      if (channel != null) {
+        _channels.remove(channel);
+        _savedPaths.removeWhere(channel.containsPath);
+      } else {
+        _savedPaths.remove(id);
+      }
+      if (_selectedChannelId == id) _selectedChannelId = '';
+    });
+  }
+
+  List<CameraChannel> get _channelsForSave {
+    if (_channels.isEmpty) return const [];
+    return [
+      for (final c in _channels)
+        if (c.id != _selectedChannelId)
+          c
+        else if (_mainPath.text.trim().isNotEmpty)
+          CameraChannel(
+            id: c.id,
+            label: c.label,
+            main: CameraStream(
+              path: _mainPath.text.trim(),
+              quality: c.main.path == _mainPath.text.trim()
+                  ? c.main.quality
+                  : '',
+            ),
+            sub: _subPath.text.trim().isEmpty
+                ? null
+                : CameraStream(
+                    path: _subPath.text.trim(),
+                    host: c.sub?.host == c.main.host ? null : c.sub?.host,
+                    port: c.sub?.port == c.main.port ? null : c.sub?.port,
+                    quality: c.sub?.path == _subPath.text.trim()
+                        ? c.sub?.quality ?? ''
+                        : '',
+                  ),
+          ),
+    ];
   }
 
   Future<void> _save() async {
@@ -468,6 +556,11 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
       subPath: _subPath.text,
       useGlobalCredentials: false,
       savedPaths: _savedPaths,
+      channels: _channelsForSave,
+      selectedChannelId: _selectedChannelId,
+      selectedPath: _channels.isEmpty
+          ? widget.camera?.selectedPath
+          : _mainPath.text.trim(),
       thumbnail: _thumbnail,
     );
     if (!mounted) return;

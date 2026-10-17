@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/camera_field_validation.dart';
+import '../../domain/camera_channel.dart';
 
 class CameraPathFields extends StatelessWidget {
   const CameraPathFields({
@@ -9,6 +10,8 @@ class CameraPathFields extends StatelessWidget {
     required this.defaultPath,
     required this.defaultSubPath,
     required this.savedPaths,
+    this.channels = const [],
+    this.selectedChannelId = '',
     required this.onAddSavedPath,
     required this.onSelectSavedPath,
     required this.onRemoveSavedPath,
@@ -23,6 +26,8 @@ class CameraPathFields extends StatelessWidget {
   final String defaultPath;
   final String defaultSubPath;
   final List<String> savedPaths;
+  final List<CameraChannel> channels;
+  final String selectedChannelId;
   final void Function(String path) onAddSavedPath;
   final void Function(String path) onSelectSavedPath;
   final void Function(String path) onRemoveSavedPath;
@@ -65,25 +70,25 @@ class CameraPathFields extends StatelessWidget {
                     icon: const Icon(Icons.arrow_drop_down),
                     tooltip: 'Canais salvos',
                     onSelected: onSelectSavedPath,
-                    itemBuilder: (context) => savedPaths
+                    itemBuilder: (context) => channels
                         .map(
-                          (path) => PopupMenuItem<String>(
-                            value: path,
+                          (channel) => PopupMenuItem<String>(
+                            value: channel.id,
                             child: Row(
                               children: [
                                 Icon(
-                                  path == mainPathController.text.trim()
+                                  channel.id == selectedChannelId
                                       ? Icons.check_circle
                                       : Icons.radio_button_unchecked,
                                   size: 16,
-                                  color: path == mainPathController.text.trim()
+                                  color: channel.id == selectedChannelId
                                       ? Theme.of(context).colorScheme.primary
                                       : Colors.grey,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    path,
+                                    channel.label,
                                     style: const TextStyle(fontSize: 13),
                                   ),
                                 ),
@@ -108,14 +113,17 @@ class CameraPathFields extends StatelessWidget {
               spacing: 6,
               runSpacing: 6,
               children: [
-                ...savedPaths.map((path) {
-                  final isSelected = path == mainPathController.text.trim();
+                ...channels.map((channel) {
+                  final isSelected = channel.id == selectedChannelId;
                   return InputChip(
                     selected: isSelected,
-                    label: Text(path, style: const TextStyle(fontSize: 11)),
-                    onSelected: (_) => onSelectSavedPath(path),
+                    label: Text(
+                      channel.label,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    onSelected: (_) => onSelectSavedPath(channel.id),
                     onDeleted: savedPaths.length > 1
-                        ? () => onRemoveSavedPath(path)
+                        ? () => onRemoveSavedPath(channel.id)
                         : null,
                     deleteButtonTooltipMessage: 'Remover canal salvo',
                   );
@@ -142,9 +150,7 @@ class CameraPathFields extends StatelessWidget {
             'Se ONVIF não responder, teste até 16 canais RTSP. Para câmera IP, deixe desligado.',
           ),
           value: searchRecorderChannels,
-          onChanged: isProbingOrTesting
-              ? null
-              : onToggleSearchRecorderChannels,
+          onChanged: isProbingOrTesting ? null : onToggleSearchRecorderChannels,
         ),
       ],
     );

@@ -11,6 +11,7 @@ import '../../discovery/data/onvif_discovery_service.dart';
 import '../../discovery/domain/rtsp_channel_candidates.dart';
 import '../../monitor/application/rtsp_session.dart';
 import '../domain/camera_device.dart';
+import '../domain/camera_channel.dart';
 import 'widgets/discovered_host_group.dart';
 
 class NetworkCameraDiscovery extends StatefulWidget {
@@ -295,6 +296,12 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
           subPath: sub == null ? null : _rtspPath(sub.streamUri),
           subQuality: sub?.quality,
           verified: false,
+          subHost: sub?.streamUri.host,
+          subPort: sub == null
+              ? null
+              : sub.streamUri.hasPort
+              ? sub.streamUri.port
+              : 554,
         );
         if (_channels.any((item) => item.key == result.key)) continue;
         setState(() {
@@ -356,10 +363,7 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
           }
         }
         if (_cancel) return;
-        if (mainPath == null) {
-          setState(() => _completed += lastChannel - channel);
-          break;
-        }
+        if (mainPath == null) continue;
         String? subPath;
         String? subQuality;
         for (final path in RtspChannelCandidates.subForChannel(channel)) {
@@ -483,6 +487,34 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
               ? channel.subPath ?? ''
               : '',
           useGlobalCredentials: true,
+          channels: [
+            CameraChannel(
+              id: channel.mainPath,
+              label: 'Canal ${channel.number}',
+              main: CameraStream(
+                path: _choiceFor(channel) == StreamChoice.sub
+                    ? channel.subPath!
+                    : channel.mainPath,
+                quality: _choiceFor(channel) == StreamChoice.sub
+                    ? channel.subQuality ?? ''
+                    : channel.mainQuality,
+              ),
+              sub:
+                  _choiceFor(channel) != StreamChoice.both ||
+                      channel.subPath == null
+                  ? null
+                  : CameraStream(
+                      path: channel.subPath!,
+                      host: channel.subHost == channel.host
+                          ? null
+                          : channel.subHost,
+                      port: channel.subPort == channel.port
+                          ? null
+                          : channel.subPort,
+                      quality: channel.subQuality ?? '',
+                    ),
+            ),
+          ],
         ),
     ]);
     if (!mounted) return;
