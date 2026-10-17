@@ -107,7 +107,8 @@ class OnvifDiscoveryService {
     ], eagerError: true);
     final capabilityResponse = responses[0];
     final informationResponse = responses[1];
-    if ((cancellation?.isCancelled ?? false) || (isCancelled?.call() ?? false)) {
+    if ((cancellation?.isCancelled ?? false) ||
+        (isCancelled?.call() ?? false)) {
       return null;
     }
     if (capabilityResponse == null) return null;

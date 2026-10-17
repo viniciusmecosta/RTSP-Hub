@@ -48,7 +48,8 @@ class LayoutPreviewSlot extends StatelessWidget {
                   ),
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    if (constraints.maxWidth < 64 || constraints.maxHeight < 44) {
+                    if (constraints.maxWidth < 64 ||
+                        constraints.maxHeight < 44) {
                       return const SizedBox.shrink();
                     }
                     return Align(

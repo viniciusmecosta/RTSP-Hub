@@ -22,8 +22,14 @@ void main() {
   test('rejects malformed and unsupported network ranges', () {
     expect(() => scanner.hostsInRange('not-a-network'), throwsFormatException);
     expect(() => scanner.hostsInRange('10.0.0.0/31'), throwsFormatException);
-    expect(() => scanner.hostsInRange('192.168.14.0/16'), throwsFormatException);
-    expect(() => scanner.hostsInRange('192.168.14.0/21'), throwsFormatException);
+    expect(
+      () => scanner.hostsInRange('192.168.14.0/16'),
+      throwsFormatException,
+    );
+    expect(
+      () => scanner.hostsInRange('192.168.14.0/21'),
+      throwsFormatException,
+    );
     expect(() => scanner.hostsInRange('2001:db8::/64'), throwsFormatException);
   });
 

@@ -340,7 +340,9 @@ class RtspSession extends ChangeNotifier {
         property('video-pts'),
         property('cache-speed'),
       ]);
-      if (_disposed || generation != _generation || !identical(_player, player)) {
+      if (_disposed ||
+          generation != _generation ||
+          !identical(_player, player)) {
         return;
       }
       if (_health.isStalled(
