@@ -13,6 +13,7 @@ import '../../../shared/platform/windows_startup_service.dart';
 import '../../../shared/platform/linux_startup_service.dart';
 import 'global_connection_page.dart';
 import '../domain/performance_preset.dart';
+import '../../monitor/domain/rtsp_buffer_policy.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -205,9 +206,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.high_quality_outlined),
-                  title: const Text('Buffer de rede'),
+                  title: const Text('Cache de rede por câmera'),
                   subtitle: Text(
-                    'Perfil ${store.config.bufferMs} · valores menores limitam a memória do fluxo e podem causar pausas em redes instáveis.',
+                    'Econômico: ${RtspBufferPolicy.bytesFor(targetMilliseconds: store.config.bufferMs, mainStream: false) ~/ 1024} KiB · principal: ${RtspBufferPolicy.bytesFor(targetMilliseconds: store.config.bufferMs, mainStream: true) ~/ 1024} KiB. Limite de cache, sem reduzir a resolução. Decodificação e imagens usam memória adicional.',
                   ),
                 ),
                 const Divider(height: 1),
