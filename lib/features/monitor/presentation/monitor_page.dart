@@ -12,6 +12,7 @@ import '../../../features/camera_catalog/presentation/clone_camera_dialog.dart';
 import '../../../features/layouts/domain/layout_preset.dart';
 import '../../../features/layouts/domain/layout_geometry.dart';
 import '../application/rtsp_session.dart';
+import '../application/rtsp_connection_coordinator.dart';
 import 'widgets/monitor_camera_tile.dart';
 
 class MonitorPage extends StatefulWidget {
@@ -32,6 +33,7 @@ class MonitorPage extends StatefulWidget {
 
 class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   final Map<String, RtspSession> _sessions = {};
+  final _connections = RtspConnectionCoordinator();
   Timer? _controlsTimer;
   Timer? _diagnosticTimer;
   final ValueNotifier<int> _diagnosticTick = ValueNotifier(0);
@@ -98,6 +100,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     _controlsVisible.dispose();
     unawaited(_releaseSessions(_sessions.values.toList()));
     _sessions.clear();
+    _connections.dispose();
     super.dispose();
   }
 
@@ -107,6 +110,12 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     await _pendingTeardown;
     if (!_appActive || !mounted || generation != _generation) return;
     final store = AppScope.of(context);
+    _connections.configure(
+      maxConcurrent: store.config.resourceMode == 'light' ? 1 : 2,
+      spacing: Duration(
+        milliseconds: store.config.resourceMode == 'light' ? 300 : 180,
+      ),
+    );
     final ids = store.config.slotCameraIds;
     final cameraById = {for (final camera in store.cameras) camera.id: camera};
     if (_restoreMonitorPage) {
@@ -178,13 +187,12 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
         defaultPort: store.config.defaultPort,
         bufferMs: store.config.bufferMs,
         useMainStream: mainStream,
+        connectionCoordinator: _connections,
+        connectionPriority: _focusedCameraId == id ? 10 : 0,
       );
       _sessions[id] = session;
       setState(() {});
       unawaited(session.start());
-      if (index < end - 1) {
-        await Future<void>.delayed(const Duration(milliseconds: 180));
-      }
     }
     if (mounted) setState(() {});
   }
