@@ -1,4 +1,6 @@
+import json
 import os
+from pathlib import Path
 import re
 import sys
 
@@ -12,8 +14,26 @@ def release_metadata(tag, build_number):
     return {'version': tag[1:], 'build_number': build_number}
 
 
+def write_linux_version(bundle, version=None, build_number=None):
+    manifest = Path('pubspec.yaml').read_text(encoding='utf-8')
+    match = re.search(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)(?:\+([0-9]+))?\s*$', manifest, re.MULTILINE)
+    if match is None:
+        raise ValueError('A versão do pubspec não foi encontrada.')
+    metadata = release_metadata('v' + (version or match.group(1)), build_number or match.group(2) or '1')
+    target = Path(bundle) / 'data' / 'flutter_assets' / 'version.json'
+    information = json.loads(target.read_text(encoding='utf-8'))
+    information.update(version=metadata['version'], build_number=metadata['build_number'])
+    temporary = target.with_suffix('.json.tmp')
+    temporary.write_text(json.dumps(information), encoding='utf-8')
+    temporary.replace(target)
+    return metadata
+
+
 def main():
     try:
+        if len(sys.argv) == 3 and sys.argv[1] == '--linux-bundle':
+            write_linux_version(sys.argv[2], os.environ.get('RELEASE_VERSION'), os.environ.get('RELEASE_BUILD_NUMBER'))
+            return 0
         metadata = release_metadata(os.environ.get('RELEASE_TAG', ''), os.environ.get('RELEASE_BUILD_NUMBER', ''))
     except ValueError as error:
         print(str(error), file=sys.stderr)
