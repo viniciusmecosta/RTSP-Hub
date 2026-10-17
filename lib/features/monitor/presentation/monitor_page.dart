@@ -738,7 +738,11 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     int pages,
   ) {
     final compact = MediaQuery.sizeOf(context).width < 600;
-    final mainStreams = _mainStreams ?? store.config.resourceMode == 'quality';
+    final mainStreams = StreamSelectionPolicy.useMainStream(
+      resourceMode: store.config.resourceMode,
+      manualChoice: _mainStreams,
+      focused: _focusedCameraId != null,
+    );
     final desktop =
         !kIsWeb &&
         {
