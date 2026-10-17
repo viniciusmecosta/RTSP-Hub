@@ -4,13 +4,14 @@ enum PerformancePreset {
     label: 'Leve',
     bufferMs: 180,
     description:
-        'Prioriza fluidez em computadores básicos e fluxos secundários.',
+        'Subfluxos e cache reduzido para computadores básicos. A resolução original do fluxo é preservada.',
   ),
   balanced(
     id: 'balanced',
     label: 'Equilibrado',
     bufferMs: 400,
-    description: 'Equilibra qualidade e consumo com fluxos secundários.',
+    description:
+        'Subfluxos com mais cache para tolerar oscilações da rede. A resolução original do fluxo é preservada.',
   ),
   quality(
     id: 'quality',
