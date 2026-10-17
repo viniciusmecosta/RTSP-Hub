@@ -6,6 +6,7 @@ class PageFrame extends StatelessWidget {
     required this.subtitle,
     required this.child,
     this.actions = const [],
+    this.leading,
     this.maxContentWidth = 1400,
     super.key,
   }) : slivers = null;
@@ -15,6 +16,7 @@ class PageFrame extends StatelessWidget {
     required this.subtitle,
     required this.slivers,
     this.actions = const [],
+    this.leading,
     this.maxContentWidth = 1400,
     super.key,
   }) : child = null;
@@ -24,6 +26,7 @@ class PageFrame extends StatelessWidget {
   final Widget? child;
   final List<Widget>? slivers;
   final List<Widget> actions;
+  final Widget? leading;
   final double maxContentWidth;
 
   @override
@@ -90,7 +93,7 @@ class PageFrame extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _PageHeading(title: title, subtitle: subtitle),
+          _PageHeading(title: title, subtitle: subtitle, leading: leading),
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 16),
             Wrap(spacing: 10, runSpacing: 8, children: actions),
@@ -102,7 +105,11 @@ class PageFrame extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: _PageHeading(title: title, subtitle: subtitle),
+          child: _PageHeading(
+            title: title,
+            subtitle: subtitle,
+            leading: leading,
+          ),
         ),
         if (actions.isNotEmpty) const SizedBox(width: 24),
         Wrap(spacing: 8, runSpacing: 8, children: actions),
@@ -112,15 +119,20 @@ class PageFrame extends StatelessWidget {
 }
 
 class _PageHeading extends StatelessWidget {
-  const _PageHeading({required this.title, required this.subtitle});
+  const _PageHeading({
+    required this.title,
+    required this.subtitle,
+    this.leading,
+  });
 
   final String title;
   final String subtitle;
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    return Column(
+    final heading = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -140,6 +152,15 @@ class _PageHeading extends StatelessWidget {
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
+      ],
+    );
+    if (leading == null) return heading;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(padding: const EdgeInsets.only(top: 2), child: leading),
+        const SizedBox(width: 12),
+        Expanded(child: heading),
       ],
     );
   }

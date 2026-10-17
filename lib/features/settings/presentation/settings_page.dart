@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import '../../../shared/design_system/app_logo.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_selector/file_selector.dart';
@@ -291,7 +293,7 @@ class _SettingsPageState extends State<SettingsPage> {
               final info = snapshot.data;
               return Card(
                 child: ListTile(
-                  leading: const Icon(Icons.info_outline),
+                  leading: const AppLogo(),
                   title: const Text('RTSP Hub'),
                   subtitle: Text(
                     info == null

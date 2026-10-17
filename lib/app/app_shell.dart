@@ -11,6 +11,7 @@ import '../features/layouts/presentation/layouts_page.dart';
 import '../features/monitor/presentation/monitor_page.dart';
 import '../features/settings/presentation/settings_page.dart';
 import '../features/settings/presentation/global_connection_page.dart';
+import '../shared/design_system/app_logo.dart';
 import 'state/app_store.dart';
 
 enum AppSection { dashboard, cameras, layouts, monitor, settings }
@@ -75,7 +76,7 @@ class _AppShellState extends State<AppShell> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        icon: const Icon(Icons.tips_and_updates_outlined),
+        icon: const Center(child: AppLogo(size: 64)),
         title: const Text('Bem-vindo ao RTSP Hub'),
         content: const Column(
           mainAxisSize: MainAxisSize.min,
@@ -139,11 +140,7 @@ class _AppShellState extends State<AppShell> {
                       ? null
                       : Padding(
                           padding: const EdgeInsets.only(bottom: 20, top: 12),
-                          child: Icon(
-                            Icons.videocam_rounded,
-                            color: Theme.of(context).colorScheme.primary,
-                            size: 30,
-                          ),
+                          child: const AppLogo(),
                         ),
                   selectedIndex: _selectedIndex,
                   labelType: shortLandscape
@@ -289,7 +286,7 @@ class _DesktopSidebar extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 30, 16, 30),
               child: Row(
                 children: [
-                  Icon(Icons.videocam_rounded, size: 30, color: colors.primary),
+                  const AppLogo(size: 36),
                   const SizedBox(width: 10),
                   Flexible(
                     child: Text.rich(
