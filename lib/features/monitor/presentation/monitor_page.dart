@@ -158,7 +158,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
           _mainStreams ||
           _focusedCameraId == id ||
           store.config.resourceMode == 'quality' ||
-          effectiveCamera.subPath.isEmpty;
+          effectiveCamera.activeChannel?.sub == null;
       if (existing != null &&
           _sameCamera(existing.camera, effectiveCamera) &&
           existing.password == secret &&
@@ -209,6 +209,8 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
         left.mainPath == right.mainPath &&
         left.subPath == right.subPath &&
         left.selectedPath == right.selectedPath &&
+        left.selectedChannelId == right.selectedChannelId &&
+        listEquals(left.channels, right.channels) &&
         left.useGlobalCredentials == right.useGlobalCredentials;
   }
 
@@ -491,7 +493,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                 );
               }
             },
-      onSwitchChannel: camera == null || camera.savedPaths.length <= 1
+      onSwitchChannel: camera == null || camera.availableChannels.length <= 1
           ? null
           : (newPath) async {
               await AppScope.of(

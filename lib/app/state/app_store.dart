@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../features/camera_catalog/domain/camera_device.dart';
+import '../../features/camera_catalog/domain/camera_channel.dart';
 import '../../features/camera_catalog/domain/camera_field_validation.dart';
 import '../../features/layouts/domain/layout_preset.dart';
 import '../../features/layouts/domain/saved_monitor_profile.dart';
@@ -140,7 +141,9 @@ class AppStore extends ChangeNotifier {
     required String subPath,
     bool useGlobalCredentials = false,
     List<String> savedPaths = const [],
-    String selectedPath = '',
+    String? selectedPath,
+    List<CameraChannel>? channels,
+    String? selectedChannelId,
     Uint8List? thumbnail,
   }) async {
     final normalizedHost = host.trim();
@@ -204,6 +207,25 @@ class AppStore extends ChangeNotifier {
       ...savedPaths.map(_normalizePath).where((p) => p.isNotEmpty),
     }.toList();
 
+    final previous = _config.cameras.where((c) => c.id == id).firstOrNull;
+    final effectiveChannels =
+        channels ?? previous?.channels ?? const <CameraChannel>[];
+    if (effectiveChannels.any((c) => !c.isValid) ||
+        effectiveChannels.map((c) => c.id).toSet().length !=
+            effectiveChannels.length) {
+      _message = 'Confira os canais e os perfis de vídeo.';
+      notifyListeners();
+      return false;
+    }
+    for (final channel in effectiveChannels) {
+      for (final path in [
+        channel.main.path,
+        if (channel.sub != null) channel.sub!.path,
+      ]) {
+        if (!allSavedPaths.contains(path)) allSavedPaths.add(path);
+      }
+    }
+    final selection = selectedPath ?? previous?.selectedPath ?? '';
     final camera = CameraDevice(
       id: isNewCamera ? const Uuid().v4() : id,
       name: name.trim().isEmpty ? normalizedHost : name.trim(),
@@ -214,7 +236,9 @@ class AppStore extends ChangeNotifier {
       mainPath: normalizedMain,
       subPath: normalizedSub,
       savedPaths: allSavedPaths,
-      selectedPath: allSavedPaths.contains(selectedPath) ? selectedPath : '',
+      selectedPath: allSavedPaths.contains(selection) ? selection : '',
+      channels: effectiveChannels,
+      selectedChannelId: selectedChannelId ?? previous?.selectedChannelId ?? '',
     );
     final previousCamera = _config.cameras
         .where((item) => item.id == camera.id)
@@ -323,25 +347,52 @@ class AppStore extends ChangeNotifier {
       useGlobalCredentials: source.useGlobalCredentials,
       savedPaths: source.savedPaths,
       selectedPath: source.selectedPath,
+      channels: source.channels
+          .map(
+            (c) => CameraChannel(
+              id: c.id,
+              label: c.label,
+              main: CameraStream(
+                path: c.main.path,
+                port: c.main.port,
+                quality: c.main.quality,
+              ),
+              sub: c.sub == null
+                  ? null
+                  : CameraStream(
+                      path: c.sub!.path,
+                      port: c.sub!.port,
+                      quality: c.sub!.quality,
+                    ),
+            ),
+          )
+          .toList(),
+      selectedChannelId: source.selectedChannelId,
     );
   }
 
   Future<bool> switchCameraChannel(String cameraId, String newPath) async {
-    final normalized = _normalizePath(newPath);
     final camera = _config.cameras
         .where((item) => item.id == cameraId)
         .firstOrNull;
-    if (camera == null ||
-        CameraFieldValidation.pathError(normalized) != null ||
-        !camera.savedPaths.contains(normalized)) {
+    final channel = camera?.availableChannels
+        .where((c) => c.id == newPath || c.containsPath(newPath))
+        .firstOrNull;
+    if (camera == null || channel == null) {
       _message = 'Escolha um canal salvo para esta câmera.';
       notifyListeners();
       return false;
     }
-    final cameras = _config.cameras.map((c) {
-      if (c.id != cameraId) return c;
-      return c.copyWith(selectedPath: normalized);
-    }).toList();
+    final cameras = _config.cameras
+        .map(
+          (c) => c.id != cameraId
+              ? c
+              : c.copyWith(
+                  selectedChannelId: channel.id,
+                  selectedPath: channel.main.path,
+                ),
+        )
+        .toList();
     return _commit(_config.copyWith(cameras: cameras));
   }
 
@@ -404,6 +455,8 @@ class AppStore extends ChangeNotifier {
         mainPath: path == _config.defaultPath ? '' : path,
         subPath: subPath == _config.defaultSubPath ? '' : subPath,
         useGlobalCredentials: true,
+        channels: candidate.channels,
+        selectedChannelId: candidate.selectedChannelId,
         savedPaths: candidate.savedPaths.isNotEmpty
             ? candidate.savedPaths
             : [path, if (subPath.isNotEmpty) subPath],

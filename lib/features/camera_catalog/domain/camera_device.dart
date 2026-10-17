@@ -1,3 +1,5 @@
+import 'camera_channel.dart';
+
 class CameraDevice {
   const CameraDevice({
     required this.id,
@@ -10,6 +12,8 @@ class CameraDevice {
     this.useGlobalCredentials = false,
     this.savedPaths = const [],
     this.selectedPath = '',
+    this.channels = const [],
+    this.selectedChannelId = '',
   });
 
   final String id;
@@ -22,6 +26,31 @@ class CameraDevice {
   final bool useGlobalCredentials;
   final List<String> savedPaths;
   final String selectedPath;
+  final List<CameraChannel> channels;
+  final String selectedChannelId;
+
+  List<CameraChannel> get availableChannels => channels.isNotEmpty
+      ? channels
+      : CameraChannel.migrate(
+          mainPath: mainPath,
+          subPath: subPath,
+          savedPaths: savedPaths,
+        );
+
+  CameraChannel? get activeChannel {
+    final items = availableChannels;
+    return items.where((c) => c.id == selectedChannelId).firstOrNull ??
+        items
+            .where(
+              (c) => selectedPath.isNotEmpty && c.containsPath(selectedPath),
+            )
+            .firstOrNull ??
+        items.firstOrNull;
+  }
+
+  CameraStream playbackStream({required bool useMainStream}) =>
+      activeChannel?.stream(useMainStream: useMainStream) ??
+      CameraStream(path: useMainStream || subPath.isEmpty ? mainPath : subPath);
 
   int effectivePort(int defaultPort) => port ?? defaultPort;
 
@@ -38,11 +67,8 @@ class CameraDevice {
     useGlobalCredentials: false,
   );
 
-  String playbackPath({required bool useMainStream}) => selectedPath.isNotEmpty
-      ? selectedPath
-      : useMainStream || subPath.trim().isEmpty
-      ? mainPath
-      : subPath;
+  String playbackPath({required bool useMainStream}) =>
+      playbackStream(useMainStream: useMainStream).path;
 
   CameraDevice copyWith({
     String? name,
@@ -55,6 +81,8 @@ class CameraDevice {
     bool? useGlobalCredentials,
     List<String>? savedPaths,
     String? selectedPath,
+    List<CameraChannel>? channels,
+    String? selectedChannelId,
   }) {
     return CameraDevice(
       id: id,
@@ -67,6 +95,8 @@ class CameraDevice {
       useGlobalCredentials: useGlobalCredentials ?? this.useGlobalCredentials,
       savedPaths: savedPaths ?? this.savedPaths,
       selectedPath: selectedPath ?? this.selectedPath,
+      channels: channels ?? this.channels,
+      selectedChannelId: selectedChannelId ?? this.selectedChannelId,
     );
   }
 
@@ -81,6 +111,8 @@ class CameraDevice {
     'useGlobalCredentials': useGlobalCredentials,
     'savedPaths': savedPaths,
     'selectedPath': selectedPath,
+    'channels': channels.map((c) => c.toJson()).toList(),
+    'selectedChannelId': selectedChannelId,
   };
 
   factory CameraDevice.fromJson(Map<String, Object?> json) {
@@ -99,6 +131,13 @@ class CameraDevice {
       useGlobalCredentials: json['useGlobalCredentials'] as bool? ?? false,
       savedPaths: savedPaths,
       selectedPath: json['selectedPath'] as String? ?? '',
+      channels: (json['channels'] as List? ?? const [])
+          .map(
+            (item) =>
+                CameraChannel.fromJson(Map<String, Object?>.from(item as Map)),
+          )
+          .toList(growable: false),
+      selectedChannelId: json['selectedChannelId'] as String? ?? '',
     );
   }
 }

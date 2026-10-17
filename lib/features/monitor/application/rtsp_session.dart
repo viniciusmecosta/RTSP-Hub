@@ -355,10 +355,11 @@ class RtspSession extends ChangeNotifier {
   }
 
   Uri get _streamUri {
+    final stream = camera.playbackStream(useMainStream: useMainStream);
     return RtspStreamUri.build(
-      host: camera.host,
-      port: camera.effectivePort(defaultPort),
-      path: camera.playbackPath(useMainStream: useMainStream),
+      host: stream.host ?? camera.host,
+      port: stream.port ?? camera.effectivePort(defaultPort),
+      path: stream.path,
       username: camera.username,
       password: password,
     );

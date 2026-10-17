@@ -157,6 +157,8 @@ class AppBackupService {
         useGlobalCredentials: camera.useGlobalCredentials,
         savedPaths: camera.savedPaths,
         selectedPath: camera.selectedPath,
+        channels: camera.channels,
+        selectedChannelId: camera.selectedChannelId,
       );
       cameras.add(created);
       byKey[keyOf(created)] = created.id;

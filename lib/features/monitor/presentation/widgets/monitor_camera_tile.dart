@@ -98,8 +98,8 @@ class MonitorCameraTile extends StatelessWidget {
                         vertical: 4,
                       ),
                       child: Text(
-                        camera!.savedPaths.length > 1
-                            ? '${camera!.name} (${camera!.playbackPath(useMainStream: true)})'
+                        camera!.availableChannels.length > 1
+                            ? '${camera!.name} (${camera!.activeChannel?.label ?? ''})'
                             : camera!.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -162,50 +162,34 @@ class MonitorCameraTile extends StatelessWidget {
                             ],
                           ),
                         ),
-                      if (camera != null && camera!.savedPaths.length > 1) ...[
+                      if (camera!.availableChannels.length > 1) ...[
                         const PopupMenuDivider(),
-                        ...camera!.savedPaths.map(
-                          (path) => PopupMenuItem(
-                            value: 'channel:$path',
+                        for (final channel in camera!.availableChannels)
+                          PopupMenuItem(
+                            value: 'channel:${channel.id}',
                             child: Row(
                               children: [
                                 Icon(
-                                  path ==
-                                          (camera!.selectedPath.isEmpty
-                                              ? camera!.mainPath
-                                              : camera!.selectedPath)
+                                  channel.id == camera!.activeChannel?.id
                                       ? Icons.check_circle
                                       : Icons.radio_button_unchecked,
-                                  size: 16,
-                                  color:
-                                      path ==
-                                          (camera!.selectedPath.isEmpty
-                                              ? camera!.mainPath
-                                              : camera!.selectedPath)
-                                      ? const Color(0xFF10B981)
-                                      : Colors.white70,
+                                  size: 18,
+                                  color: channel.id == camera!.activeChannel?.id
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'Canal: $path',
+                                    channel.label,
                                     overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight:
-                                          path ==
-                                              (camera!.selectedPath.isEmpty
-                                                  ? camera!.mainPath
-                                                  : camera!.selectedPath)
-                                          ? FontWeight.w700
-                                          : FontWeight.normal,
-                                    ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ),
                       ],
                     ],
                   ),
