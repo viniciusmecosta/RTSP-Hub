@@ -1,6 +1,10 @@
 # RTSP Hub
 
+<img src="assets/logo.png" alt="Marca Mosaico do RTSP Hub" width="96" height="96">
+
 Aplicativo Flutter para cadastrar câmeras RTSP, localizar canais e monitorar vários fluxos em Android, Windows e Linux.
+
+As fontes, os ícones de cada plataforma e o processo de atualização da marca estão em [assets/branding/README.md](assets/branding/README.md).
 
 ## Executar no Linux
 
