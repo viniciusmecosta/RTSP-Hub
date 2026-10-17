@@ -173,9 +173,7 @@ void main() {
 
     expect(find.text('Prévia do monitor'), findsOneWidget);
     expect(
-      find.text(
-        'Miniaturas salvas. Toque nas posições abaixo para escolher as câmeras.',
-      ),
+      find.textContaining('Pressione e arraste para trocar posições'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);

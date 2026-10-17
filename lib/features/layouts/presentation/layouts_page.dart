@@ -13,6 +13,7 @@ import '../domain/layout_geometry.dart';
 import '../domain/layout_preset.dart';
 import '../domain/saved_monitor_profile.dart';
 import 'widgets/layout_preset_picker.dart';
+import 'widgets/layout_preview_slot.dart';
 import 'widgets/monitor_profile_status.dart';
 
 class LayoutsPage extends StatelessWidget {
@@ -58,6 +59,24 @@ class LayoutsPage extends StatelessWidget {
           slotCameraIds: store.config.slotCameraIds,
           cameraNames: {
             for (final camera in store.cameras) camera.id: camera.name,
+          },
+          onSelect: (index) => _selectCamera(
+            context,
+            store,
+            index,
+            store.config.slotCameraIds[index],
+          ),
+          onSwap: (first, second) async {
+            if (!await store.swapMonitorSlots(first, second) &&
+                context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    store.message ?? 'Não foi possível mover a câmera.',
+                  ),
+                ),
+              );
+            }
           },
         ),
         const SizedBox(height: 24),
@@ -578,11 +597,15 @@ class _MonitorPreview extends StatelessWidget {
     required this.layout,
     required this.slotCameraIds,
     required this.cameraNames,
+    required this.onSelect,
+    required this.onSwap,
   });
 
   final LayoutPreset layout;
   final List<String?> slotCameraIds;
   final Map<String, String> cameraNames;
+  final ValueChanged<int> onSelect;
+  final void Function(int first, int second) onSwap;
 
   @override
   Widget build(BuildContext context) {
@@ -607,7 +630,7 @@ class _MonitorPreview extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       Text(
-                        'Miniaturas salvas. Toque nas posições abaixo para escolher as câmeras.',
+                        'Miniaturas salvas. Toque para escolher uma câmera. Pressione e arraste para trocar posições ou use o menu de cada posição.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colors.onSurfaceVariant,
                         ),
@@ -652,13 +675,19 @@ class _MonitorPreview extends StatelessWidget {
                                   size,
                                   customTiles,
                                 ).deflate(1.5),
-                                child: _MonitorPreviewTile(
-                                  number: index + 1,
-                                  cameraName: _cameraName(index),
-                                  cameraId: index < slotCameraIds.length
-                                      ? slotCameraIds[index]
-                                      : null,
-                                  emphasized: layout.focusIndex == index,
+                                child: LayoutPreviewSlot(
+                                  index: index,
+                                  count: layout.cameraCount,
+                                  onSelect: () => onSelect(index),
+                                  onSwap: (other) => onSwap(index, other),
+                                  child: _MonitorPreviewTile(
+                                    number: index + 1,
+                                    cameraName: _cameraName(index),
+                                    cameraId: index < slotCameraIds.length
+                                        ? slotCameraIds[index]
+                                        : null,
+                                    emphasized: layout.focusIndex == index,
+                                  ),
                                 ),
                               ),
                           ],

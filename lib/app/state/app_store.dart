@@ -679,6 +679,21 @@ class AppStore extends ChangeNotifier {
     await _commit(_config.copyWith(slotCameraIds: slots));
   }
 
+  Future<bool> swapMonitorSlots(int first, int second) async {
+    final slots = [..._config.slotCameraIds];
+    if (first < 0 ||
+        second < 0 ||
+        first >= slots.length ||
+        second >= slots.length ||
+        first == second) {
+      return false;
+    }
+    final previous = slots[first];
+    slots[first] = slots[second];
+    slots[second] = previous;
+    return _commit(_config.copyWith(slotCameraIds: slots));
+  }
+
   Future<void> clearSlots() async {
     if (_config.layoutId == 'GRID_ALL') return;
     await _commit(
