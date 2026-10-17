@@ -572,6 +572,22 @@ void main() {
     },
   );
 
+  test(
+    'swaps positions including empty slots without losing assignments',
+    () async {
+      await saveCamera();
+      final id = store.cameras.single.id;
+      await store.saveMonitorProfile(name: 'Original');
+      expect(await store.swapMonitorSlots(0, 3), isTrue);
+      expect(store.config.slotCameraIds, [null, null, null, id]);
+      expect(store.isMonitorProfileModified, isTrue);
+      expect(await store.swapMonitorSlots(-1, 0), isFalse);
+      expect(await store.swapMonitorSlots(0, 4), isFalse);
+      expect(await store.swapMonitorSlots(0, 0), isFalse);
+      expect(store.config.slotCameraIds, [null, null, null, id]);
+    },
+  );
+
   test('camera model serializes and restores savedPaths', () {
     const original = CameraDevice(
       id: 'cam1',
