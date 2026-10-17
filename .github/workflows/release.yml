@@ -13,7 +13,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      build_number: ${{ steps.version.outputs.build_number }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 -m unittest discover -s tool/tests
+      - name: Validar versão da release
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_BUILD_NUMBER: ${{ github.run_number }}
+        run: python3 tool/release_version.py
+
   android:
+    needs: metadata
+    env:
+      RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+      RELEASE_BUILD_NUMBER: ${{ needs.metadata.outputs.build_number }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -22,9 +41,16 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build apk --release
+      - run: flutter build apk --release --build-name "$RELEASE_VERSION" --build-number "$RELEASE_BUILD_NUMBER"
       - name: Validar APK Android
-        run: test -s build/app/outputs/flutter-apk/app-release.apk
+        run: |
+          set -euo pipefail
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          test -s "$apk"
+          analyzer="$(find "$ANDROID_HOME/cmdline-tools" -name apkanalyzer -type f -print -quit)"
+          test -n "$analyzer"
+          test "$("$analyzer" manifest version-name "$apk")" = "$RELEASE_VERSION"
+          test "$("$analyzer" manifest version-code "$apk")" = "$RELEASE_BUILD_NUMBER"
       - uses: actions/upload-artifact@v4
         with:
           name: android-apk
@@ -34,6 +60,10 @@ jobs:
           retention-days: 2
 
   ubuntu:
+    needs: metadata
+    env:
+      RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+      RELEASE_BUILD_NUMBER: ${{ needs.metadata.outputs.build_number }}
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
@@ -46,9 +76,7 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze && flutter test
       - name: Criar pacote Debian
-        env:
-          RELEASE_VERSION: ${{ github.ref_name }}
-        run: RELEASE_VERSION="${RELEASE_VERSION#v}" tool/package_linux_deb.sh
+        run: tool/package_linux_deb.sh
       - name: Validar pacote Debian
         shell: bash
         run: |
@@ -56,6 +84,7 @@ jobs:
           package=(dist/*.deb)
           test -f "${package[0]}"
           test "$(dpkg-deb -f "${package[0]}" Package)" = "rtsp-hub"
+          test "$(dpkg-deb -f "${package[0]}" Version)" = "$RELEASE_VERSION"
           install_root="$(mktemp -d)"
           dpkg-deb -x "${package[0]}" "$install_root"
           test -x "$install_root/opt/rtsp-hub/RTSPHub"
@@ -63,6 +92,7 @@ jobs:
           test -f "$install_root/usr/share/applications/rtsp-hub.desktop"
           test -f "$install_root/usr/share/icons/hicolor/256x256/apps/rtsp-hub.png"
           test -f "$install_root/usr/share/pixmaps/rtsp-hub.png"
+          python3 -c 'import json,sys; info=json.load(open(sys.argv[1])); assert info["version"]==sys.argv[2]; assert info["build_number"]==sys.argv[3]' "$install_root/opt/rtsp-hub/data/flutter_assets/version.json" "$RELEASE_VERSION" "$RELEASE_BUILD_NUMBER"
           test -n "$(find "$install_root/opt/rtsp-hub/lib" -maxdepth 1 -name 'libmpv.so.*' -print -quit)"
           rm -rf "$install_root"
       - name: Testar instalação e abertura no Ubuntu
@@ -86,6 +116,10 @@ jobs:
           retention-days: 2
 
   windows:
+    needs: metadata
+    env:
+      RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+      RELEASE_BUILD_NUMBER: ${{ needs.metadata.outputs.build_number }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -94,11 +128,15 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build windows --release
+      - run: flutter build windows --release --build-name "$env:RELEASE_VERSION" --build-number "$env:RELEASE_BUILD_NUMBER"
       - name: Validar executável Windows
         shell: pwsh
         run: |
           if (!(Test-Path build\windows\x64\runner\Release\rtsp_hub.exe)) { throw "Executável Windows ausente" }
+          $metadata = (Get-Item build\windows\x64\runner\Release\rtsp_hub.exe).VersionInfo
+          $expected = "$env:RELEASE_VERSION.$env:RELEASE_BUILD_NUMBER"
+          $actual = '{0}.{1}.{2}.{3}' -f $metadata.FileMajorPart, $metadata.FileMinorPart, $metadata.FileBuildPart, $metadata.FilePrivatePart
+          if ($actual -ne $expected) { throw "Versão do executável divergente: $actual, esperada $expected" }
       - name: Incluir runtime Visual C++ no aplicativo
         shell: pwsh
         run: ./tool/package_windows_runtime.ps1 -ReleaseDir build\windows\x64\runner\Release
@@ -107,7 +145,7 @@ jobs:
       - name: Criar instalador Windows
         shell: pwsh
         run: |
-          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          $version = $env:RELEASE_VERSION
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" tool/windows-installer.iss
       - name: Validar instalador Windows

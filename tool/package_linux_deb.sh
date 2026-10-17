@@ -6,7 +6,8 @@ if [[ "$(uname -s)" != "Linux" || "$(uname -m)" != "x86_64" ]]; then
   exit 1
 fi
 
-version="${RELEASE_VERSION:-1.0.0}"
+version="${RELEASE_VERSION:-$(awk '/^version:/ { split($2, parts, "+"); print parts[1]; exit }' pubspec.yaml)}"
+export RELEASE_VERSION="$version"
 if [[ ! "$version" =~ ^[0-9]+([.][0-9]+)*([~+][A-Za-z0-9.-]+)?$ ]]; then
   printf '%s\n' 'A versão informada não é válida para um pacote Debian.' >&2
   exit 1
