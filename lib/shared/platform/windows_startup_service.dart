@@ -18,7 +18,7 @@ class WindowsStartupService {
         return true;
       }
       if (!await _contains(_legacyValueName)) return false;
-      return setEnabled(true);
+      return await setEnabled(true);
     } on Object {
       return false;
     }
@@ -44,7 +44,7 @@ class WindowsStartupService {
         '/f',
       ]);
       if (result.exitCode != 0) return false;
-      return _deleteIfExists(_legacyValueName);
+      return await _deleteIfExists(_legacyValueName);
     } on Object {
       return false;
     }
