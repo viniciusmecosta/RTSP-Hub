@@ -16,7 +16,7 @@ class LinuxStartupService {
         return true;
       }
       if (legacy == null || !await legacy.exists()) return false;
-      return setEnabled(true);
+      return await setEnabled(true);
     } on Object {
       return false;
     }
