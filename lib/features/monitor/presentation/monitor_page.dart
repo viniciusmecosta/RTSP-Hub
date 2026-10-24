@@ -14,19 +14,36 @@ import '../../../features/layouts/domain/layout_geometry.dart';
 import '../application/rtsp_session.dart';
 import '../application/rtsp_connection_coordinator.dart';
 import '../domain/stream_selection_policy.dart';
+import '../domain/monitor_paging_policy.dart';
+import '../../../shared/platform/device_environment.dart';
 import 'widgets/monitor_camera_tile.dart';
+
+typedef MonitorSessionFactory =
+    RtspSession Function({
+      required CameraDevice camera,
+      required String? password,
+      required int defaultPort,
+      required int bufferMs,
+      required bool useMainStream,
+      required RtspConnectionCoordinator connectionCoordinator,
+      required int connectionPriority,
+    });
 
 class MonitorPage extends StatefulWidget {
   const MonitorPage({
     required this.onExit,
     required this.onConfigure,
     this.onOpenLayouts,
+    this.sessionFactory = RtspSession.new,
+    this.now = DateTime.now,
     super.key,
   });
 
   final VoidCallback onExit;
   final VoidCallback onConfigure;
   final VoidCallback? onOpenLayouts;
+  final MonitorSessionFactory sessionFactory;
+  final DateTime Function() now;
 
   @override
   State<MonitorPage> createState() => _MonitorPageState();
@@ -35,13 +52,17 @@ class MonitorPage extends StatefulWidget {
 class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   final Map<String, RtspSession> _sessions = {};
   final _connections = RtspConnectionCoordinator();
+  final _toolbarFocus = FocusNode(
+    debugLabel: 'Monitor toolbar',
+    skipTraversal: true,
+  );
   Timer? _controlsTimer;
   Timer? _diagnosticTimer;
   final ValueNotifier<int> _diagnosticTick = ValueNotifier(0);
   int _page = 0;
   bool? _mainStreams;
   final ValueNotifier<bool> _controlsVisible = ValueNotifier(true);
-  DateTime _lastInteraction = DateTime.now();
+  late DateTime _lastInteraction;
   bool get _showControls => _controlsVisible.value;
   bool _showDiagnostics = false;
   String? _focusedCameraId;
@@ -99,6 +120,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     _diagnosticTimer?.cancel();
     _diagnosticTick.dispose();
     _controlsVisible.dispose();
+    _toolbarFocus.dispose();
     unawaited(_releaseSessions(_sessions.values.toList()));
     _sessions.clear();
     _connections.dispose();
@@ -111,10 +133,15 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     await _pendingTeardown;
     if (!_appActive || !mounted || generation != _generation) return;
     final store = AppScope.of(context);
+    final television = DeviceEnvironmentScope.of(context).isTelevision;
     _connections.configure(
-      maxConcurrent: store.config.resourceMode == 'light' ? 1 : 2,
+      maxConcurrent: television || store.config.resourceMode == 'light' ? 1 : 2,
       spacing: Duration(
-        milliseconds: store.config.resourceMode == 'light' ? 300 : 180,
+        milliseconds: television
+            ? 400
+            : store.config.resourceMode == 'light'
+            ? 300
+            : 180,
       ),
     );
     final ids = store.config.slotCameraIds;
@@ -132,7 +159,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       store.activeLayout,
       MediaQuery.sizeOf(context).width,
     );
-    final pages = ((ids.length + pageSize - 1) ~/ pageSize).clamp(1, 100);
+    final pages = max(1, (ids.length + pageSize - 1) ~/ pageSize);
     _page = _page.clamp(0, pages - 1);
     if (_focusedCameraId != null && !ids.contains(_focusedCameraId)) {
       _focusedCameraId = null;
@@ -168,6 +195,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
         resourceMode: store.config.resourceMode,
         manualChoice: _mainStreams,
         focused: _focusedCameraId == id,
+        upgradeFocusedStream: !television,
         hasSubStream: effectiveCamera.activeChannel?.sub != null,
       );
       if (existing != null &&
@@ -183,7 +211,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
         await _releaseSessions([existing]);
         if (!mounted || generation != _generation || !_appActive) return;
       }
-      final session = RtspSession(
+      final session = widget.sessionFactory(
         camera: effectiveCamera,
         password: secret,
         defaultPort: store.config.defaultPort,
@@ -248,7 +276,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     final layout = store.activeLayout;
     final slots = store.config.slotCameraIds;
     final perPage = _pageSize(layout, MediaQuery.sizeOf(context).width);
-    final pages = ((slots.length + perPage - 1) ~/ perPage).clamp(1, 100);
+    final pages = max(1, (slots.length + perPage - 1) ~/ perPage);
     if (_page >= pages) _page = pages - 1;
     final focusedIndex = _focusedCameraId == null
         ? -1
@@ -267,6 +295,20 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
         autofocus: true,
         onKeyEvent: (node, event) {
           if (event is KeyDownEvent) {
+            if (!_showControls &&
+                {
+                  LogicalKeyboardKey.arrowUp,
+                  LogicalKeyboardKey.arrowDown,
+                  LogicalKeyboardKey.arrowLeft,
+                  LogicalKeyboardKey.arrowRight,
+                  LogicalKeyboardKey.select,
+                  LogicalKeyboardKey.enter,
+                  LogicalKeyboardKey.gameButtonA,
+                }.contains(event.logicalKey)) {
+              _revealControls();
+              return KeyEventResult.handled;
+            }
+            _revealControls();
             if (event.logicalKey == LogicalKeyboardKey.escape) {
               _handleBack();
               return KeyEventResult.handled;
@@ -287,12 +329,13 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                 AppScope.of(context).activeLayout,
                 MediaQuery.sizeOf(context).width,
               );
-              final pageCount =
-                  ((AppScope.of(context).config.slotCameraIds.length +
-                              pageSize -
-                              1) ~/
-                          pageSize)
-                      .clamp(1, 100);
+              final pageCount = max(
+                1,
+                (AppScope.of(context).config.slotCameraIds.length +
+                        pageSize -
+                        1) ~/
+                    pageSize,
+              );
               final delta = event.logicalKey == LogicalKeyboardKey.pageUp
                   ? -1
                   : 1;
@@ -440,7 +483,10 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                     child: ValueListenableBuilder<bool>(
                       valueListenable: _controlsVisible,
                       builder: (context, visible, _) => visible
-                          ? _toolbar(context, store, layout, pages)
+                          ? Focus(
+                              focusNode: _toolbarFocus,
+                              child: _toolbar(context, store, layout, pages),
+                            )
                           : const SizedBox.shrink(),
                     ),
                   ),
@@ -472,12 +518,27 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     final camera = id == null ? null : cameraById[id];
     final session = id == null ? null : _sessions[id];
     return MonitorCameraTile(
+      key: ValueKey('monitor-camera-slot-$slotIndex'),
       camera: camera,
+      autofocus:
+          DeviceEnvironmentScope.of(context).isTelevision &&
+          camera != null &&
+          (slotIndex ==
+                  _page *
+                      _pageSize(
+                        AppScope.of(context).activeLayout,
+                        MediaQuery.sizeOf(context).width,
+                      ) ||
+              _focusedCameraId == id),
       session: session,
       onTap: _revealControls,
       onFocus: camera == null
           ? null
           : () {
+              if (!_showControls) {
+                _revealControls();
+                return;
+              }
               setState(() {
                 _focusedCameraId = _focusedCameraId == camera.id
                     ? null
@@ -677,16 +738,19 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   }
 
   void _scheduleControlsHide() {
-    _lastInteraction = DateTime.now();
+    _lastInteraction = widget.now();
     if (_controlsTimer?.isActive ?? false) return;
     _controlsTimer = Timer(const Duration(seconds: 4), _hideControlsWhenIdle);
   }
 
   void _hideControlsWhenIdle() {
     if (!mounted || !_appActive || _showDiagnostics) return;
+    if (ModalRoute.of(context)?.isCurrent == false || _toolbarFocus.hasFocus) {
+      _scheduleControlsHide();
+      return;
+    }
     final remaining =
-        const Duration(seconds: 4) -
-        DateTime.now().difference(_lastInteraction);
+        const Duration(seconds: 4) - widget.now().difference(_lastInteraction);
     if (remaining > Duration.zero) {
       _controlsTimer = Timer(remaining, _hideControlsWhenIdle);
     } else {
@@ -742,6 +806,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       resourceMode: store.config.resourceMode,
       manualChoice: _mainStreams,
       focused: _focusedCameraId != null,
+      upgradeFocusedStream: !DeviceEnvironmentScope.of(context).isTelevision,
     );
     final desktop =
         !kIsWeb &&
@@ -807,10 +872,14 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
             ),
             if (pages > 1 && _focusedCameraId == null && !compact)
               IconButton(
+                tooltip: 'Página anterior',
                 onPressed: _page > 0
                     ? () => _changePage(_page - 1, store)
                     : null,
-                icon: const Icon(Icons.chevron_left, color: Colors.white),
+                icon: Icon(
+                  Icons.chevron_left,
+                  color: _page > 0 ? Colors.white : Colors.white38,
+                ),
               ),
             if (pages > 1 && _focusedCameraId == null && !compact)
               Text(
@@ -819,10 +888,14 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
               ),
             if (pages > 1 && _focusedCameraId == null && !compact)
               IconButton(
+                tooltip: 'Próxima página',
                 onPressed: _page + 1 < pages
                     ? () => _changePage(_page + 1, store)
                     : null,
-                icon: const Icon(Icons.chevron_right, color: Colors.white),
+                icon: Icon(
+                  Icons.chevron_right,
+                  color: _page + 1 < pages ? Colors.white : Colors.white38,
+                ),
               ),
             IconButton(
               tooltip:
@@ -925,7 +998,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                 ),
                 const PopupMenuItem(
                   value: 'shortcuts',
-                  child: Text('Atalhos do teclado'),
+                  child: Text('Teclado e controle remoto'),
                 ),
               ],
             ),
@@ -960,6 +1033,9 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
           Text('Esc · voltar à grade ou sair do monitor'),
           SizedBox(height: 12),
           Text('Clique duplo em uma câmera para focá-la.'),
+          Text('Setas · navegar entre câmeras e botões'),
+          Text('OK / Enter · ampliar a câmera selecionada'),
+          Text('Voltar · retornar à grade ou sair do monitor'),
         ],
       ),
       actions: [
@@ -979,6 +1055,10 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   }
 
   int _pageSize(LayoutPreset layout, double width) {
-    return layout.cameraCount;
+    return MonitorPagingPolicy.pageSize(
+      cameraCount: layout.cameraCount,
+      preference: AppScope.of(context).config.monitorPageSize,
+      television: DeviceEnvironmentScope.of(context).isTelevision,
+    );
   }
 }

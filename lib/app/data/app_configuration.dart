@@ -1,6 +1,7 @@
 import '../../features/camera_catalog/domain/camera_device.dart';
 import '../../features/layouts/domain/saved_monitor_profile.dart';
 import '../../features/settings/domain/performance_preset.dart';
+import '../../features/monitor/domain/monitor_paging_policy.dart';
 
 class AppConfiguration {
   const AppConfiguration({
@@ -22,6 +23,7 @@ class AppConfiguration {
     this.lastMonitorPage = 0,
     this.tutorialCompleted = false,
     this.lastProfileId,
+    this.monitorPageSize = 0,
   });
 
   final int schemaVersion;
@@ -42,6 +44,7 @@ class AppConfiguration {
   final int lastMonitorPage;
   final bool tutorialCompleted;
   final String? lastProfileId;
+  final int monitorPageSize;
 
   AppConfiguration copyWith({
     List<CameraDevice>? cameras,
@@ -62,6 +65,7 @@ class AppConfiguration {
     bool? tutorialCompleted,
     String? lastProfileId,
     bool clearLastProfileId = false,
+    int? monitorPageSize,
   }) => AppConfiguration(
     schemaVersion: schemaVersion,
     cameras: cameras ?? this.cameras,
@@ -83,6 +87,7 @@ class AppConfiguration {
     lastProfileId: clearLastProfileId
         ? null
         : lastProfileId ?? this.lastProfileId,
+    monitorPageSize: monitorPageSize ?? this.monitorPageSize,
   );
 
   Map<String, Object?> toJson() => {
@@ -102,6 +107,7 @@ class AppConfiguration {
       'lastMonitorPage': lastMonitorPage,
       'tutorialCompleted': tutorialCompleted,
       'lastProfileId': lastProfileId,
+      'monitorPageSize': monitorPageSize,
     },
     'cameras': cameras.map((camera) => camera.toJson()).toList(),
     'monitorProfiles': monitorProfiles
@@ -168,9 +174,14 @@ class AppConfiguration {
         _ => 'dashboard',
       },
       lastMonitorPage: ((settings['lastMonitorPage'] as num?)?.toInt() ?? 0)
-          .clamp(0, 100),
+          .clamp(0, slots.isEmpty ? 3 : slots.length - 1),
       tutorialCompleted: settings['tutorialCompleted'] as bool? ?? false,
       lastProfileId: settings['lastProfileId'] as String?,
+      monitorPageSize: switch (settings['monitorPageSize']) {
+        final int value when MonitorPagingPolicy.choices.contains(value) =>
+          value,
+        _ => 0,
+      },
     );
   }
 }

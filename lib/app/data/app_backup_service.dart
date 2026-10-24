@@ -453,7 +453,7 @@ class AppBackupService {
           configuration.bufferMs < 100 ||
           configuration.bufferMs > 2000 ||
           configuration.lastMonitorPage < 0 ||
-          configuration.lastMonitorPage > 100 ||
+          configuration.lastMonitorPage >= configuration.slotCameraIds.length ||
           !{
             'light',
             'eco',

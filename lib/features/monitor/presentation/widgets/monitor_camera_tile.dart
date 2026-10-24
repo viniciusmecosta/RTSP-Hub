@@ -4,6 +4,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../../../camera_catalog/domain/camera_device.dart';
 import '../../application/rtsp_session.dart';
 import '../camera_loading_view.dart';
+import '../../../../shared/design_system/focusable_surface.dart';
 
 class MonitorCameraTile extends StatelessWidget {
   const MonitorCameraTile({
@@ -13,6 +14,7 @@ class MonitorCameraTile extends StatelessWidget {
     required this.onFocus,
     this.onClone,
     this.onSwitchChannel,
+    this.autofocus = false,
     required this.onRetry,
     super.key,
   });
@@ -24,6 +26,7 @@ class MonitorCameraTile extends StatelessWidget {
   final VoidCallback? onClone;
   final ValueChanged<String>? onSwitchChannel;
   final VoidCallback? onRetry;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
@@ -41,84 +44,92 @@ class MonitorCameraTile extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          GestureDetector(
-            onTap: onTap,
-            onDoubleTap: onFocus,
-            onSecondaryTap: onFocus,
-            behavior: HitTestBehavior.opaque,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (session?.videoController != null)
-                  Video(
-                    controller: session!.videoController!,
-                    fit: BoxFit.contain,
-                    fill: Colors.black,
-                    controls: NoVideoControls,
-                  )
-                else if (camera == null)
-                  const Center(
-                    child: Icon(
-                      Icons.videocam_off_outlined,
-                      size: 32,
-                      color: Color(0xFF526174),
+          FocusableSurface(
+            autofocus: autofocus,
+            label: camera == null ? 'Posição vazia' : 'Câmera ${camera!.name}',
+            onActivate: onFocus,
+            onFocusChanged: (focused) {
+              if (focused) onTap();
+            },
+            child: GestureDetector(
+              onTap: onTap,
+              onDoubleTap: onFocus,
+              onSecondaryTap: onFocus,
+              behavior: HitTestBehavior.opaque,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (session?.videoController != null)
+                    Video(
+                      controller: session!.videoController!,
+                      fit: BoxFit.contain,
+                      fill: Colors.black,
+                      controls: NoVideoControls,
+                    )
+                  else if (camera == null)
+                    const Center(
+                      child: Icon(
+                        Icons.videocam_off_outlined,
+                        size: 32,
+                        color: Color(0xFF526174),
+                      ),
+                    )
+                  else
+                    const SizedBox.shrink(),
+                  if (camera == null)
+                    const Center(
+                      child: Text(
+                        'Posição vazia',
+                        style: TextStyle(color: Color(0xFF8A98AA)),
+                      ),
                     ),
-                  )
-                else
-                  const SizedBox.shrink(),
-                if (camera == null)
-                  const Center(
-                    child: Text(
-                      'Posição vazia',
-                      style: TextStyle(color: Color(0xFF8A98AA)),
+                  if (camera != null &&
+                      (session?.videoController == null ||
+                          session?.firstFrameRendered.value != true))
+                    Positioned.fill(
+                      child: CameraLoadingView(
+                        status:
+                            session?.status.value ?? CameraPlaybackStatus.idle,
+                        error: session?.error.value,
+                        retryDelay: session?.nextRetryDelay,
+                        onRetry: onRetry,
+                      ),
                     ),
-                  ),
-                if (camera != null &&
-                    (session?.videoController == null ||
-                        session?.firstFrameRendered.value != true))
-                  Positioned.fill(
-                    child: CameraLoadingView(
-                      status:
-                          session?.status.value ?? CameraPlaybackStatus.idle,
-                      error: session?.error.value,
-                      retryDelay: session?.nextRetryDelay,
-                      onRetry: onRetry,
-                    ),
-                  ),
-                if (camera != null)
-                  Positioned(
-                    left: 8,
-                    right: 8,
-                    bottom: 8,
-                    child: Align(
-                      alignment: Alignment.bottomLeft,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.58),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 4,
+                  if (camera != null)
+                    Positioned(
+                      left: 8,
+                      right: 8,
+                      bottom: 8,
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.58),
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Text(
-                            camera!.availableChannels.length > 1
-                                ? '${camera!.name} (${camera!.activeChannel?.label ?? ''})'
-                                : camera!.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 4,
+                            ),
+                            child: Text(
+                              camera!.availableChannels.length > 1
+                                  ? '${camera!.name} (${camera!.activeChannel?.label ?? ''})'
+                                  : camera!.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
           if (camera != null)

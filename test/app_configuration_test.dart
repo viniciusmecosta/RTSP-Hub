@@ -23,6 +23,6 @@ void main() {
       'settings': {'lastMonitorPage': 999},
     });
 
-    expect(configuration.lastMonitorPage, 100);
+    expect(configuration.lastMonitorPage, 3);
   });
 }
