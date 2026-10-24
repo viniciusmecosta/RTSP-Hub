@@ -1,6 +1,7 @@
 import 'dart:async';
 import '../../features/camera_catalog/data/camera_snapshot_store.dart';
 import 'package:flutter/material.dart';
+import '../../features/monitor/domain/monitor_paging_policy.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
@@ -814,7 +815,14 @@ class AppStore extends ChangeNotifier {
     bool? tutorialCompleted,
     String? lastSection,
     int? lastMonitorPage,
+    int? monitorPageSize,
   }) async {
+    if (monitorPageSize != null &&
+        !MonitorPagingPolicy.choices.contains(monitorPageSize)) {
+      _message = 'Escolha uma quantidade válida de câmeras por página.';
+      notifyListeners();
+      return;
+    }
     final operation = _settingsQueue.then((_) {
       final current = _config;
       if ((defaultPort == null || defaultPort == current.defaultPort) &&
@@ -830,7 +838,9 @@ class AppStore extends ChangeNotifier {
               tutorialCompleted == current.tutorialCompleted) &&
           (lastSection == null || lastSection == current.lastSection) &&
           (lastMonitorPage == null ||
-              lastMonitorPage == current.lastMonitorPage)) {
+              lastMonitorPage == current.lastMonitorPage) &&
+          (monitorPageSize == null ||
+              monitorPageSize == current.monitorPageSize)) {
         return Future<bool>.value(true);
       }
       return _commit(
@@ -845,6 +855,7 @@ class AppStore extends ChangeNotifier {
           tutorialCompleted: tutorialCompleted,
           lastSection: lastSection,
           lastMonitorPage: lastMonitorPage,
+          monitorPageSize: monitorPageSize,
         ),
       );
     });

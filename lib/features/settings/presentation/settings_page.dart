@@ -17,6 +17,7 @@ import '../../../shared/platform/linux_startup_service.dart';
 import 'global_connection_page.dart';
 import '../domain/performance_preset.dart';
 import '../../monitor/domain/rtsp_buffer_policy.dart';
+import '../../../shared/platform/device_environment.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -84,6 +85,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
+    final television = DeviceEnvironmentScope.of(context).isTelevision;
     return PageFrame(
       title: 'Ajustes',
       subtitle: 'Personalize a experiência, o desempenho e seus dados.',
@@ -222,6 +224,30 @@ class _SettingsPageState extends State<SettingsPage> {
                   subtitle: Text(
                     'Econômico: ${RtspBufferPolicy.bytesFor(targetMilliseconds: store.config.bufferMs, mainStream: false) ~/ 1024} KiB · principal: ${RtspBufferPolicy.bytesFor(targetMilliseconds: store.config.bufferMs, mainStream: true) ~/ 1024} KiB. Limite de cache, sem reduzir a resolução. Decodificação e imagens usam memória adicional.',
                   ),
+                ),
+                const Divider(height: 1),
+                _SettingDropdownTile<int>(
+                  icon: Icons.view_comfortable_outlined,
+                  title: 'Câmeras por página',
+                  subtitle: television
+                      ? 'Automático exibe até 4 câmeras na TV. Apenas a página visível reproduz vídeo.'
+                      : 'Automático mostra a grade inteira. Use páginas menores para reduzir o consumo; as outras câmeras ficam em espera.',
+                  value: store.config.monitorPageSize,
+                  items: const [
+                    DropdownMenuItem(value: 0, child: Text('Automático')),
+                    DropdownMenuItem(value: -1, child: Text('Todas da grade')),
+                    DropdownMenuItem(value: 1, child: Text('1 câmera')),
+                    DropdownMenuItem(value: 2, child: Text('2 câmeras')),
+                    DropdownMenuItem(value: 4, child: Text('4 câmeras')),
+                    DropdownMenuItem(value: 6, child: Text('6 câmeras')),
+                    DropdownMenuItem(value: 9, child: Text('9 câmeras')),
+                    DropdownMenuItem(value: 16, child: Text('16 câmeras')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      store.updateSettings(monitorPageSize: value);
+                    }
+                  },
                 ),
                 const Divider(height: 1),
                 Padding(

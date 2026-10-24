@@ -4,6 +4,9 @@ class StreamSelectionPolicy {
     bool? manualChoice,
     bool focused = false,
     bool hasSubStream = true,
+    bool upgradeFocusedStream = true,
   }) =>
-      !hasSubStream || (manualChoice ?? (focused || resourceMode == 'quality'));
+      !hasSubStream ||
+      (manualChoice ??
+          ((focused && upgradeFocusedStream) || resourceMode == 'quality'));
 }
