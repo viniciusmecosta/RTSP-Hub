@@ -17,6 +17,8 @@
 
 O **RTSP Hub** é um aplicativo multiplataforma criado para monitorar fluxos de câmeras de segurança diretamente na rede local, sem depender de internet, nuvem ou servidores externos. 
 
+O mesmo APK Android também suporta **Android TV e Google TV**, com entrada no menu da TV, controle remoto e paginação configurável. A aplicação continua atendendo celulares, tablets, Linux e Windows. Veja [instalação, controles e ajustes para televisões](ANDROID_TV.md).
+
 A reprodução usa decodificação acelerada por hardware via `libmpv`, renderizando o vídeo em texturas nativas do sistema com baixo uso de CPU e memória.
 
 ---
@@ -48,7 +50,7 @@ Monitoramento em tela cheia com barras e botões recolhidos durante a reproduç�
 
 ### Dispositivos móveis (Android)
 
-Interface adaptada para smartphones, com paginação automática para manter baixo consumo de bateria:
+Interface adaptada para smartphones, com quantidade de câmeras por página configurável para ajustar o consumo:
 
 <table>
   <thead>
