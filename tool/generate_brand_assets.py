@@ -63,7 +63,7 @@ def icon_source(square=False, padding=0, mark_scale=1):
 
 
 @lru_cache(maxsize=128)
-def render(svg, size, opaque=False):
+def render(svg, size, opaque=False, height=None):
     try:
         import cairo
         import gi
@@ -77,11 +77,11 @@ def render(svg, size, opaque=False):
     from io import BytesIO
 
     surface = cairo.ImageSurface(
-        cairo.FORMAT_RGB24 if opaque else cairo.FORMAT_ARGB32, size, size
+        cairo.FORMAT_RGB24 if opaque else cairo.FORMAT_ARGB32, size, height or size
     )
     context = cairo.Context(surface)
     viewport = Rsvg.Rectangle()
-    viewport.x, viewport.y, viewport.width, viewport.height = 0, 0, size, size
+    viewport.x, viewport.y, viewport.width, viewport.height = 0, 0, size, height or size
     handle = Rsvg.Handle.new_from_data(svg)
     handle.render_document(context, viewport)
     stream = BytesIO()
@@ -140,6 +140,48 @@ def android_vector():
 
 def generate_android():
     root = "android/app/src/main/res"
+    banner = ET.Element(
+        f"{{{SVG}}}svg", {"width": "320", "height": "180", "viewBox": "0 0 320 180"}
+    )
+    ET.SubElement(
+        banner, f"{{{SVG}}}rect", {"width": "320", "height": "180", "fill": "#101C2E"}
+    )
+    mark = ET.SubElement(
+        banner, f"{{{SVG}}}g", {"transform": "translate(20 42) scale(0.1875)"}
+    )
+    for item in ET.parse(SOURCE).getroot():
+        mark.append(deepcopy(item))
+    label = ET.SubElement(
+        banner,
+        f"{{{SVG}}}text",
+        {
+            "x": "132",
+            "y": "90",
+            "font-family": "DejaVu Sans",
+            "font-size": "28",
+            "font-weight": "bold",
+            "fill": "#FFFFFF",
+        },
+    )
+    label.text = "RTSP Hub"
+    subtitle = ET.SubElement(
+        banner,
+        f"{{{SVG}}}text",
+        {
+            "x": "133",
+            "y": "116",
+            "font-family": "DejaVu Sans",
+            "font-size": "14",
+            "fill": "#AFBDD3",
+        },
+    )
+    subtitle.text = "Multicâmeras"
+    raw_banner = svg_bytes(banner)
+    write("assets/branding/tv-banner.svg", raw_banner)
+    write(
+        f"{root}/drawable-xhdpi/tv_banner.png",
+        render(raw_banner, 320, opaque=True, height=180),
+    )
     for density, scale in (
         ("mdpi", 1),
         ("hdpi", 1.5),
