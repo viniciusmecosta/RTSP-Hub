@@ -11,6 +11,7 @@ import 'shared/design_system/app_logo.dart';
 import 'shared/design_system/app_theme.dart';
 import 'shared/infrastructure/single_instance/single_instance_guard.dart';
 import 'shared/platform/linux_startup_service.dart';
+import 'shared/platform/device_environment.dart';
 import 'shared/platform/windows_startup_service.dart';
 
 export 'app/app.dart' show MyApp, RtspHubApp, RtspViewApp;
@@ -67,6 +68,7 @@ Future<void> main(List<String> arguments) async {
   }
   runApp(
     RtspHubApp(
+      deviceEnvironment: await DeviceEnvironment.load(),
       forceConfiguration:
           arguments.contains('--config') || arguments.contains('-c'),
       desktopWindowManager: desktop,

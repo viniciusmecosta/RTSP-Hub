@@ -12,6 +12,7 @@ import '../features/monitor/presentation/monitor_page.dart';
 import '../features/settings/presentation/settings_page.dart';
 import '../features/settings/presentation/global_connection_page.dart';
 import '../shared/design_system/app_logo.dart';
+import '../shared/platform/device_environment.dart';
 import 'state/app_store.dart';
 
 enum AppSection { dashboard, cameras, layouts, monitor, settings }
@@ -78,18 +79,22 @@ class _AppShellState extends State<AppShell> {
       builder: (context) => AlertDialog(
         icon: const Center(child: AppLogo(size: 64)),
         title: const Text('Bem-vindo ao RTSP Hub'),
-        content: const Column(
+        content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               '1. Encontre câmeras na rede ou cadastre o IP. Use Testar vídeo para conferir a imagem.',
             ),
-            SizedBox(height: 12),
-            Text('2. Escolha um layout; câmeras novas ocupam espaços vazios.'),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
+            const Text(
+              '2. Escolha um layout; câmeras novas ocupam espaços vazios.',
+            ),
+            const SizedBox(height: 12),
             Text(
-              '3. Abra o monitor para acompanhar as câmeras. No computador, use F3 para ver estados e Esc para voltar.',
+              DeviceEnvironmentScope.of(context).isTelevision
+                  ? '3. Abra o monitor. Use as setas para selecionar, OK para ampliar e Voltar para retornar à grade. Ajustes permite escolher quantas câmeras aparecem por página.'
+                  : '3. Abra o monitor para acompanhar as câmeras. No computador, use F3 para ver estados e Esc para voltar.',
             ),
           ],
         ),
@@ -121,6 +126,7 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final television = DeviceEnvironmentScope.of(context).isTelevision;
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -128,53 +134,78 @@ class _AppShellState extends State<AppShell> {
         final shortLandscape = height < 460 && width >= 480;
         final compact = width < 640 && !shortLandscape;
         final rail = (width >= 640 && width < 1100) || shortLandscape;
-        return Scaffold(
-          body: Row(
-            children: [
-              if (!compact && rail && _section != AppSection.monitor)
-                NavigationRail(
-                  backgroundColor: Theme.of(
-                    context,
-                  ).colorScheme.surfaceContainerLow,
-                  leading: shortLandscape
-                      ? null
-                      : Padding(
-                          padding: const EdgeInsets.only(bottom: 20, top: 12),
-                          child: const AppLogo(),
+        return PopScope<Object?>(
+          canPop:
+              _section == AppSection.dashboard ||
+              _section == AppSection.monitor,
+          onPopInvokedWithResult: (didPop, result) {
+            if (!didPop && _section != AppSection.monitor) {
+              _selectSection(AppSection.dashboard);
+            }
+          },
+          child: Scaffold(
+            body: SafeArea(
+              top: television && _section != AppSection.monitor,
+              bottom: television && _section != AppSection.monitor,
+              left: television && _section != AppSection.monitor,
+              right: television && _section != AppSection.monitor,
+              minimum: television && _section != AppSection.monitor
+                  ? const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
+                  : EdgeInsets.zero,
+              child: Row(
+                children: [
+                  if (!compact && rail && _section != AppSection.monitor)
+                    NavigationRail(
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerLow,
+                      leading: shortLandscape
+                          ? null
+                          : Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: 20,
+                                top: 12,
+                              ),
+                              child: const AppLogo(),
+                            ),
+                      selectedIndex: _selectedIndex,
+                      labelType: shortLandscape
+                          ? NavigationRailLabelType.none
+                          : NavigationRailLabelType.all,
+                      onDestinationSelected: _selectIndex,
+                      destinations: [
+                        for (final item in _destinations)
+                          NavigationRailDestination(
+                            icon: Icon(item.$3),
+                            selectedIcon: Icon(item.$4),
+                            label: Text(item.$2),
+                          ),
+                      ],
+                    ),
+                  if (!compact && !rail && _section != AppSection.monitor)
+                    _DesktopSidebar(
+                      section: _section,
+                      onSelected: _selectSection,
+                    ),
+                  Expanded(child: _pages[_selectedIndex]),
+                ],
+              ),
+            ),
+            bottomNavigationBar: compact && _section != AppSection.monitor
+                ? NavigationBar(
+                    selectedIndex: _selectedIndex,
+                    onDestinationSelected: _selectIndex,
+                    destinations: [
+                      for (final item in _destinations)
+                        NavigationDestination(
+                          icon: Icon(item.$3),
+                          selectedIcon: Icon(item.$4),
+                          label: item.$2,
                         ),
-                  selectedIndex: _selectedIndex,
-                  labelType: shortLandscape
-                      ? NavigationRailLabelType.none
-                      : NavigationRailLabelType.all,
-                  onDestinationSelected: _selectIndex,
-                  destinations: [
-                    for (final item in _destinations)
-                      NavigationRailDestination(
-                        icon: Icon(item.$3),
-                        selectedIcon: Icon(item.$4),
-                        label: Text(item.$2),
-                      ),
-                  ],
-                ),
-              if (!compact && !rail && _section != AppSection.monitor)
-                _DesktopSidebar(section: _section, onSelected: _selectSection),
-              Expanded(child: _pages[_selectedIndex]),
-            ],
+                    ],
+                  )
+                : null,
           ),
-          bottomNavigationBar: compact && _section != AppSection.monitor
-              ? NavigationBar(
-                  selectedIndex: _selectedIndex,
-                  onDestinationSelected: _selectIndex,
-                  destinations: [
-                    for (final item in _destinations)
-                      NavigationDestination(
-                        icon: Icon(item.$3),
-                        selectedIcon: Icon(item.$4),
-                        label: item.$2,
-                      ),
-                  ],
-                )
-              : null,
         );
       },
     );

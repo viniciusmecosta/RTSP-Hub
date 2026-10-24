@@ -19,6 +19,34 @@ def png_header(path):
 
 
 class BrandAssetsTest(unittest.TestCase):
+    def test_android_tv_launcher_is_optional_for_other_android_devices(self):
+        manifest = ET.parse(ROOT / "android/app/src/main/AndroidManifest.xml").getroot()
+        features = {
+            item.attrib[ANDROID + "name"]: item.attrib[ANDROID + "required"]
+            for item in manifest.findall("uses-feature")
+        }
+        self.assertEqual(features["android.software.leanback"], "false")
+        self.assertEqual(features["android.hardware.touchscreen"], "false")
+        application = manifest.find("application")
+        self.assertEqual(application.attrib[ANDROID + "banner"], "@drawable/tv_banner")
+        activity = application.find("activity")
+        categories = {
+            item.attrib[ANDROID + "name"]
+            for item in activity.findall("intent-filter/category")
+        }
+        self.assertIn("android.intent.category.LAUNCHER", categories)
+        self.assertIn("android.intent.category.LEANBACK_LAUNCHER", categories)
+        self.assertIn(
+            "navigation", activity.attrib[ANDROID + "configChanges"].split("|")
+        )
+        self.assertNotIn(ANDROID + "screenOrientation", activity.attrib)
+        self.assertEqual(
+            png_header(ROOT / "android/app/src/main/res/drawable-xhdpi/tv_banner.png")[
+                :2
+            ],
+            (320, 180),
+        )
+
     def test_generated_resources_match_vector_source(self):
         result = subprocess.run(
             [sys.executable, str(ROOT / "tool/generate_brand_assets.py"), "--check"],

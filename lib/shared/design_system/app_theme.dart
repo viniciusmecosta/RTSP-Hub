@@ -7,6 +7,29 @@ abstract final class AppTheme {
 
   static ThemeData get dark => _build(Brightness.dark);
 
+  static ThemeData forTelevision(ThemeData base) {
+    final focusSide = WidgetStateProperty.resolveWith<BorderSide?>(
+      (states) => states.contains(WidgetState.focused)
+          ? BorderSide(color: base.colorScheme.onSurface, width: 2)
+          : null,
+    );
+    return base.copyWith(
+      focusColor: base.colorScheme.primary.withValues(alpha: 0.3),
+      filledButtonTheme: FilledButtonThemeData(
+        style: base.filledButtonTheme.style?.copyWith(side: focusSide),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: base.textButtonTheme.style?.copyWith(side: focusSide),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: base.outlinedButtonTheme.style?.copyWith(side: focusSide),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: base.iconButtonTheme.style?.copyWith(side: focusSide),
+      ),
+    );
+  }
+
   static ThemeData _build(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     final scheme =
