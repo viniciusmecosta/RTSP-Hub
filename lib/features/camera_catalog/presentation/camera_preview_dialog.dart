@@ -233,6 +233,7 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
                         if (controller != null)
                           Video(
                             controller: controller,
+                            fit: BoxFit.fill,
                             controls: NoVideoControls,
                           ),
                         if (!_session.firstFrameRendered.value)

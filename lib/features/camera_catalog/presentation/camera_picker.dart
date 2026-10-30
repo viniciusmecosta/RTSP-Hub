@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/state/app_store.dart';
+import '../domain/camera_device.dart';
 import 'camera_preview_dialog.dart';
 import 'camera_thumbnail.dart';
 
@@ -32,12 +33,21 @@ class _CameraPickerState extends State<CameraPicker> {
 
   @override
   Widget build(BuildContext context) {
-    final cameras = widget.store.cameras
-        .where(
-          (camera) =>
-              '${camera.name} ${camera.host}'.toLowerCase().contains(_query),
-        )
-        .toList();
+    final cameras =
+        widget.store.cameras
+            .where(
+              (camera) => '${camera.name} ${camera.host}'
+                  .toLowerCase()
+                  .contains(_query),
+            )
+            .toList()
+          ..sort(
+            (a, b) => CameraDevice.compareByHost(
+              a,
+              b,
+              defaultPort: widget.store.config.defaultPort,
+            ),
+          );
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(

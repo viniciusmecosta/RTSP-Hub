@@ -201,7 +201,8 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
             }
             _hosts
               ..clear()
-              ..addAll(_portsByHost.keys);
+              ..addAll(_portsByHost.keys)
+              ..sort(CameraDevice.compareHosts);
           });
         }
         scannedHosts += remainingHosts.length;
@@ -491,9 +492,17 @@ class _NetworkCameraDiscoveryState extends State<NetworkCameraDiscovery>
 
   Future<void> _saveSelected() async {
     final store = AppScope.of(context);
-    final chosen = _channels
-        .where((channel) => _selected.contains(channel.key))
-        .toList(growable: false);
+    final chosen =
+        _channels
+            .where((channel) => _selected.contains(channel.key))
+            .toList(growable: false)
+          ..sort((a, b) {
+            final hostCmp = CameraDevice.compareHosts(a.host, b.host);
+            if (hostCmp != 0) return hostCmp;
+            final portCmp = a.port.compareTo(b.port);
+            if (portCmp != 0) return portCmp;
+            return a.number.compareTo(b.number);
+          });
     if (chosen.isEmpty) {
       _message('Selecione ao menos um canal para cadastrar.');
       return;

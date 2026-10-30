@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/state/app_store.dart';
 import '../../../shared/design_system/page_frame.dart';
 import '../../../shared/design_system/app_logo.dart';
+import '../../camera_catalog/domain/camera_device.dart';
 import '../../camera_catalog/presentation/camera_preview_dialog.dart';
 import '../../camera_catalog/presentation/widgets/camera_preview_card.dart';
 import '../../settings/presentation/global_connection_page.dart';
@@ -53,7 +54,15 @@ class _DashboardPageState extends State<DashboardPage> {
     final colors = Theme.of(context).colorScheme;
     final profile = store.lastSavedProfile;
     final selected = store.config.slotCameraIds.whereType<String>().length;
-    final cameras = store.cameras.take(4).toList(growable: false);
+    final sortedCameras = [...store.cameras]
+      ..sort(
+        (a, b) => CameraDevice.compareByHost(
+          a,
+          b,
+          defaultPort: store.config.defaultPort,
+        ),
+      );
+    final cameras = sortedCameras.take(4).toList(growable: false);
     final wideHeader =
         MediaQuery.sizeOf(context).width >= 1000 &&
         MediaQuery.textScalerOf(context).scale(14) <= 20;
