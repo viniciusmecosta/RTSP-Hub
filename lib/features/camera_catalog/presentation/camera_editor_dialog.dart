@@ -60,7 +60,6 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
   bool _busy = false;
   bool _testing = false;
   bool _finding = false;
-  bool _searchRecorderChannels = false;
   bool _cancelFinding = false;
   String _findingStage = '';
   String? _probeMessage;
@@ -237,9 +236,6 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
                               setState(() => _savedPaths.add(path)),
                           onSelectSavedPath: _selectChannel,
                           onRemoveSavedPath: _removeChannel,
-                          searchRecorderChannels: _searchRecorderChannels,
-                          onToggleSearchRecorderChannels: (v) =>
-                              setState(() => _searchRecorderChannels = v),
                           isProbingOrTesting: _finding || _testing,
                         ),
                       ],
@@ -442,7 +438,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
       defaultPath: _mainPath.text.trim().isEmpty
           ? widget.store.config.defaultPath
           : _mainPath.text.trim(),
-      searchRecorderChannels: _searchRecorderChannels,
+      searchRecorderChannels: false,
       isCancelled: () => _cancelFinding,
       onProgress: (stage) {
         if (mounted) setState(() => _findingStage = stage);
