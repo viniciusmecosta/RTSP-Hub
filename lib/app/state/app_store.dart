@@ -949,12 +949,17 @@ class AppStore extends ChangeNotifier {
     List<CameraDevice> cameras,
     List<String?> previous,
   ) {
-    final valid = cameras.map((camera) => camera.id).toSet();
+    final sortedCameras = [...cameras]
+      ..sort(
+        (a, b) =>
+            CameraDevice.compareByHost(a, b, defaultPort: _config.defaultPort),
+      );
+    final valid = sortedCameras.map((camera) => camera.id).toSet();
     final seen = <String>{};
     final ordered = <String?>[
       for (final id in previous)
         if (id != null && valid.contains(id) && seen.add(id)) id,
-      for (final camera in cameras)
+      for (final camera in sortedCameras)
         if (seen.add(camera.id)) camera.id,
     ];
     return ordered.isEmpty ? [null] : ordered;

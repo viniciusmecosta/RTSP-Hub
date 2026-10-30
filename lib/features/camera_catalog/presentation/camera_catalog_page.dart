@@ -32,12 +32,21 @@ class _CameraCatalogPageState extends State<CameraCatalogPage> {
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
-    final cameras = store.cameras
-        .where(
-          (camera) =>
-              '${camera.name} ${camera.host}'.toLowerCase().contains(_query),
-        )
-        .toList();
+    final cameras =
+        store.cameras
+            .where(
+              (camera) => '${camera.name} ${camera.host}'
+                  .toLowerCase()
+                  .contains(_query),
+            )
+            .toList()
+          ..sort(
+            (a, b) => CameraDevice.compareByHost(
+              a,
+              b,
+              defaultPort: store.config.defaultPort,
+            ),
+          );
     return PageFrame.slivers(
       title: 'Câmeras',
       subtitle: 'Seus dispositivos, imagens e conexões em um só lugar.',

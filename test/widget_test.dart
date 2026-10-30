@@ -268,6 +268,104 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('seleção de câmera ordena câmeras numericamente por IP', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const cameras = [
+      CameraDevice(
+        id: 'c100',
+        name: 'Fundo',
+        host: '192.168.1.100',
+        mainPath: '/main',
+      ),
+      CameraDevice(
+        id: 'c2',
+        name: 'Entrada',
+        host: '192.168.1.2',
+        mainPath: '/main',
+      ),
+      CameraDevice(
+        id: 'c10',
+        name: 'Garagem',
+        host: '192.168.1.10',
+        mainPath: '/main',
+      ),
+    ];
+    await tester.pumpWidget(
+      _app(
+        configuration: const AppConfiguration(
+          cameras: cameras,
+          startupSection: 'layouts',
+          tutorialCompleted: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Selecionar câmera').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Selecionar câmera').first);
+    await tester.pumpAndSettle();
+
+    final top2 = tester.getTopLeft(find.text('Entrada')).dy;
+    final top10 = tester.getTopLeft(find.text('Garagem')).dy;
+    final top100 = tester.getTopLeft(find.text('Fundo')).dy;
+    expect(top2, lessThan(top10));
+    expect(top10, lessThan(top100));
+  });
+
+  testWidgets('grade 2 lado a lado preenche toda a largura e altura da tela', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const cameras = [
+      CameraDevice(
+        id: 'c1',
+        name: 'Câmera 1',
+        host: '192.168.1.1',
+        mainPath: '/main',
+      ),
+      CameraDevice(
+        id: 'c2',
+        name: 'Câmera 2',
+        host: '192.168.1.2',
+        mainPath: '/main',
+      ),
+    ];
+    await tester.pumpWidget(
+      _app(
+        configuration: const AppConfiguration(
+          cameras: cameras,
+          layoutId: 'GRID_2H',
+          slotCameraIds: [null, null],
+          startupSection: 'monitor',
+          tutorialCompleted: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final tile0 = tester.getRect(
+      find.byKey(const ValueKey('monitor-camera-slot-0')),
+    );
+    final tile1 = tester.getRect(
+      find.byKey(const ValueKey('monitor-camera-slot-1')),
+    );
+    expect(tile0.top, closeTo(3, 1));
+    expect(tile1.top, closeTo(3, 1));
+    expect(tile0.height, closeTo(720 - 6, 2));
+    expect(tile1.height, closeTo(720 - 6, 2));
+    expect(tile0.left, closeTo(3, 1));
+    expect(tile1.right, closeTo(1280 - 3, 1));
+  });
+
   testWidgets(
     'atalho de acesso rápido na tela inicial abre o monitor com o último perfil',
     (tester) async {

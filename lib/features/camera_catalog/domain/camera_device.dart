@@ -56,6 +56,74 @@ class CameraDevice {
 
   int effectivePort(int defaultPort) => port ?? defaultPort;
 
+  static int compareByHost(
+    CameraDevice left,
+    CameraDevice right, {
+    int defaultPort = 554,
+  }) {
+    final hostComparison = compareHosts(left.host, right.host);
+    if (hostComparison != 0) return hostComparison;
+    final portComparison = left
+        .effectivePort(defaultPort)
+        .compareTo(right.effectivePort(defaultPort));
+    if (portComparison != 0) return portComparison;
+    final nameComparison = _compareNatural(left.name, right.name);
+    if (nameComparison != 0) return nameComparison;
+    final pathComparison = _compareNatural(left.mainPath, right.mainPath);
+    if (pathComparison != 0) return pathComparison;
+    return left.id.compareTo(right.id);
+  }
+
+  static int compareHosts(String left, String right) {
+    final leftIpv4 = _parseIpv4(left);
+    final rightIpv4 = _parseIpv4(right);
+    if (leftIpv4 != null && rightIpv4 != null) {
+      return leftIpv4.compareTo(rightIpv4);
+    }
+    if (leftIpv4 != null) return -1;
+    if (rightIpv4 != null) return 1;
+    return _compareNatural(left, right);
+  }
+
+  static int? _parseIpv4(String host) {
+    final parts = host.trim().split('.');
+    if (parts.length != 4) return null;
+    var value = 0;
+    for (final part in parts) {
+      final octet = int.tryParse(part);
+      if (octet == null || octet < 0 || octet > 255) return null;
+      value = (value << 8) | octet;
+    }
+    return value;
+  }
+
+  static final _naturalToken = RegExp(r'(\d+|\D+)');
+
+  static int _compareNatural(String left, String right) {
+    final leftTokens = _naturalToken
+        .allMatches(left.trim().toLowerCase())
+        .map((m) => m.group(0)!)
+        .toList(growable: false);
+    final rightTokens = _naturalToken
+        .allMatches(right.trim().toLowerCase())
+        .map((m) => m.group(0)!)
+        .toList(growable: false);
+    final length = leftTokens.length < rightTokens.length
+        ? leftTokens.length
+        : rightTokens.length;
+    for (var i = 0; i < length; i++) {
+      final a = leftTokens[i];
+      final b = rightTokens[i];
+      final aNum = int.tryParse(a);
+      final bNum = int.tryParse(b);
+      final cmp = (aNum != null && bNum != null)
+          ? aNum.compareTo(bNum)
+          : a.compareTo(b);
+      if (cmp != 0) return cmp;
+    }
+    return leftTokens.length.compareTo(rightTokens.length);
+  }
+
   CameraDevice resolved({
     required int defaultPort,
     required String defaultUser,

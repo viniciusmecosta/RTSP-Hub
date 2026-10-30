@@ -397,9 +397,10 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                             )
                           : LayoutBuilder(
                               builder: (context, constraints) {
-                                final columns = min(
-                                  _columns(layout, constraints.maxWidth),
-                                  sqrt(visibleCount).ceil(),
+                                final columns = _columns(
+                                  layout,
+                                  constraints.maxWidth,
+                                  visibleCount: visibleCount,
                                 );
                                 final rows = (visibleCount / columns).ceil();
                                 if (layout.focusIndex != null &&
@@ -443,8 +444,22 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                                 final shouldScroll =
                                     constraints.maxWidth < 600 &&
                                     estimatedHeight > constraints.maxHeight;
+                                const padding = 3.0;
+                                const spacing = 3.0;
+                                final availableWidth = max(
+                                  1.0,
+                                  constraints.maxWidth -
+                                      padding * 2 -
+                                      spacing * (columns - 1),
+                                );
+                                final availableHeight = max(
+                                  1.0,
+                                  constraints.maxHeight -
+                                      padding * 2 -
+                                      spacing * (rows - 1),
+                                );
                                 return GridView.builder(
-                                  padding: const EdgeInsets.all(3),
+                                  padding: const EdgeInsets.all(padding),
                                   physics: shouldScroll
                                       ? const ClampingScrollPhysics()
                                       : const NeverScrollableScrollPhysics(),
@@ -452,18 +467,12 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                                   gridDelegate:
                                       SliverGridDelegateWithFixedCrossAxisCount(
                                         crossAxisCount: columns,
-                                        mainAxisSpacing: 3,
-                                        crossAxisSpacing: 3,
-                                        childAspectRatio:
-                                            constraints.maxWidth < 600
+                                        mainAxisSpacing: spacing,
+                                        crossAxisSpacing: spacing,
+                                        childAspectRatio: shouldScroll
                                             ? 16 / 10
-                                            : (constraints.maxWidth / columns) /
-                                                  ((constraints.maxHeight /
-                                                          rows)
-                                                      .clamp(
-                                                        80,
-                                                        double.infinity,
-                                                      )),
+                                            : (availableWidth / columns) /
+                                                  (availableHeight / rows),
                                       ),
                                   itemBuilder: (context, offset) => _cameraTile(
                                     slots,
@@ -1047,8 +1056,15 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     ),
   );
 
-  int _columns(LayoutPreset layout, double width) {
-    if (width < 600) return layout.cameraCount == 1 ? 1 : 2;
+  int _columns(LayoutPreset layout, double width, {required int visibleCount}) {
+    if (visibleCount <= 1) return 1;
+    if (width < 600) {
+      if (layout.id == 'GRID_2V') return 1;
+      return min(2, visibleCount);
+    }
+    if (visibleCount < layout.cameraCount) {
+      return min(layout.columns, sqrt(visibleCount).ceil());
+    }
     if (layout.id == 'GRID_ALL') return layout.columns;
     if (width < 980) return layout.columns.clamp(1, 3);
     return layout.columns.clamp(1, 6);

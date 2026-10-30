@@ -62,7 +62,7 @@ class MonitorCameraTile extends StatelessWidget {
                   if (session?.videoController != null)
                     Video(
                       controller: session!.videoController!,
-                      fit: BoxFit.contain,
+                      fit: BoxFit.fill,
                       fill: Colors.black,
                       controls: NoVideoControls,
                     )
