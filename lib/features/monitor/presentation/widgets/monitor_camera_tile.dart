@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../../camera_catalog/domain/camera_device.dart';
+import '../../../layouts/domain/layout_geometry.dart';
 import '../../application/rtsp_session.dart';
 import '../camera_loading_view.dart';
 import '../../../../shared/design_system/focusable_surface.dart';
@@ -11,10 +12,12 @@ class MonitorCameraTile extends StatelessWidget {
     required this.camera,
     required this.session,
     required this.onTap,
-    required this.onFocus,
+    this.onFocus,
     this.onClone,
     this.onSwitchChannel,
     this.autofocus = false,
+    this.fitMode = 'smart',
+    this.showMenu = true,
     required this.onRetry,
     super.key,
   });
@@ -27,6 +30,8 @@ class MonitorCameraTile extends StatelessWidget {
   final ValueChanged<String>? onSwitchChannel;
   final VoidCallback? onRetry;
   final bool autofocus;
+  final String fitMode;
+  final bool showMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -35,6 +40,64 @@ class MonitorCameraTile extends StatelessWidget {
     return ListenableBuilder(
       listenable: currentSession,
       builder: (context, _) => _content(context),
+    );
+  }
+
+  double _videoAspectRatio() {
+    final resolution = session?.currentResolution;
+    if (resolution != null) {
+      final parts = resolution.split(RegExp(r'[×xX]'));
+      if (parts.length == 2) {
+        final width = double.tryParse(parts[0].trim());
+        final height = double.tryParse(parts[1].trim());
+        if (width != null && height != null && width > 0 && height > 0) {
+          return width / height;
+        }
+      }
+    }
+    return LayoutGeometry.cameraAspectRatio;
+  }
+
+  Widget _buildVideoSurface(VideoController controller) {
+    if (fitMode == 'contain') {
+      return Video(
+        controller: controller,
+        fit: BoxFit.contain,
+        fill: Colors.black,
+        controls: NoVideoControls,
+      );
+    }
+    if (fitMode == 'fill') {
+      return Video(
+        controller: controller,
+        fit: BoxFit.fill,
+        fill: Colors.black,
+        controls: NoVideoControls,
+      );
+    }
+    final targetAspectRatio = _videoAspectRatio();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = LayoutGeometry.fittedVideoSize(
+          constraints.biggest,
+          fitMode: fitMode,
+          targetAspectRatio: targetAspectRatio,
+        );
+        return ColoredBox(
+          color: Colors.black,
+          child: Center(
+            child: SizedBox.fromSize(
+              size: size,
+              child: Video(
+                controller: controller,
+                fit: BoxFit.fill,
+                fill: Colors.black,
+                controls: NoVideoControls,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -48,24 +111,15 @@ class MonitorCameraTile extends StatelessWidget {
             autofocus: autofocus,
             label: camera == null ? 'Posição vazia' : 'Câmera ${camera!.name}',
             onActivate: onFocus,
-            onFocusChanged: (focused) {
-              if (focused) onTap();
-            },
             child: GestureDetector(
               onTap: onTap,
-              onDoubleTap: onFocus,
               onSecondaryTap: onFocus,
               behavior: HitTestBehavior.opaque,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
                   if (session?.videoController != null)
-                    Video(
-                      controller: session!.videoController!,
-                      fit: BoxFit.fill,
-                      fill: Colors.black,
-                      controls: NoVideoControls,
-                    )
+                    _buildVideoSurface(session!.videoController!)
                   else if (camera == null)
                     const Center(
                       child: Icon(
@@ -132,7 +186,11 @@ class MonitorCameraTile extends StatelessWidget {
               ),
             ),
           ),
-          if (camera != null)
+          if (showMenu &&
+              camera != null &&
+              (camera!.availableChannels.length > 1 ||
+                  onClone != null ||
+                  onSwitchChannel != null))
             Positioned(
               top: 6,
               right: 6,
@@ -150,7 +208,7 @@ class MonitorCameraTile extends StatelessWidget {
                   constraints: const BoxConstraints(minWidth: 140),
                   onSelected: (value) {
                     if (value == 'focus') {
-                      onFocus?.call();
+                      (onFocus ?? onTap)();
                     } else if (value == 'clone') {
                       onClone?.call();
                     } else if (value.startsWith('channel:')) {

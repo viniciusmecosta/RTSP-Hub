@@ -8,7 +8,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../../features/camera_catalog/domain/camera_device.dart';
-import '../../../features/camera_catalog/presentation/clone_camera_dialog.dart';
+import '../../../features/layouts/domain/freeform_slot.dart';
 import '../../../features/layouts/domain/layout_preset.dart';
 import '../../../features/layouts/domain/layout_geometry.dart';
 import '../application/rtsp_session.dart';
@@ -61,7 +61,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   final ValueNotifier<int> _diagnosticTick = ValueNotifier(0);
   int _page = 0;
   bool? _mainStreams;
-  final ValueNotifier<bool> _controlsVisible = ValueNotifier(true);
+  final ValueNotifier<bool> _controlsVisible = ValueNotifier(false);
   late DateTime _lastInteraction;
   bool get _showControls => _controlsVisible.value;
   bool _showDiagnostics = false;
@@ -77,7 +77,23 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _scheduleControlsHide();
+    _lastInteraction = widget.now();
+    _controlsVisible.addListener(_syncSystemUiMode);
+    _syncSystemUiMode();
+  }
+
+  void _syncSystemUiMode() {
+    if (kIsWeb) return;
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      unawaited(
+        SystemChrome.setEnabledSystemUIMode(
+          _controlsVisible.value
+              ? SystemUiMode.edgeToEdge
+              : SystemUiMode.immersiveSticky,
+        ),
+      );
+    }
   }
 
   @override
@@ -86,7 +102,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       if (!_appActive) {
         _appActive = true;
         _syncDiagnosticRefresh();
-        _revealControls();
+        _syncSystemUiMode();
         unawaited(_syncSessions());
       }
       return;
@@ -118,6 +134,12 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     ++_generation;
     _controlsTimer?.cancel();
     _diagnosticTimer?.cancel();
+    _controlsVisible.removeListener(_syncSystemUiMode);
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
+    }
     _diagnosticTick.dispose();
     _controlsVisible.dispose();
     _toolbarFocus.dispose();
@@ -370,7 +392,9 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
             cursor: visible
                 ? SystemMouseCursors.basic
                 : SystemMouseCursors.none,
-            onHover: (_) => _revealControls(),
+            onHover: (event) {
+              if (event.delta != Offset.zero) _revealControls();
+            },
             child: Listener(
               onPointerDown: (_) => _revealControls(),
               child: child,
@@ -397,9 +421,50 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                             )
                           : LayoutBuilder(
                               builder: (context, constraints) {
-                                final columns = _columns(
-                                  layout,
+                                final canvasSize = Size(
                                   constraints.maxWidth,
+                                  constraints.maxHeight,
+                                );
+                                if (layout.id == 'FREEFORM' &&
+                                    focusedIndex < 0) {
+                                  final freeform =
+                                      store.config.freeformSlots.isEmpty
+                                      ? [
+                                          const FreeformSlot(
+                                            x: 0,
+                                            y: 0,
+                                            width: 1.0,
+                                            height: 1.0,
+                                          ),
+                                        ]
+                                      : store.config.freeformSlots;
+                                  final rectangles =
+                                      LayoutGeometry.freeformTiles(
+                                        freeform,
+                                        canvasSize,
+                                      );
+                                  return Stack(
+                                    children: [
+                                      for (
+                                        var offset = 0;
+                                        offset < visibleCount &&
+                                            offset < rectangles.length;
+                                        offset++
+                                      )
+                                        Positioned.fromRect(
+                                          rect: rectangles[offset].deflate(1.5),
+                                          child: _cameraTile(
+                                            slots,
+                                            from + offset,
+                                            cameraById,
+                                          ),
+                                        ),
+                                    ],
+                                  );
+                                }
+                                final columns = LayoutGeometry.bestColumns(
+                                  layout: layout,
+                                  canvas: canvasSize,
                                   visibleCount: visibleCount,
                                 );
                                 final rows = (visibleCount / columns).ceil();
@@ -410,10 +475,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                                     visibleCount == layout.cameraCount) {
                                   final rectangles = LayoutGeometry.tiles(
                                     layout.id,
-                                    Size(
-                                      constraints.maxWidth,
-                                      constraints.maxHeight,
-                                    ),
+                                    canvasSize,
                                   );
                                   if (rectangles.length == visibleCount) {
                                     return Stack(
@@ -440,7 +502,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                                 final estimatedHeight =
                                     rows *
                                     ((constraints.maxWidth / columns) /
-                                        (16 / 10));
+                                        LayoutGeometry.cameraAspectRatio);
                                 final shouldScroll =
                                     constraints.maxWidth < 600 &&
                                     estimatedHeight > constraints.maxHeight;
@@ -470,7 +532,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                                         mainAxisSpacing: spacing,
                                         crossAxisSpacing: spacing,
                                         childAspectRatio: shouldScroll
-                                            ? 16 / 10
+                                            ? LayoutGeometry.cameraAspectRatio
                                             : (availableWidth / columns) /
                                                   (availableHeight / rows),
                                       ),
@@ -523,24 +585,35 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     int slotIndex,
     Map<String, CameraDevice> cameraById,
   ) {
+    final store = AppScope.of(context);
     final id = slots[slotIndex];
     final camera = id == null ? null : cameraById[id];
     final session = id == null ? null : _sessions[id];
     return MonitorCameraTile(
       key: ValueKey('monitor-camera-slot-$slotIndex'),
       camera: camera,
+      fitMode: store.config.videoFitMode,
       autofocus:
           DeviceEnvironmentScope.of(context).isTelevision &&
           camera != null &&
           (slotIndex ==
                   _page *
                       _pageSize(
-                        AppScope.of(context).activeLayout,
+                        store.activeLayout,
                         MediaQuery.sizeOf(context).width,
                       ) ||
               _focusedCameraId == id),
       session: session,
-      onTap: _revealControls,
+      onTap: () {
+        if (camera != null) {
+          setState(() {
+            _focusedCameraId = _focusedCameraId == camera.id ? null : camera.id;
+          });
+          _syncSessions();
+        } else {
+          _revealControls();
+        }
+      },
       onFocus: camera == null
           ? null
           : () {
@@ -553,32 +626,6 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                     ? null
                     : camera.id;
               });
-              _syncSessions();
-            },
-      onClone: camera == null
-          ? null
-          : () async {
-              final cloned = await CloneCameraDialog.show(
-                context,
-                camera: camera,
-                store: AppScope.of(context),
-              );
-              if (cloned == true && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Câmera “${camera.name}” clonada com sucesso.',
-                    ),
-                  ),
-                );
-              }
-            },
-      onSwitchChannel: camera == null || camera.availableChannels.length <= 1
-          ? null
-          : (newPath) async {
-              await AppScope.of(
-                context,
-              ).switchCameraChannel(camera.id, newPath);
               _syncSessions();
             },
       onRetry: session == null ? null : () => session.start(),
@@ -906,18 +953,61 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                   color: _page + 1 < pages ? Colors.white : Colors.white38,
                 ),
               ),
-            IconButton(
-              tooltip:
-                  '${mainStreams ? 'Fluxo principal' : 'Fluxo econômico'}${_mainStreams == null ? ' · automático' : ' · escolha manual'}',
-              onPressed: () {
-                setState(() => _mainStreams = !mainStreams);
-                unawaited(_restartSessions());
-              },
-              icon: Icon(
-                mainStreams ? Icons.high_quality : Icons.data_saver_on_outlined,
-                color: Colors.white,
+            Tooltip(
+              message: mainStreams
+                  ? 'Qualidade: Alta Definição (HD) · Toque para usar SD (Econômico)'
+                  : 'Qualidade: Econômica (SD) · Toque para usar HD (Alta Definição)',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  setState(() => _mainStreams = !mainStreams);
+                  unawaited(_restartSessions());
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: mainStreams
+                        ? const Color(0xFF1E3A8A)
+                        : const Color(0xFF263238),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: mainStreams
+                          ? const Color(0xFF60A5FA)
+                          : const Color(0xFF546E7A),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        mainStreams ? Icons.hd : Icons.sd,
+                        size: 16,
+                        color: mainStreams
+                            ? const Color(0xFF93C5FD)
+                            : const Color(0xFFB0BEC5),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        mainStreams ? 'HD' : 'SD',
+                        style: TextStyle(
+                          color: mainStreams
+                              ? Colors.white
+                              : const Color(0xFFECEFF1),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
+            const SizedBox(width: 6),
             PopupMenuButton<String>(
               tooltip: 'Ações do monitor',
               iconColor: Colors.white,
@@ -990,6 +1080,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                 const PopupMenuDivider(),
                 for (final preset in LayoutPreset.all.where(
                   (preset) =>
+                      preset.id == 'FREEFORM' ||
                       preset.id == 'SINGLE' ||
                       preset.id == 'GRID_2H' ||
                       preset.id == 'GRID_4' ||
@@ -1055,20 +1146,6 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       ],
     ),
   );
-
-  int _columns(LayoutPreset layout, double width, {required int visibleCount}) {
-    if (visibleCount <= 1) return 1;
-    if (width < 600) {
-      if (layout.id == 'GRID_2V') return 1;
-      return min(2, visibleCount);
-    }
-    if (visibleCount < layout.cameraCount) {
-      return min(layout.columns, sqrt(visibleCount).ceil());
-    }
-    if (layout.id == 'GRID_ALL') return layout.columns;
-    if (width < 980) return layout.columns.clamp(1, 3);
-    return layout.columns.clamp(1, 6);
-  }
 
   int _pageSize(LayoutPreset layout, double width) {
     return MonitorPagingPolicy.pageSize(

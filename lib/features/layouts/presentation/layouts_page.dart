@@ -6,9 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../app/state/app_store.dart';
+import '../../camera_catalog/domain/camera_device.dart';
 import '../../camera_catalog/presentation/camera_picker.dart';
 import '../../camera_catalog/presentation/camera_thumbnail.dart';
 import '../../../shared/design_system/page_frame.dart';
+import '../domain/freeform_slot.dart';
 import '../domain/layout_geometry.dart';
 import '../domain/layout_preset.dart';
 import '../domain/saved_monitor_profile.dart';
@@ -57,6 +59,7 @@ class LayoutsPage extends StatelessWidget {
         _MonitorPreview(
           layout: layout,
           slotCameraIds: store.config.slotCameraIds,
+          freeformSlots: store.config.freeformSlots,
           cameraNames: {
             for (final camera in store.cameras) camera.id: camera.name,
           },
@@ -64,7 +67,9 @@ class LayoutsPage extends StatelessWidget {
             context,
             store,
             index,
-            store.config.slotCameraIds[index],
+            index < store.config.slotCameraIds.length
+                ? store.config.slotCameraIds[index]
+                : null,
           ),
           onSwap: (first, second) async {
             if (!await store.swapMonitorSlots(first, second) &&
@@ -80,58 +85,99 @@ class LayoutsPage extends StatelessWidget {
           },
         ),
         const SizedBox(height: 24),
-        Text('Câmeras na grade', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 10),
-        if (store.cameras.isEmpty)
-          const EmptyPanel(
-            icon: Icons.videocam_outlined,
-            title: 'Adicione câmeras primeiro',
-            description:
-                'Depois você poderá selecionar uma câmera para cada posição da grade.',
-          )
-        else
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 900 ? 2 : 1;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: layout.cameraCount,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 8,
-                  mainAxisExtent:
-                      MediaQuery.textScalerOf(context).scale(14) > 20 ? 92 : 76,
-                ),
-                itemBuilder: (context, index) {
-                  final selected = index < store.config.slotCameraIds.length
-                      ? store.config.slotCameraIds[index]
-                      : null;
-                  final camera = cameraById[selected];
-                  return _CameraSlotCard(
-                    position: index + 1,
-                    cameraName: camera?.name,
-                    cameraId: camera?.id,
-                    cameraDetail: camera == null
-                        ? null
-                        : '${camera.host}:${camera.effectivePort(store.config.defaultPort)} · ${camera.mainPath}',
-                    onTap: () => _selectCamera(context, store, index, selected),
-                  );
-                },
+        if (layout.id == 'FREEFORM')
+          _FreeformSlotEditor(
+            slots: store.config.freeformSlots.isEmpty
+                ? const [FreeformSlot(x: 0, y: 0, width: 1.0, height: 1.0)]
+                : store.config.freeformSlots,
+            cameraById: cameraById,
+            onSelectCamera: (index) => _selectCamera(
+              context,
+              store,
+              index,
+              index < store.config.slotCameraIds.length
+                  ? store.config.slotCameraIds[index]
+                  : null,
+            ),
+            onUpdateSlot: (index, {width, height, x, y}) {
+              store.updateFreeformSlot(
+                index,
+                width: width,
+                height: height,
+                x: x,
+                y: y,
               );
             },
+            onAddSlot: () {
+              store.addFreeformSlot();
+            },
+            onRemoveSlot: (index) {
+              store.removeFreeformSlot(index);
+            },
+            onAutoArrange: () {
+              store.autoArrangeFreeformSlots();
+            },
+          )
+        else ...[
+          Text(
+            'Câmeras na grade',
+            style: Theme.of(context).textTheme.titleLarge,
           ),
-        const SizedBox(height: 12),
-        if (layout.id != 'GRID_ALL')
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: store.clearSlots,
-              icon: const Icon(Icons.clear_all),
-              label: const Text('Limpar grade'),
+          const SizedBox(height: 10),
+          if (store.cameras.isEmpty)
+            const EmptyPanel(
+              icon: Icons.videocam_outlined,
+              title: 'Adicione câmeras primeiro',
+              description:
+                  'Depois você poderá selecionar uma câmera para cada posição da grade.',
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 900 ? 2 : 1;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: layout.cameraCount,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 8,
+                    mainAxisExtent:
+                        MediaQuery.textScalerOf(context).scale(14) > 20
+                        ? 92
+                        : 76,
+                  ),
+                  itemBuilder: (context, index) {
+                    final selected = index < store.config.slotCameraIds.length
+                        ? store.config.slotCameraIds[index]
+                        : null;
+                    final camera = cameraById[selected];
+                    return _CameraSlotCard(
+                      position: index + 1,
+                      cameraName: camera?.name,
+                      cameraId: camera?.id,
+                      cameraDetail: camera == null
+                          ? null
+                          : '${camera.host}:${camera.effectivePort(store.config.defaultPort)} · ${camera.mainPath}',
+                      onTap: () =>
+                          _selectCamera(context, store, index, selected),
+                    );
+                  },
+                );
+              },
             ),
-          ),
+          const SizedBox(height: 12),
+          if (layout.id != 'GRID_ALL')
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: store.clearSlots,
+                icon: const Icon(Icons.clear_all),
+                label: const Text('Limpar grade'),
+              ),
+            ),
+        ],
       ],
     );
     return PageFrame(
@@ -596,6 +642,7 @@ class _MonitorPreview extends StatelessWidget {
   const _MonitorPreview({
     required this.layout,
     required this.slotCameraIds,
+    this.freeformSlots = const [],
     required this.cameraNames,
     required this.onSelect,
     required this.onSwap,
@@ -603,6 +650,7 @@ class _MonitorPreview extends StatelessWidget {
 
   final LayoutPreset layout;
   final List<String?> slotCameraIds;
+  final List<FreeformSlot> freeformSlots;
   final Map<String, String> cameraNames;
   final ValueChanged<int> onSelect;
   final void Function(int first, int second) onSwap;
@@ -711,6 +759,9 @@ class _MonitorPreview extends StatelessWidget {
   }
 
   Rect _tileRect(int index, Size size, List<Rect> customTiles) {
+    if (layout.id == 'FREEFORM' && index < freeformSlots.length) {
+      return freeformSlots[index].toRect(size);
+    }
     if (customTiles.length == layout.cameraCount) return customTiles[index];
     final width = size.width / layout.columns;
     final height = size.height / layout.rows;
@@ -801,6 +852,235 @@ class _MonitorPreviewTile extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _FreeformSlotEditor extends StatelessWidget {
+  const _FreeformSlotEditor({
+    required this.slots,
+    required this.cameraById,
+    required this.onSelectCamera,
+    required this.onUpdateSlot,
+    required this.onAddSlot,
+    required this.onRemoveSlot,
+    required this.onAutoArrange,
+  });
+
+  final List<FreeformSlot> slots;
+  final Map<String, CameraDevice> cameraById;
+  final void Function(int index) onSelectCamera;
+  final void Function(
+    int index, {
+    double? width,
+    double? height,
+    double? x,
+    double? y,
+  })
+  onUpdateSlot;
+  final VoidCallback onAddSlot;
+  final void Function(int index) onRemoveSlot;
+  final VoidCallback onAutoArrange;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Personalização de mão livre',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Adicione quantas câmeras quiser e ajuste o tamanho e posição de cada uma livremente.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            FilledButton.icon(
+              onPressed: onAddSlot,
+              icon: const Icon(Icons.add),
+              label: const Text('Adicionar câmera'),
+            ),
+            OutlinedButton.icon(
+              onPressed: onAutoArrange,
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Organizar automaticamente'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        for (var index = 0; index < slots.length; index++)
+          _buildSlotCard(context, index, slots[index], colors),
+      ],
+    );
+  }
+
+  Widget _buildSlotCard(
+    BuildContext context,
+    int index,
+    FreeformSlot slot,
+    ColorScheme colors,
+  ) {
+    final camera = slot.cameraId != null ? cameraById[slot.cameraId] : null;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: colors.primaryContainer,
+                  child: Text(
+                    '${index + 1}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: colors.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    camera != null
+                        ? camera.name
+                        : 'Posição ${index + 1} (Sem câmera)',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: () => onSelectCamera(index),
+                  child: Text(camera == null ? 'Selecionar câmera' : 'Trocar'),
+                ),
+                if (slots.length > 1) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    tooltip: 'Remover posição',
+                    onPressed: () => onRemoveSlot(index),
+                  ),
+                ],
+              ],
+            ),
+            const Divider(height: 20),
+            Wrap(
+              spacing: 16,
+              runSpacing: 10,
+              children: [
+                _chipSelector(
+                  context,
+                  label: 'Largura (espaço horizontal)',
+                  current: slot.width,
+                  options: const [
+                    (0.25, '25%'),
+                    (0.33, '33%'),
+                    (0.50, '50%'),
+                    (0.67, '67%'),
+                    (1.00, '100%'),
+                  ],
+                  onSelected: (val) => onUpdateSlot(index, width: val),
+                ),
+                _chipSelector(
+                  context,
+                  label: 'Altura (espaço vertical)',
+                  current: slot.height,
+                  options: const [
+                    (0.25, '25%'),
+                    (0.33, '33%'),
+                    (0.50, '50%'),
+                    (0.67, '67%'),
+                    (1.00, '100%'),
+                  ],
+                  onSelected: (val) => onUpdateSlot(index, height: val),
+                ),
+                _chipSelector(
+                  context,
+                  label: 'Posição horizontal (X)',
+                  current: slot.x,
+                  options: const [
+                    (0.00, '0% (Esq.)'),
+                    (0.25, '25%'),
+                    (0.33, '33%'),
+                    (0.50, '50%'),
+                    (0.67, '67% (Dir.)'),
+                  ],
+                  onSelected: (val) => onUpdateSlot(index, x: val),
+                ),
+                _chipSelector(
+                  context,
+                  label: 'Posição vertical (Y)',
+                  current: slot.y,
+                  options: const [
+                    (0.00, '0% (Topo)'),
+                    (0.25, '25%'),
+                    (0.33, '33%'),
+                    (0.50, '50%'),
+                    (0.67, '67% (Base)'),
+                  ],
+                  onSelected: (val) => onUpdateSlot(index, y: val),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chipSelector(
+    BuildContext context, {
+    required String label,
+    required double current,
+    required List<(double, String)> options,
+    required ValueChanged<double> onSelected,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 4,
+          children: [
+            for (final opt in options)
+              ChoiceChip(
+                label: Text(opt.$2, style: const TextStyle(fontSize: 11)),
+                selected: (current - opt.$1).abs() < 0.04,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                onSelected: (selected) {
+                  if (selected) onSelected(opt.$1);
+                },
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

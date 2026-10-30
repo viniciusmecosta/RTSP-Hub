@@ -19,6 +19,13 @@ class LayoutPreset {
 
   static const all = <LayoutPreset>[
     LayoutPreset(
+      id: 'FREEFORM',
+      name: 'Mão livre · Personalizado',
+      rows: 1,
+      columns: 1,
+      cameraCount: 1,
+    ),
+    LayoutPreset(
       id: 'GRID_ALL',
       name: 'Todas as câmeras',
       rows: 1,
@@ -163,6 +170,16 @@ class LayoutPreset {
   ];
 
   static LayoutPreset byId(String id, {int cameraCount = 1}) {
+    if (id == 'FREEFORM') {
+      final count = max(1, cameraCount);
+      return LayoutPreset(
+        id: 'FREEFORM',
+        name: 'Mão livre · Personalizado',
+        rows: 1,
+        columns: 1,
+        cameraCount: count,
+      );
+    }
     if (id == 'GRID_ALL') {
       final count = max(1, cameraCount);
       final columns = sqrt(count).ceil();
