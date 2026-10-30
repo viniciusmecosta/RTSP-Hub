@@ -17,8 +17,6 @@ class CameraPathFields extends StatelessWidget {
     required this.onAddSavedPath,
     required this.onSelectSavedPath,
     required this.onRemoveSavedPath,
-    required this.searchRecorderChannels,
-    required this.onToggleSearchRecorderChannels,
     required this.isProbingOrTesting,
     super.key,
   });
@@ -34,8 +32,6 @@ class CameraPathFields extends StatelessWidget {
   final void Function(String path) onAddSavedPath;
   final void Function(String path) onSelectSavedPath;
   final void Function(String path) onRemoveSavedPath;
-  final bool searchRecorderChannels;
-  final ValueChanged<bool>? onToggleSearchRecorderChannels;
   final bool isProbingOrTesting;
 
   @override
@@ -160,15 +156,6 @@ class CameraPathFields extends StatelessWidget {
           ),
           validator: (value) =>
               CameraFieldValidation.pathError(value ?? '', optional: true),
-        ),
-        SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Pesquisar canais de gravador'),
-          subtitle: const Text(
-            'Se ONVIF não responder, teste até 16 canais RTSP. Para câmera IP, deixe desligado.',
-          ),
-          value: searchRecorderChannels,
-          onChanged: isProbingOrTesting ? null : onToggleSearchRecorderChannels,
         ),
       ],
     );
