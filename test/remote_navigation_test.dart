@@ -174,6 +174,9 @@ void main() {
     expect(find.byType(MonitorCameraTile), findsNWidgets(4));
     expect(sessions.where((s) => !s.released).length, 4);
     expect(sessions.every((s) => !s.useMainStream), isTrue);
+    final viewport = find.byKey(const ValueKey('monitorViewport'));
+    await tester.tapAt(tester.getCenter(viewport));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Próxima página'));
     await tester.pumpAndSettle();
     expect(store.config.lastMonitorPage, 1);
@@ -210,6 +213,79 @@ void main() {
     expect(sessions.every((s) => s.released), isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'touching a camera expands it and touching again returns to grid',
+    (tester) async {
+      tester.view.physicalSize = const Size(960, 540);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final cameras = List.generate(
+        4,
+        (i) => CameraDevice(
+          id: 'c-$i',
+          name: 'Cam $i',
+          host: '10.0.0.${i + 1}',
+          mainPath: '/main',
+        ),
+      );
+      final repo = MemoryRepository()
+        ..value = AppConfiguration(
+          cameras: cameras,
+          layoutId: 'GRID_4',
+          slotCameraIds: cameras.map((c) => c.id).toList(),
+          tutorialCompleted: true,
+        );
+      final store = AppStore(
+        repository: repo,
+        credentials: MemoryCredentials(),
+      );
+      addTearDown(store.dispose);
+      await store.load();
+      await tester.pumpWidget(
+        AppScope(
+          store: store,
+          child: MaterialApp(
+            home: MonitorPage(
+              now: tester.binding.clock.now,
+              onExit: () {},
+              onConfigure: () {},
+              sessionFactory:
+                  ({
+                    required camera,
+                    required password,
+                    required defaultPort,
+                    required bufferMs,
+                    required useMainStream,
+                    required connectionCoordinator,
+                    required connectionPriority,
+                  }) => _FakeSession(
+                    camera: camera,
+                    password: password,
+                    defaultPort: defaultPort,
+                    bufferMs: bufferMs,
+                    useMainStream: useMainStream,
+                    connectionCoordinator: connectionCoordinator,
+                    connectionPriority: connectionPriority,
+                  ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MonitorCameraTile), findsNWidgets(4));
+      final slot0 = find.byKey(const ValueKey('monitor-camera-slot-0'));
+      await tester.tap(slot0);
+      await tester.pumpAndSettle();
+      expect(find.byType(MonitorCameraTile), findsOneWidget);
+
+      await tester.tap(slot0);
+      await tester.pumpAndSettle();
+      expect(find.byType(MonitorCameraTile), findsNWidgets(4));
+    },
+  );
 
   for (final theme in ['light', 'dark']) {
     testWidgets(

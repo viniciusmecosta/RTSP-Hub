@@ -174,7 +174,23 @@ class _LayoutMiniaturePainter extends CustomPainter {
       RRect.fromRectAndRadius(bounds, const Radius.circular(6)),
       Paint()..color = background,
     );
-    final special = LayoutGeometry.tiles(preset.id, size);
+    final special = preset.id == 'FREEFORM'
+        ? [
+            Rect.fromLTWH(0, 0, size.width * 0.62, size.height),
+            Rect.fromLTWH(
+              size.width * 0.62,
+              0,
+              size.width * 0.38,
+              size.height * 0.5,
+            ),
+            Rect.fromLTWH(
+              size.width * 0.62,
+              size.height * 0.5,
+              size.width * 0.38,
+              size.height * 0.5,
+            ),
+          ]
+        : LayoutGeometry.tiles(preset.id, size);
     final rows = preset.id == 'GRID_ALL' ? 2 : preset.rows;
     final columns = preset.id == 'GRID_ALL' ? 2 : preset.columns;
     final rects = special.isNotEmpty

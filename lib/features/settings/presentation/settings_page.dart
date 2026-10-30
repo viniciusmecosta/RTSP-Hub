@@ -250,6 +250,33 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 const Divider(height: 1),
+                _SettingDropdownTile<String>(
+                  icon: Icons.aspect_ratio_outlined,
+                  title: 'Ajuste de vídeo no monitor',
+                  subtitle:
+                      'Inteligente estende o vídeo de forma controlada para aproveitar o espaço sem distorcer demais. Proporção original evita qualquer estiramento.',
+                  value: store.config.videoFitMode,
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'smart',
+                      child: Text('Inteligente (sem exagero)'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'contain',
+                      child: Text('Proporção original'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'fill',
+                      child: Text('Esticar ao máximo'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      store.updateSettings(videoFitMode: value);
+                    }
+                  },
+                ),
+                const Divider(height: 1),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
                   child: Text(

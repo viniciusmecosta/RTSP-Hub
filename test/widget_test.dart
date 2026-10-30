@@ -63,7 +63,7 @@ void main() {
   });
 
   testWidgets(
-    'ocultar controles preserva a grade e tocar no monitor os restaura',
+    'monitor abre maximizado sem barra superior e tocar restaura controles',
     (tester) async {
       await tester.pumpWidget(
         _app(
@@ -76,10 +76,17 @@ void main() {
       await tester.pumpAndSettle();
       final viewport = find.byKey(const ValueKey('monitorViewport'));
       expect(find.byType(AppLogo), findsNothing);
+      expect(find.byTooltip('Ações do monitor'), findsNothing);
       final originalSize = tester.getSize(viewport);
+      final originalWidget = tester.widget(viewport);
+
+      await tester.tapAt(tester.getCenter(viewport));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Ações do monitor'), findsOneWidget);
+      expect(tester.getSize(viewport), originalSize);
+
       await tester.tap(find.byTooltip('Ações do monitor'));
       await tester.pumpAndSettle();
-      final originalWidget = tester.widget(viewport);
       await tester.ensureVisible(find.text('Ocultar controles'));
       await tester.tap(find.text('Ocultar controles'));
       await tester.pumpAndSettle();
@@ -112,6 +119,9 @@ void main() {
         ),
       ),
     );
+    await tester.pumpAndSettle();
+    final viewport = find.byKey(const ValueKey('monitorViewport'));
+    await tester.tapAt(tester.getCenter(viewport));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Ações do monitor'));
     await tester.pumpAndSettle();
@@ -391,6 +401,11 @@ void main() {
       await tester.tap(quickStart);
       await tester.pumpAndSettle();
 
+      final viewport = find.byKey(const ValueKey('monitorViewport'));
+      expect(viewport, findsOneWidget);
+      expect(find.text('MONITOR  ·  0 CÂMERAS'), findsNothing);
+      await tester.tapAt(tester.getCenter(viewport));
+      await tester.pumpAndSettle();
       expect(find.text('MONITOR  ·  0 CÂMERAS'), findsOneWidget);
     },
   );
@@ -423,6 +438,38 @@ void main() {
     expect(find.textContaining('Acesso rápido'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'editor de layout mao livre adiciona e ajusta posicoes de cameras',
+    (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        _app(
+          configuration: const AppConfiguration(
+            layoutId: 'FREEFORM',
+            startupSection: 'layouts',
+            tutorialCompleted: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Personalização de mão livre'), findsOneWidget);
+      final addBtn = find.text('Adicionar câmera');
+      expect(addBtn, findsOneWidget);
+      await tester.ensureVisible(addBtn);
+      await tester.pumpAndSettle();
+      await tester.tap(addBtn);
+      await tester.pumpAndSettle();
+
+      final store = tester.widget<AppScope>(find.byType(AppScope)).notifier!;
+      expect(store.config.layoutId, 'FREEFORM');
+      expect(store.config.freeformSlots.length, greaterThanOrEqualTo(1));
+    },
+  );
 }
 
 MyApp _app({AppConfiguration? configuration}) => MyApp(

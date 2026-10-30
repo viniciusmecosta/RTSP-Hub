@@ -1,4 +1,5 @@
 import '../../features/camera_catalog/domain/camera_device.dart';
+import '../../features/layouts/domain/freeform_slot.dart';
 import '../../features/layouts/domain/saved_monitor_profile.dart';
 import '../../features/settings/domain/performance_preset.dart';
 import '../../features/monitor/domain/monitor_paging_policy.dart';
@@ -10,6 +11,7 @@ class AppConfiguration {
     this.monitorProfiles = const [],
     this.layoutId = 'GRID_4',
     this.slotCameraIds = const [null, null, null, null],
+    this.freeformSlots = const [],
     this.defaultPort = 554,
     this.defaultUser = 'admin',
     this.defaultPath = '/Streaming/Channels/101',
@@ -24,6 +26,7 @@ class AppConfiguration {
     this.tutorialCompleted = false,
     this.lastProfileId,
     this.monitorPageSize = 0,
+    this.videoFitMode = 'smart',
   });
 
   final int schemaVersion;
@@ -31,6 +34,7 @@ class AppConfiguration {
   final List<SavedMonitorProfile> monitorProfiles;
   final String layoutId;
   final List<String?> slotCameraIds;
+  final List<FreeformSlot> freeformSlots;
   final int defaultPort;
   final String defaultUser;
   final String defaultPath;
@@ -45,12 +49,14 @@ class AppConfiguration {
   final bool tutorialCompleted;
   final String? lastProfileId;
   final int monitorPageSize;
+  final String videoFitMode;
 
   AppConfiguration copyWith({
     List<CameraDevice>? cameras,
     List<SavedMonitorProfile>? monitorProfiles,
     String? layoutId,
     List<String?>? slotCameraIds,
+    List<FreeformSlot>? freeformSlots,
     int? defaultPort,
     String? defaultUser,
     String? defaultPath,
@@ -66,12 +72,14 @@ class AppConfiguration {
     String? lastProfileId,
     bool clearLastProfileId = false,
     int? monitorPageSize,
+    String? videoFitMode,
   }) => AppConfiguration(
     schemaVersion: schemaVersion,
     cameras: cameras ?? this.cameras,
     monitorProfiles: monitorProfiles ?? this.monitorProfiles,
     layoutId: layoutId ?? this.layoutId,
     slotCameraIds: slotCameraIds ?? this.slotCameraIds,
+    freeformSlots: freeformSlots ?? this.freeformSlots,
     defaultPort: defaultPort ?? this.defaultPort,
     defaultUser: defaultUser ?? this.defaultUser,
     defaultPath: defaultPath ?? this.defaultPath,
@@ -88,6 +96,7 @@ class AppConfiguration {
         ? null
         : lastProfileId ?? this.lastProfileId,
     monitorPageSize: monitorPageSize ?? this.monitorPageSize,
+    videoFitMode: videoFitMode ?? this.videoFitMode,
   );
 
   Map<String, Object?> toJson() => {
@@ -108,12 +117,17 @@ class AppConfiguration {
       'tutorialCompleted': tutorialCompleted,
       'lastProfileId': lastProfileId,
       'monitorPageSize': monitorPageSize,
+      'videoFitMode': videoFitMode,
     },
     'cameras': cameras.map((camera) => camera.toJson()).toList(),
     'monitorProfiles': monitorProfiles
         .map((profile) => profile.toJson())
         .toList(),
-    'layout': {'id': layoutId, 'slots': slotCameraIds},
+    'layout': {
+      'id': layoutId,
+      'slots': slotCameraIds,
+      'freeformSlots': freeformSlots.map((s) => s.toJson()).toList(),
+    },
   };
 
   factory AppConfiguration.fromJson(Map<String, Object?> json) {
@@ -139,12 +153,20 @@ class AppConfiguration {
     final slots = (layout['slots'] as List? ?? const [])
         .map((item) => item as String?)
         .toList(growable: false);
+    final rawFreeform = (layout['freeformSlots'] as List? ?? const []);
+    final freeform = rawFreeform
+        .map(
+          (item) =>
+              FreeformSlot.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
+        .toList(growable: false);
     return AppConfiguration(
       schemaVersion: (json['schemaVersion'] as num?)?.toInt() ?? 1,
       cameras: cameras,
       monitorProfiles: monitorProfiles,
       layoutId: layout['id'] as String? ?? 'GRID_4',
       slotCameraIds: slots.isEmpty ? const [null, null, null, null] : slots,
+      freeformSlots: freeform,
       defaultPort: (settings['defaultPort'] as num?)?.toInt() ?? 554,
       defaultUser: settings['defaultUser'] as String? ?? 'admin',
       defaultPath:
@@ -181,6 +203,11 @@ class AppConfiguration {
         final int value when MonitorPagingPolicy.choices.contains(value) =>
           value,
         _ => 0,
+      },
+      videoFitMode: switch (settings['videoFitMode']) {
+        'contain' => 'contain',
+        'fill' => 'fill',
+        _ => 'smart',
       },
     );
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import '../../features/camera_catalog/data/camera_snapshot_store.dart';
 import 'package:flutter/material.dart';
 import '../../features/monitor/domain/monitor_paging_policy.dart';
@@ -8,6 +9,8 @@ import 'package:uuid/uuid.dart';
 import '../../features/camera_catalog/domain/camera_device.dart';
 import '../../features/camera_catalog/domain/camera_channel.dart';
 import '../../features/camera_catalog/domain/camera_field_validation.dart';
+import '../../features/layouts/domain/freeform_slot.dart';
+import '../../features/layouts/domain/layout_geometry.dart';
 import '../../features/layouts/domain/layout_preset.dart';
 import '../../features/layouts/domain/saved_monitor_profile.dart';
 import '../../shared/infrastructure/secure_store/credential_store.dart';
@@ -50,8 +53,12 @@ class AppStore extends ChangeNotifier {
     'dark' => ThemeMode.dark,
     _ => ThemeMode.system,
   };
-  LayoutPreset get activeLayout =>
-      LayoutPreset.byId(_config.layoutId, cameraCount: _config.cameras.length);
+  LayoutPreset get activeLayout => LayoutPreset.byId(
+    _config.layoutId,
+    cameraCount: _config.layoutId == 'FREEFORM'
+        ? max(1, _config.freeformSlots.length)
+        : _config.cameras.length,
+  );
 
   SavedMonitorProfile? get activeMonitorProfile => _config.monitorProfiles
       .where((p) => p.id == _config.lastProfileId)
@@ -62,6 +69,7 @@ class AppStore extends ChangeNotifier {
     return profile != null &&
         (profile.layoutId != _config.layoutId ||
             !listEquals(profile.slotCameraIds, _config.slotCameraIds) ||
+            !listEquals(profile.freeformSlots, _config.freeformSlots) ||
             profile.startupSection != _config.startupSection);
   }
 
@@ -649,6 +657,34 @@ class AppStore extends ChangeNotifier {
 
   Future<void> setLayout(String layoutId) async {
     final previous = _config.slotCameraIds;
+    if (layoutId == 'FREEFORM') {
+      var freeform = _config.freeformSlots;
+      if (freeform.isEmpty) {
+        final initialIds = previous.where((id) => id != null).toList();
+        final count = max(
+          1,
+          initialIds.isEmpty
+              ? min(4, max(1, _config.cameras.length))
+              : initialIds.length,
+        );
+        final baseSlots = List.generate(
+          count,
+          (i) => FreeformSlot(
+            cameraId: i < initialIds.length ? initialIds[i] : null,
+          ),
+        );
+        freeform = LayoutGeometry.autoArrangeFreeform(baseSlots);
+      }
+      final slots = freeform.map((s) => s.cameraId).toList();
+      await _commit(
+        _config.copyWith(
+          layoutId: layoutId,
+          slotCameraIds: slots,
+          freeformSlots: freeform,
+        ),
+      );
+      return;
+    }
     final count = LayoutPreset.byId(
       layoutId,
       cameraCount: _config.cameras.length,
@@ -663,6 +699,20 @@ class AppStore extends ChangeNotifier {
   Future<void> setSlot(int index, String? cameraId) async {
     final slots = [..._config.slotCameraIds];
     if (index < 0 || index >= slots.length) return;
+    if (_config.layoutId == 'FREEFORM') {
+      final freeform = [..._config.freeformSlots];
+      if (index < freeform.length) {
+        freeform[index] = freeform[index].copyWith(
+          cameraId: cameraId,
+          clearCamera: cameraId == null,
+        );
+      }
+      slots[index] = cameraId;
+      await _commit(
+        _config.copyWith(slotCameraIds: slots, freeformSlots: freeform),
+      );
+      return;
+    }
     if (_config.layoutId == 'GRID_ALL') {
       if (cameraId == null) return;
       final previous = slots.indexOf(cameraId);
@@ -678,6 +728,74 @@ class AppStore extends ChangeNotifier {
     }
     slots[index] = cameraId;
     await _commit(_config.copyWith(slotCameraIds: slots));
+  }
+
+  Future<void> addFreeformSlot({
+    String? cameraId,
+    double width = 0.5,
+    double height = 0.5,
+  }) async {
+    final freeform = [..._config.freeformSlots];
+    final count = freeform.length;
+    final newSlot = FreeformSlot(
+      cameraId: cameraId,
+      x: (count % 2) * 0.5,
+      y: ((count ~/ 2) * 0.5).clamp(0.0, 0.75),
+      width: width,
+      height: height,
+    );
+    freeform.add(newSlot);
+    final slots = freeform.map((s) => s.cameraId).toList();
+    await _commit(
+      _config.copyWith(
+        layoutId: 'FREEFORM',
+        freeformSlots: freeform,
+        slotCameraIds: slots,
+      ),
+    );
+  }
+
+  Future<void> removeFreeformSlot(int index) async {
+    final freeform = [..._config.freeformSlots];
+    if (index < 0 || index >= freeform.length || freeform.length <= 1) return;
+    freeform.removeAt(index);
+    final slots = freeform.map((s) => s.cameraId).toList();
+    await _commit(
+      _config.copyWith(freeformSlots: freeform, slotCameraIds: slots),
+    );
+  }
+
+  Future<void> updateFreeformSlot(
+    int index, {
+    double? x,
+    double? y,
+    double? width,
+    double? height,
+    String? cameraId,
+    bool clearCamera = false,
+  }) async {
+    final freeform = [..._config.freeformSlots];
+    if (index < 0 || index >= freeform.length) return;
+    freeform[index] = freeform[index].copyWith(
+      x: x,
+      y: y,
+      width: width,
+      height: height,
+      cameraId: cameraId,
+      clearCamera: clearCamera,
+    );
+    final slots = freeform.map((s) => s.cameraId).toList();
+    await _commit(
+      _config.copyWith(freeformSlots: freeform, slotCameraIds: slots),
+    );
+  }
+
+  Future<void> autoArrangeFreeformSlots() async {
+    final arranged = LayoutGeometry.autoArrangeFreeform(_config.freeformSlots);
+    final slots = arranged.map((s) => s.cameraId).toList();
+    await _commit(
+      _config.copyWith(freeformSlots: arranged, slotCameraIds: slots),
+    );
   }
 
   Future<bool> swapMonitorSlots(int first, int second) async {
@@ -734,6 +852,7 @@ class AppStore extends ChangeNotifier {
       name: normalizedName,
       layoutId: _config.layoutId,
       slotCameraIds: List.unmodifiable(_config.slotCameraIds),
+      freeformSlots: List.unmodifiable(_config.freeformSlots),
       startupSection: startupSection ?? _config.startupSection,
     );
     final profiles = [
@@ -772,6 +891,7 @@ class AppStore extends ChangeNotifier {
       _config.copyWith(
         layoutId: layout.id,
         slotCameraIds: slots,
+        freeformSlots: profile.freeformSlots,
         startupSection: profile.startupSection,
         lastProfileId: profile.id,
       ),
@@ -816,10 +936,17 @@ class AppStore extends ChangeNotifier {
     String? lastSection,
     int? lastMonitorPage,
     int? monitorPageSize,
+    String? videoFitMode,
   }) async {
     if (monitorPageSize != null &&
         !MonitorPagingPolicy.choices.contains(monitorPageSize)) {
       _message = 'Escolha uma quantidade válida de câmeras por página.';
+      notifyListeners();
+      return;
+    }
+    if (videoFitMode != null &&
+        !{'smart', 'contain', 'fill'}.contains(videoFitMode)) {
+      _message = 'Escolha um modo de proporção de vídeo válido.';
       notifyListeners();
       return;
     }
@@ -840,7 +967,8 @@ class AppStore extends ChangeNotifier {
           (lastMonitorPage == null ||
               lastMonitorPage == current.lastMonitorPage) &&
           (monitorPageSize == null ||
-              monitorPageSize == current.monitorPageSize)) {
+              monitorPageSize == current.monitorPageSize) &&
+          (videoFitMode == null || videoFitMode == current.videoFitMode)) {
         return Future<bool>.value(true);
       }
       return _commit(
@@ -856,6 +984,7 @@ class AppStore extends ChangeNotifier {
           lastSection: lastSection,
           lastMonitorPage: lastMonitorPage,
           monitorPageSize: monitorPageSize,
+          videoFitMode: videoFitMode,
         ),
       );
     });
