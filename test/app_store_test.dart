@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rtsp_hub/features/camera_catalog/data/camera_snapshot_store.dart';
 import 'package:rtsp_hub/features/camera_catalog/domain/camera_device.dart';
 import 'package:rtsp_hub/app/data/app_configuration.dart';
 import 'package:rtsp_hub/app/state/app_store.dart';
@@ -379,6 +381,35 @@ void main() {
     expect(store.cameras.single.host, '192.168.1.10');
     expect(await store.passwordFor(store.cameras.single), isNull);
   });
+
+  test(
+    'imports custom camera backup with IP names and global passwords',
+    () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final tempDir = Directory.systemTemp.createTempSync('app_store_test');
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final testStore = AppStore(
+        repository: repository,
+        credentials: credentials,
+        snapshotStore: CameraSnapshotStore(directory: tempDir),
+      );
+      addTearDown(testStore.dispose);
+      final raw = File('rtsp_hub_backup_cameras.json').readAsStringSync();
+      final imported = await testStore.importConfiguration(raw);
+      expect(imported, isTrue);
+      expect(testStore.cameras, hasLength(10));
+      expect(testStore.cameras.first.name, '192.168.1.3');
+      expect(testStore.cameras.last.name, '192.168.1.110');
+      expect(
+        await testStore.passwordFor(testStore.cameras.first),
+        'Mh7Cam@2910',
+      );
+      expect(
+        await testStore.passwordFor(testStore.cameras.last),
+        'Mh7Cam@2910',
+      );
+    },
+  );
 
   test(
     'rejects malformed configuration backups without replacing settings',

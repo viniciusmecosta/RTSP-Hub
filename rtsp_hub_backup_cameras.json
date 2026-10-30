@@ -1,0 +1,231 @@
+{
+  "format": "rtsp_hub_backup",
+  "version": 1,
+  "configuration": {
+    "schemaVersion": 1,
+    "savedAt": "2026-10-30T19:30:00.000000Z",
+    "settings": {
+      "defaultPort": 554,
+      "defaultUser": "admin",
+      "defaultPath": "/Streaming/Channels/101",
+      "defaultSubPath": "",
+      "bufferMs": 180,
+      "resourceMode": "light",
+      "themeMode": "system",
+      "autoFullscreen": true,
+      "startupSection": "monitor",
+      "lastSection": "settings",
+      "lastMonitorPage": 0,
+      "tutorialCompleted": true,
+      "lastProfileId": null,
+      "monitorPageSize": 0,
+      "videoFitMode": "smart"
+    },
+    "cameras": [
+      {
+        "id": "d8c089a1-c2f9-4e32-8191-7b72a42b6bc6",
+        "name": "192.168.1.3",
+        "host": "192.168.1.3",
+        "port": null,
+        "username": "admin",
+        "mainPath": "/1/1?transmode=unicast&profile=vam",
+        "subPath": "/1/2?transmode=unicast&profile=vam",
+        "useGlobalCredentials": true,
+        "savedPaths": [
+          "/1/1?transmode=unicast&profile=vam",
+          "/1/2?transmode=unicast&profile=vam"
+        ],
+        "selectedPath": "",
+        "channels": [],
+        "selectedChannelId": "",
+        "thumbnailCapturedAt": null
+      },
+      {
+        "id": "d0a04f8d-9aee-4323-b9e5-59298ec63fc5",
+        "name": "192.168.1.4",
+        "host": "192.168.1.4",
+        "port": null,
+        "username": "admin",
+        "mainPath": "/1/1?transmode=unicast&profile=vam",
+        "subPath": "/1/2?transmode=unicast&profile=vam",
+        "useGlobalCredentials": true,
+        "savedPaths": [
+          "/1/1?transmode=unicast&profile=vam",
+          "/1/2?transmode=unicast&profile=vam"
+        ],
+        "selectedPath": "",
+        "channels": [],
+        "selectedChannelId": "",
+        "thumbnailCapturedAt": null
+      },
+      {
+        "id": "93935a27-8070-482d-b595-d5e38fbdb0b4",
+        "name": "192.168.1.5",
+        "host": "192.168.1.5",
+        "port": null,
+        "username": "admin",
+        "mainPath": "/1/1?transmode=unicast&profile=vam",
+        "subPath": "/1/2?transmode=unicast&profile=vam",
+        "useGlobalCredentials": true,
+        "savedPaths": [
+          "/1/1?transmode=unicast&profile=vam",
+          "/1/2?transmode=unicast&profile=vam"
+        ],
+        "selectedPath": "",
+        "channels": [],
+        "selectedChannelId": "",
+        "thumbnailCapturedAt": null
+      },
+      {
+        "id": "1d189367-99cf-4613-b270-009fb34d37b7",
+        "name": "192.168.1.6",
+        "host": "192.168.1.6",
+        "port": null,
+        "username": "admin",
+        "mainPath": "/1/1?transmode=unicast&profile=vam",
+        "subPath": "/1/2?transmode=unicast&profile=vam",
+        "useGlobalCredentials": true,
+        "savedPaths": [
+          "/1/1?transmode=unicast&profile=vam",
+          "/1/2?transmode=unicast&profile=vam"
+        ],
+        "selectedPath": "",
+        "channels": [],
+        "selectedChannelId": "",
+        "thumbnailCapturedAt": null
+      },
+      {
+        "id": "d24974c2-1a73-4e27-b514-31cfec6e1137",
+        "name": "192.168.1.9",
+        "host": "192.168.1.9",
+        "port": null,
+        "username": "admin",
+        "mainPath": "/1/1?transmode=unicast&profile=vam",
+        "subPath": "/1/2?transmode=unicast&profile=vam",
+        "useGlobalCredentials": true,
+        "savedPaths": [
+          "/1/1?transmode=unicast&profile=vam",
+          "/1/2?transmode=unicast&profile=vam"
+        ],
+        "selectedPath": "",
+        "channels": [],
+        "selectedChannelId": "",
+        "thumbnailCapturedAt": null
+      },
+      {
+        "id": "46d51bdf-3aa4-40bc-94bd-234c43099e47",
+        "name": "192.168.1.15",
+        "host": "192.168.1.15",
+        "port": null,
+        "username": "admin",
+        "mainPath": "/media/video1",
+        "subPath": "/media/video2",
+        "useGlobalCredentials": true,
+        "savedPaths": [
+          "/media/video1",
+          "/media/video2"
+        ],
+        "selectedPath": "",
+        "channels": [],
+        "selectedChannelId": "",
+        "thumbnailCapturedAt": null
+      },
+      {
+        "id": "776a1ff8-7525-42d3-9b34-dd1b00df42bb",
+        "name": "192.168.1.50",
+        "host": "192.168.1.50",
+        "port": null,
+        "username": "admin",
+        "mainPath": "/media/video1",
+        "subPath": "/media/video2",
+        "useGlobalCredentials": true,
+        "savedPaths": [
+          "/media/video1",
+          "/media/video2"
+        ],
+        "selectedPath": "",
+        "channels": [],
+        "selectedChannelId": "",
+        "thumbnailCapturedAt": null
+      },
+      {
+        "id": "a971ec4d-e2c7-4325-bd99-3df607a50a1a",
+        "name": "192.168.1.75",
+        "host": "192.168.1.75",
+        "port": null,
+        "username": "admin",
+        "mainPath": "/1/1?transmode=unicast&profile=vam",
+        "subPath": "/1/2?transmode=unicast&profile=vam",
+        "useGlobalCredentials": true,
+        "savedPaths": [
+          "/1/1?transmode=unicast&profile=vam",
+          "/1/2?transmode=unicast&profile=vam"
+        ],
+        "selectedPath": "",
+        "channels": [],
+        "selectedChannelId": "",
+        "thumbnailCapturedAt": null
+      },
+      {
+        "id": "8f9ffc54-3e86-4031-8d2b-c42761430ae2",
+        "name": "192.168.1.80",
+        "host": "192.168.1.80",
+        "port": null,
+        "username": "admin",
+        "mainPath": "/1/1?transmode=unicast&profile=vam",
+        "subPath": "/1/2?transmode=unicast&profile=vam",
+        "useGlobalCredentials": true,
+        "savedPaths": [
+          "/1/1?transmode=unicast&profile=vam",
+          "/1/2?transmode=unicast&profile=vam"
+        ],
+        "selectedPath": "",
+        "channels": [],
+        "selectedChannelId": "",
+        "thumbnailCapturedAt": null
+      },
+      {
+        "id": "9165dd04-ec38-4ee0-80f0-e73c6eb3812a",
+        "name": "192.168.1.110",
+        "host": "192.168.1.110",
+        "port": null,
+        "username": "admin",
+        "mainPath": "/1/1?transmode=unicast&profile=vam",
+        "subPath": "/1/2?transmode=unicast&profile=vam",
+        "useGlobalCredentials": true,
+        "savedPaths": [
+          "/1/1?transmode=unicast&profile=vam",
+          "/1/2?transmode=unicast&profile=vam"
+        ],
+        "selectedPath": "",
+        "channels": [],
+        "selectedChannelId": "",
+        "thumbnailCapturedAt": null
+      }
+    ],
+    "monitorProfiles": [],
+    "layout": {
+      "id": "FOCUS_RIGHT_3",
+      "slots": [
+        "d8c089a1-c2f9-4e32-8191-7b72a42b6bc6",
+        "d0a04f8d-9aee-4323-b9e5-59298ec63fc5",
+        "93935a27-8070-482d-b595-d5e38fbdb0b4",
+        "1d189367-99cf-4613-b270-009fb34d37b7"
+      ]
+    }
+  },
+  "credentials": {
+    "__network_discovery__": "Mh7Cam@2910",
+    "d8c089a1-c2f9-4e32-8191-7b72a42b6bc6": "Mh7Cam@2910",
+    "d0a04f8d-9aee-4323-b9e5-59298ec63fc5": "Mh7Cam@2910",
+    "93935a27-8070-482d-b595-d5e38fbdb0b4": "Mh7Cam@2910",
+    "1d189367-99cf-4613-b270-009fb34d37b7": "Mh7Cam@2910",
+    "d24974c2-1a73-4e27-b514-31cfec6e1137": "Mh7Cam@2910",
+    "46d51bdf-3aa4-40bc-94bd-234c43099e47": "Mh7Cam@2910",
+    "776a1ff8-7525-42d3-9b34-dd1b00df42bb": "Mh7Cam@2910",
+    "a971ec4d-e2c7-4325-bd99-3df607a50a1a": "Mh7Cam@2910",
+    "8f9ffc54-3e86-4031-8d2b-c42761430ae2": "Mh7Cam@2910",
+    "9165dd04-ec38-4ee0-80f0-e73c6eb3812a": "Mh7Cam@2910"
+  },
+  "thumbnails": {}
+}
