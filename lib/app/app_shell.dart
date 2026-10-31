@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -12,6 +13,7 @@ import '../features/monitor/presentation/monitor_page.dart';
 import '../features/settings/presentation/settings_page.dart';
 import '../features/settings/presentation/global_connection_page.dart';
 import '../shared/design_system/app_logo.dart';
+import '../shared/platform/android_file_import_service.dart';
 import '../shared/platform/device_environment.dart';
 import 'state/app_store.dart';
 
@@ -36,6 +38,112 @@ class _AppShellState extends State<AppShell> {
   bool _startupApplied = false;
   bool _tutorialQueued = false;
   bool? _lastFullscreen;
+  final _fileImportService = AndroidFileImportService();
+  StreamSubscription<IncomingBackupFile>? _fileSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _fileSubscription = _fileImportService.fileStream.listen((file) {
+      if (mounted) _handleIncomingBackupFile(file);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final initial = await _fileImportService.getInitialFile();
+      if (initial != null && mounted) {
+        _handleIncomingBackupFile(initial);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _fileSubscription?.cancel();
+    _fileImportService.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleIncomingBackupFile(IncomingBackupFile file) async {
+    final store = AppScope.of(context);
+    try {
+      final decoded = jsonDecode(file.content);
+      if (decoded is! Map) throw const FormatException();
+      final isHubBackup = decoded['format'] == 'rtsp_hub_backup';
+      final rawConfig = isHubBackup ? decoded['configuration'] : decoded;
+      final rawCameras = rawConfig is Map ? rawConfig['cameras'] : null;
+      final cameraCount = rawCameras is List ? rawCameras.length : 0;
+
+      final confirm = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.settings_backup_restore_outlined, size: 36),
+          title: const Text('Restaurar backup recebido?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                file.name,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Este arquivo contém $cameraCount câmera(s), senhas salvas e preferências.',
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Deseja importar e substituir as configurações atuais pelas deste arquivo?',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.download_done),
+              label: const Text('Importar e abrir monitor'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm == true && mounted) {
+        final success = await store.importConfiguration(file.content);
+        if (!mounted) return;
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Backup importado com sucesso! Câmeras e configurações atualizadas.',
+              ),
+            ),
+          );
+          _selectSection(AppSection.monitor);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                store.message ?? 'Falha ao importar o arquivo de backup.',
+              ),
+            ),
+          );
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'O arquivo recebido não é um backup válido do RTSP Hub.',
+            ),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   void didChangeDependencies() {

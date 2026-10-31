@@ -380,6 +380,7 @@ void main() {
     expect(await store.passwordFor(store.cameras.single), isNull);
   });
 
+
   test(
     'rejects malformed configuration backups without replacing settings',
     () async {
