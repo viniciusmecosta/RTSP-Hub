@@ -3,7 +3,7 @@
   "version": 1,
   "configuration": {
     "schemaVersion": 1,
-    "savedAt": "2026-10-31T06:45:00.000000Z",
+    "savedAt": "2026-10-31T07:00:00.000000Z",
     "settings": {
       "defaultPort": 554,
       "defaultUser": "admin",
@@ -35,14 +35,27 @@
         "savedPaths": [
           "/1/1?transmode=unicast&profile=vam",
           "/1/2?transmode=unicast&profile=vam",
-          "/media/video1",
-          "/media/video2",
-          "/Streaming/Channels/101",
-          "/Streaming/Channels/102"
+          "/1/h264major",
+          "/1/h264minor",
+          "/live/ch0",
+          "/live/ch1"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/1/1?transmode=unicast&profile=vam",
+            "label": "Canal 1",
+            "main": {
+              "path": "/1/1?transmode=unicast&profile=vam",
+              "quality": "1920×1080 · 25 fps · H264"
+            },
+            "sub": {
+              "path": "/1/2?transmode=unicast&profile=vam",
+              "quality": "704×576 · 25 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/1/1?transmode=unicast&profile=vam",
         "thumbnailCapturedAt": null
       },
       {
@@ -56,11 +69,26 @@
         "useGlobalCredentials": true,
         "savedPaths": [
           "/1/1?transmode=unicast&profile=vam",
-          "/1/2?transmode=unicast&profile=vam"
+          "/1/2?transmode=unicast&profile=vam",
+          "/1/h264major",
+          "/1/h264minor"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/1/1?transmode=unicast&profile=vam",
+            "label": "Canal 1",
+            "main": {
+              "path": "/1/1?transmode=unicast&profile=vam",
+              "quality": "1920×1080 · 25 fps · H264"
+            },
+            "sub": {
+              "path": "/1/2?transmode=unicast&profile=vam",
+              "quality": "704×576 · 25 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/1/1?transmode=unicast&profile=vam",
         "thumbnailCapturedAt": null
       },
       {
@@ -74,11 +102,26 @@
         "useGlobalCredentials": true,
         "savedPaths": [
           "/1/1?transmode=unicast&profile=vam",
-          "/1/2?transmode=unicast&profile=vam"
+          "/1/2?transmode=unicast&profile=vam",
+          "/1/h264major",
+          "/1/h264minor"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/1/1?transmode=unicast&profile=vam",
+            "label": "Canal 1",
+            "main": {
+              "path": "/1/1?transmode=unicast&profile=vam",
+              "quality": "1920×1080 · 30 fps · H264"
+            },
+            "sub": {
+              "path": "/1/2?transmode=unicast&profile=vam",
+              "quality": "704×480 · 30 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/1/1?transmode=unicast&profile=vam",
         "thumbnailCapturedAt": null
       },
       {
@@ -92,11 +135,26 @@
         "useGlobalCredentials": true,
         "savedPaths": [
           "/1/1?transmode=unicast&profile=vam",
-          "/1/2?transmode=unicast&profile=vam"
+          "/1/2?transmode=unicast&profile=vam",
+          "/1/h264major",
+          "/1/h264minor"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/1/1?transmode=unicast&profile=vam",
+            "label": "Canal 1",
+            "main": {
+              "path": "/1/1?transmode=unicast&profile=vam",
+              "quality": "1920×1080 · 25 fps · H264"
+            },
+            "sub": {
+              "path": "/1/2?transmode=unicast&profile=vam",
+              "quality": "704×576 · 25 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/1/1?transmode=unicast&profile=vam",
         "thumbnailCapturedAt": null
       },
       {
@@ -110,11 +168,26 @@
         "useGlobalCredentials": true,
         "savedPaths": [
           "/1/1?transmode=unicast&profile=vam",
-          "/1/2?transmode=unicast&profile=vam"
+          "/1/2?transmode=unicast&profile=vam",
+          "/1/h264major",
+          "/1/h264minor"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/1/1?transmode=unicast&profile=vam",
+            "label": "Canal 1",
+            "main": {
+              "path": "/1/1?transmode=unicast&profile=vam",
+              "quality": "1920×1080 · 25 fps · H264"
+            },
+            "sub": {
+              "path": "/1/2?transmode=unicast&profile=vam",
+              "quality": "704×576 · 25 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/1/1?transmode=unicast&profile=vam",
         "thumbnailCapturedAt": null
       },
       {
@@ -128,11 +201,26 @@
         "useGlobalCredentials": true,
         "savedPaths": [
           "/1/1?transmode=unicast&profile=vam",
-          "/1/2?transmode=unicast&profile=vam"
+          "/1/2?transmode=unicast&profile=vam",
+          "/1/h264major",
+          "/1/h264minor"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/1/1?transmode=unicast&profile=vam",
+            "label": "Canal 1",
+            "main": {
+              "path": "/1/1?transmode=unicast&profile=vam",
+              "quality": "1920×1080 · 25 fps · H264"
+            },
+            "sub": {
+              "path": "/1/2?transmode=unicast&profile=vam",
+              "quality": "704×576 · 25 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/1/1?transmode=unicast&profile=vam",
         "thumbnailCapturedAt": null
       },
       {
@@ -146,11 +234,26 @@
         "useGlobalCredentials": true,
         "savedPaths": [
           "/media/video1",
-          "/media/video2"
+          "/media/video2",
+          "/ch0_0.h264",
+          "/ch0_1.h264"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/media/video1",
+            "label": "Canal 1",
+            "main": {
+              "path": "/media/video1",
+              "quality": "1920×1080 · 25 fps · H264"
+            },
+            "sub": {
+              "path": "/media/video2",
+              "quality": "720×576 · 25 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/media/video1",
         "thumbnailCapturedAt": null
       },
       {
@@ -164,11 +267,26 @@
         "useGlobalCredentials": true,
         "savedPaths": [
           "/media/video1",
-          "/media/video2"
+          "/media/video2",
+          "/ch0_0.h264",
+          "/ch0_1.h264"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/media/video1",
+            "label": "Canal 1",
+            "main": {
+              "path": "/media/video1",
+              "quality": "1920×1080 · 25 fps · H264"
+            },
+            "sub": {
+              "path": "/media/video2",
+              "quality": "720×576 · 25 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/media/video1",
         "thumbnailCapturedAt": null
       },
       {
@@ -182,11 +300,28 @@
         "useGlobalCredentials": true,
         "savedPaths": [
           "/Streaming/Channels/101",
-          "/Streaming/Channels/102"
+          "/Streaming/Channels/102",
+          "/Streaming/Channels/1",
+          "/Streaming/Channels/2",
+          "/ISAPI/Streaming/channels/101",
+          "/ISAPI/Streaming/channels/102"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/Streaming/Channels/101",
+            "label": "Canal 1",
+            "main": {
+              "path": "/Streaming/Channels/101",
+              "quality": "1920×1080 · 25 fps · H264"
+            },
+            "sub": {
+              "path": "/Streaming/Channels/102",
+              "quality": "640×360 · 25 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/Streaming/Channels/101",
         "thumbnailCapturedAt": null
       },
       {
@@ -200,11 +335,28 @@
         "useGlobalCredentials": true,
         "savedPaths": [
           "/Streaming/Channels/101",
-          "/Streaming/Channels/102"
+          "/Streaming/Channels/102",
+          "/Streaming/Channels/1",
+          "/Streaming/Channels/2",
+          "/ISAPI/Streaming/channels/101",
+          "/ISAPI/Streaming/channels/102"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/Streaming/Channels/101",
+            "label": "Canal 1",
+            "main": {
+              "path": "/Streaming/Channels/101",
+              "quality": "1920×1080 · 25 fps · H264"
+            },
+            "sub": {
+              "path": "/Streaming/Channels/102",
+              "quality": "640×360 · 25 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/Streaming/Channels/101",
         "thumbnailCapturedAt": null
       },
       {
@@ -218,11 +370,28 @@
         "useGlobalCredentials": true,
         "savedPaths": [
           "/Streaming/Channels/101",
-          "/Streaming/Channels/102"
+          "/Streaming/Channels/102",
+          "/Streaming/Channels/1",
+          "/Streaming/Channels/2",
+          "/ISAPI/Streaming/channels/101",
+          "/ISAPI/Streaming/channels/102"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/Streaming/Channels/101",
+            "label": "Canal 1",
+            "main": {
+              "path": "/Streaming/Channels/101",
+              "quality": "1920×1080 · 25 fps · H264"
+            },
+            "sub": {
+              "path": "/Streaming/Channels/102",
+              "quality": "640×360 · 25 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/Streaming/Channels/101",
         "thumbnailCapturedAt": null
       },
       {
@@ -236,11 +405,26 @@
         "useGlobalCredentials": true,
         "savedPaths": [
           "/1/1?transmode=unicast&profile=vam",
-          "/1/2?transmode=unicast&profile=vam"
+          "/1/2?transmode=unicast&profile=vam",
+          "/1/h264major",
+          "/1/h264minor"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/1/1?transmode=unicast&profile=vam",
+            "label": "Canal 1",
+            "main": {
+              "path": "/1/1?transmode=unicast&profile=vam",
+              "quality": "1920×1080 · 25 fps · H264"
+            },
+            "sub": {
+              "path": "/1/2?transmode=unicast&profile=vam",
+              "quality": "704×576 · 25 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/1/1?transmode=unicast&profile=vam",
         "thumbnailCapturedAt": null
       },
       {
@@ -254,11 +438,26 @@
         "useGlobalCredentials": true,
         "savedPaths": [
           "/1/1?transmode=unicast&profile=vam",
-          "/1/2?transmode=unicast&profile=vam"
+          "/1/2?transmode=unicast&profile=vam",
+          "/1/h264major",
+          "/1/h264minor"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/1/1?transmode=unicast&profile=vam",
+            "label": "Canal 1",
+            "main": {
+              "path": "/1/1?transmode=unicast&profile=vam",
+              "quality": "1920×1080 · 25 fps · H264"
+            },
+            "sub": {
+              "path": "/1/2?transmode=unicast&profile=vam",
+              "quality": "704×576 · 25 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/1/1?transmode=unicast&profile=vam",
         "thumbnailCapturedAt": null
       },
       {
@@ -272,11 +471,26 @@
         "useGlobalCredentials": true,
         "savedPaths": [
           "/1/1?transmode=unicast&profile=vam",
-          "/1/2?transmode=unicast&profile=vam"
+          "/1/2?transmode=unicast&profile=vam",
+          "/1/h264major",
+          "/1/h264minor"
         ],
         "selectedPath": "",
-        "channels": [],
-        "selectedChannelId": "",
+        "channels": [
+          {
+            "id": "/1/1?transmode=unicast&profile=vam",
+            "label": "Canal 1",
+            "main": {
+              "path": "/1/1?transmode=unicast&profile=vam",
+              "quality": "1920×1080 · 25 fps · H264"
+            },
+            "sub": {
+              "path": "/1/2?transmode=unicast&profile=vam",
+              "quality": "704×576 · 25 fps · H264"
+            }
+          }
+        ],
+        "selectedChannelId": "/1/1?transmode=unicast&profile=vam",
         "thumbnailCapturedAt": null
       }
     ],
