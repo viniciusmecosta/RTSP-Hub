@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -51,6 +52,7 @@ class MonitorPage extends StatefulWidget {
 
 class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   final Map<String, RtspSession> _sessions = {};
+  final Set<String> _snapshotAttempts = {};
   final _connections = RtspConnectionCoordinator();
   final _toolbarFocus = FocusNode(
     debugLabel: 'Monitor toolbar',
@@ -244,10 +246,69 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
         connectionPriority: _focusedCameraId == id ? 10 : 0,
       );
       _sessions[id] = session;
+      _captureFirstSnapshot(camera, session);
       setState(() {});
       unawaited(session.start());
     }
     if (mounted) setState(() {});
+  }
+
+  void _captureFirstSnapshot(CameraDevice camera, RtspSession session) {
+    if (camera.thumbnailCapturedAt != null ||
+        !_snapshotAttempts.add(camera.id)) {
+      return;
+    }
+    late final VoidCallback listener;
+    listener = () {
+      if (!session.firstFrameRendered.value) return;
+      session.firstFrameRendered.removeListener(listener);
+      unawaited(_saveSnapshot(camera.id, session));
+    };
+    session.firstFrameRendered.addListener(listener);
+  }
+
+  Future<void> _saveSnapshot(String cameraId, RtspSession session) async {
+    final store = AppScope.of(context);
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      if (!mounted || _sessions[cameraId] != session) {
+        _snapshotAttempts.remove(cameraId);
+        return;
+      }
+      final bytes = await session.player?.screenshot().timeout(
+        const Duration(seconds: 3),
+      );
+      if (bytes == null || !mounted) {
+        _snapshotAttempts.remove(cameraId);
+        return;
+      }
+      final capturedAt = DateTime.now().toUtc();
+      final codec = await ui.instantiateImageCodec(
+        bytes,
+        targetWidth: 640,
+        allowUpscaling: false,
+      );
+      try {
+        final frame = await codec.getNextFrame();
+        try {
+          final data = await frame.image.toByteData(
+            format: ui.ImageByteFormat.png,
+          );
+          if (data == null) return;
+          await store.updateCameraSnapshot(
+            cameraId,
+            data.buffer.asUint8List(),
+            capturedAt: capturedAt,
+          );
+        } finally {
+          frame.image.dispose();
+        }
+      } finally {
+        codec.dispose();
+      }
+    } on Object {
+      _snapshotAttempts.remove(cameraId);
+    }
   }
 
   Future<void> _releaseSessions(List<RtspSession> sessions) {
