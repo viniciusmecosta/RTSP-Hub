@@ -277,6 +277,30 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 const Divider(height: 1),
+                _SettingDropdownTile<String>(
+                  icon: Icons.hd_outlined,
+                  title: 'Fluxo padrão no monitor',
+                  subtitle:
+                      'Subfluxo (SD) é mais econômico e leve para múltiplas câmeras. Fluxo principal (HD) exibe sempre em alta definição.',
+                  value: store.config.defaultStreamMode,
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'sub',
+                      child: Text('Subfluxo (Econômico / SD)'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'main',
+                      child: Text('Fluxo principal (HD)'),
+                    ),
+                    DropdownMenuItem(value: 'auto', child: Text('Automático')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      store.updateSettings(defaultStreamMode: value);
+                    }
+                  },
+                ),
+                const Divider(height: 1),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
                   child: Text(
@@ -515,7 +539,11 @@ class _SettingDropdownTile<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 560) {
+        final textScaler = MediaQuery.textScalerOf(context);
+        final isLargeText = textScaler.scale(14) > 16;
+        final stackVertically = constraints.maxWidth < 680 || isLargeText;
+
+        if (stackVertically) {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Column(
@@ -567,14 +595,39 @@ class _SettingDropdownTile<T> extends StatelessWidget {
             ),
           );
         }
-        return ListTile(
-          leading: Icon(icon),
-          title: Text(title),
-          subtitle: Text(subtitle),
-          trailing: DropdownButton<T>(
-            value: value,
-            items: items,
-            onChanged: onChanged,
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              DropdownButton<T>(
+                value: value,
+                items: items,
+                onChanged: onChanged,
+              ),
+            ],
           ),
         );
       },

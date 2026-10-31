@@ -215,6 +215,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       final existing = _sessions[id];
       final mainStream = StreamSelectionPolicy.useMainStream(
         resourceMode: store.config.resourceMode,
+        defaultStreamMode: store.config.defaultStreamMode,
         manualChoice: _mainStreams,
         focused: _focusedCameraId == id,
         upgradeFocusedStream: !television,
@@ -402,177 +403,174 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
           ),
           child: Scaffold(
             backgroundColor: const Color(0xFF06090F),
-            body: SafeArea(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Positioned.fill(
-                    child: RepaintBoundary(
-                      key: const ValueKey('monitorViewport'),
-                      child: store.cameras.isEmpty
-                          ? const MonitorEmptyView(
-                              message:
-                                  'Cadastre câmeras para começar a visualizar.',
-                            )
-                          : visibleCount == 0
-                          ? const MonitorEmptyView(
-                              message:
-                                  'A grade está vazia. Associe câmeras em Layouts.',
-                            )
-                          : LayoutBuilder(
-                              builder: (context, constraints) {
-                                final canvasSize = Size(
-                                  constraints.maxWidth,
-                                  constraints.maxHeight,
+            body: Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned.fill(
+                  child: RepaintBoundary(
+                    key: const ValueKey('monitorViewport'),
+                    child: store.cameras.isEmpty
+                        ? const MonitorEmptyView(
+                            message:
+                                'Cadastre câmeras para começar a visualizar.',
+                          )
+                        : visibleCount == 0
+                        ? const MonitorEmptyView(
+                            message:
+                                'A grade está vazia. Associe câmeras em Layouts.',
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final canvasSize = Size(
+                                constraints.maxWidth,
+                                constraints.maxHeight,
+                              );
+                              if (layout.id == 'FREEFORM' && focusedIndex < 0) {
+                                final freeform =
+                                    store.config.freeformSlots.isEmpty
+                                    ? [
+                                        const FreeformSlot(
+                                          x: 0,
+                                          y: 0,
+                                          width: 1.0,
+                                          height: 1.0,
+                                        ),
+                                      ]
+                                    : store.config.freeformSlots;
+                                final rectangles = LayoutGeometry.freeformTiles(
+                                  freeform,
+                                  canvasSize,
                                 );
-                                if (layout.id == 'FREEFORM' &&
-                                    focusedIndex < 0) {
-                                  final freeform =
-                                      store.config.freeformSlots.isEmpty
-                                      ? [
-                                          const FreeformSlot(
-                                            x: 0,
-                                            y: 0,
-                                            width: 1.0,
-                                            height: 1.0,
-                                          ),
-                                        ]
-                                      : store.config.freeformSlots;
-                                  final rectangles =
-                                      LayoutGeometry.freeformTiles(
-                                        freeform,
-                                        canvasSize,
-                                      );
+                                return Stack(
+                                  children: [
+                                    for (
+                                      var offset = 0;
+                                      offset < visibleCount &&
+                                          offset < rectangles.length;
+                                      offset++
+                                    )
+                                      Positioned.fromRect(
+                                        rect: rectangles[offset].deflate(1.5),
+                                        child: _cameraTile(
+                                          slots,
+                                          from + offset,
+                                          cameraById,
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              }
+                              final columns = LayoutGeometry.bestColumns(
+                                layout: layout,
+                                canvas: canvasSize,
+                                visibleCount: visibleCount,
+                              );
+                              final rows = (visibleCount / columns).ceil();
+                              if (layout.focusIndex != null &&
+                                  constraints.maxWidth >= 600 &&
+                                  focusedIndex < 0 &&
+                                  from == 0 &&
+                                  visibleCount == layout.cameraCount) {
+                                final rectangles = LayoutGeometry.tiles(
+                                  layout.id,
+                                  canvasSize,
+                                );
+                                if (rectangles.length == visibleCount) {
                                   return Stack(
                                     children: [
                                       for (
                                         var offset = 0;
-                                        offset < visibleCount &&
-                                            offset < rectangles.length;
+                                        offset < visibleCount;
                                         offset++
                                       )
                                         Positioned.fromRect(
                                           rect: rectangles[offset].deflate(1.5),
                                           child: _cameraTile(
                                             slots,
-                                            from + offset,
+                                            offset,
                                             cameraById,
                                           ),
                                         ),
                                     ],
                                   );
                                 }
-                                final columns = LayoutGeometry.bestColumns(
-                                  layout: layout,
-                                  canvas: canvasSize,
-                                  visibleCount: visibleCount,
-                                );
-                                final rows = (visibleCount / columns).ceil();
-                                if (layout.focusIndex != null &&
-                                    constraints.maxWidth >= 600 &&
-                                    focusedIndex < 0 &&
-                                    from == 0 &&
-                                    visibleCount == layout.cameraCount) {
-                                  final rectangles = LayoutGeometry.tiles(
-                                    layout.id,
-                                    canvasSize,
-                                  );
-                                  if (rectangles.length == visibleCount) {
-                                    return Stack(
-                                      children: [
-                                        for (
-                                          var offset = 0;
-                                          offset < visibleCount;
-                                          offset++
-                                        )
-                                          Positioned.fromRect(
-                                            rect: rectangles[offset].deflate(
-                                              1.5,
-                                            ),
-                                            child: _cameraTile(
-                                              slots,
-                                              offset,
-                                              cameraById,
-                                            ),
-                                          ),
-                                      ],
-                                    );
-                                  }
-                                }
-                                final estimatedHeight =
-                                    rows *
-                                    ((constraints.maxWidth / columns) /
-                                        LayoutGeometry.cameraAspectRatio);
-                                final shouldScroll =
-                                    constraints.maxWidth < 600 &&
-                                    estimatedHeight > constraints.maxHeight;
-                                const padding = 3.0;
-                                const spacing = 3.0;
-                                final availableWidth = max(
-                                  1.0,
-                                  constraints.maxWidth -
-                                      padding * 2 -
-                                      spacing * (columns - 1),
-                                );
-                                final availableHeight = max(
-                                  1.0,
-                                  constraints.maxHeight -
-                                      padding * 2 -
-                                      spacing * (rows - 1),
-                                );
-                                return GridView.builder(
-                                  padding: const EdgeInsets.all(padding),
-                                  physics: shouldScroll
-                                      ? const ClampingScrollPhysics()
-                                      : const NeverScrollableScrollPhysics(),
-                                  itemCount: visibleCount,
-                                  gridDelegate:
-                                      SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: columns,
-                                        mainAxisSpacing: spacing,
-                                        crossAxisSpacing: spacing,
-                                        childAspectRatio: shouldScroll
-                                            ? LayoutGeometry.cameraAspectRatio
-                                            : (availableWidth / columns) /
-                                                  (availableHeight / rows),
-                                      ),
-                                  itemBuilder: (context, offset) => _cameraTile(
-                                    slots,
-                                    from + offset,
-                                    cameraById,
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
+                              }
+                              final estimatedHeight =
+                                  rows *
+                                  ((constraints.maxWidth / columns) /
+                                      LayoutGeometry.cameraAspectRatio);
+                              final shouldScroll =
+                                  constraints.maxWidth < 600 &&
+                                  estimatedHeight > constraints.maxHeight;
+                              const padding = 3.0;
+                              const spacing = 3.0;
+                              final availableWidth = max(
+                                1.0,
+                                constraints.maxWidth -
+                                    padding * 2 -
+                                    spacing * (columns - 1),
+                              );
+                              final availableHeight = max(
+                                1.0,
+                                constraints.maxHeight -
+                                    padding * 2 -
+                                    spacing * (rows - 1),
+                              );
+                              return GridView.builder(
+                                padding: const EdgeInsets.all(padding),
+                                physics: shouldScroll
+                                    ? const ClampingScrollPhysics()
+                                    : const NeverScrollableScrollPhysics(),
+                                itemCount: visibleCount,
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: columns,
+                                      mainAxisSpacing: spacing,
+                                      crossAxisSpacing: spacing,
+                                      childAspectRatio: shouldScroll
+                                          ? LayoutGeometry.cameraAspectRatio
+                                          : (availableWidth / columns) /
+                                                (availableHeight / rows),
+                                    ),
+                                itemBuilder: (context, offset) => _cameraTile(
+                                  slots,
+                                  from + offset,
+                                  cameraById,
+                                ),
+                              );
+                            },
+                          ),
                   ),
+                ),
 
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    top: 0,
-                    child: ValueListenableBuilder<bool>(
-                      valueListenable: _controlsVisible,
-                      builder: (context, visible, _) => visible
-                          ? Focus(
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: _controlsVisible,
+                    builder: (context, visible, _) => visible
+                        ? SafeArea(
+                            bottom: false,
+                            child: Focus(
                               focusNode: _toolbarFocus,
                               child: _toolbar(context, store, layout, pages),
-                            )
-                          : const SizedBox.shrink(),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
+                if (_showDiagnostics)
+                  Positioned(
+                    top: 76,
+                    right: 12,
+                    child: ListenableBuilder(
+                      listenable: _diagnosticTick,
+                      builder: (context, _) =>
+                          _diagnostics(context, store, slots),
                     ),
                   ),
-                  if (_showDiagnostics)
-                    Positioned(
-                      top: 76,
-                      right: 12,
-                      child: ListenableBuilder(
-                        listenable: _diagnosticTick,
-                        builder: (context, _) =>
-                            _diagnostics(context, store, slots),
-                      ),
-                    ),
-                ],
-              ),
+              ],
             ),
           ),
         ),
@@ -857,9 +855,12 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     LayoutPreset layout,
     int pages,
   ) {
-    final compact = MediaQuery.sizeOf(context).width < 600;
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 600;
+    final veryCompact = width < 380;
     final mainStreams = StreamSelectionPolicy.useMainStream(
       resourceMode: store.config.resourceMode,
+      defaultStreamMode: store.config.defaultStreamMode,
       manualChoice: _mainStreams,
       focused: _focusedCameraId != null,
       upgradeFocusedStream: !DeviceEnvironmentScope.of(context).isTelevision,
@@ -874,15 +875,20 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     return Material(
       color: const Color(0xFF101C2E),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: EdgeInsets.symmetric(
+          horizontal: veryCompact ? 4 : 12,
+          vertical: veryCompact ? 3 : 6,
+        ),
         child: Row(
           children: [
             IconButton(
+              visualDensity: veryCompact ? VisualDensity.compact : null,
               tooltip: 'Voltar para início',
               onPressed: widget.onExit,
               icon: const Icon(Icons.arrow_back, color: Colors.white),
             ),
             IconButton(
+              visualDensity: veryCompact ? VisualDensity.compact : null,
               tooltip: _focusedCameraId == null
                   ? 'Ampliar câmera selecionada'
                   : 'Voltar à grade',
@@ -912,15 +918,17 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                 color: Colors.white,
               ),
             ),
-            const SizedBox(width: 4),
+            SizedBox(width: veryCompact ? 2 : 4),
             Expanded(
               child: Text(
-                'MONITOR  ·  ${store.cameras.length} CÂMERAS',
+                veryCompact
+                    ? 'MONITOR'
+                    : 'MONITOR  ·  ${store.cameras.length} CÂMERAS',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: compact ? 12 : 14,
+                  fontSize: veryCompact ? 11 : (compact ? 12 : 14),
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.3,
                 ),
@@ -953,62 +961,131 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                   color: _page + 1 < pages ? Colors.white : Colors.white38,
                 ),
               ),
-            Tooltip(
-              message: mainStreams
-                  ? 'Qualidade: Alta Definição (HD) · Toque para usar SD (Econômico)'
-                  : 'Qualidade: Econômica (SD) · Toque para usar HD (Alta Definição)',
-              child: InkWell(
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
                 borderRadius: BorderRadius.circular(8),
-                onTap: () {
-                  setState(() => _mainStreams = !mainStreams);
-                  unawaited(_restartSessions());
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: mainStreams
-                        ? const Color(0xFF1E3A8A)
-                        : const Color(0xFF263238),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: mainStreams
-                          ? const Color(0xFF60A5FA)
-                          : const Color(0xFF546E7A),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        mainStreams ? Icons.hd : Icons.sd,
-                        size: 16,
-                        color: mainStreams
-                            ? const Color(0xFF93C5FD)
-                            : const Color(0xFFB0BEC5),
+                border: Border.all(color: const Color(0xFF334155)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Tooltip(
+                    message: 'Alta Definição (HD - Fluxo principal)',
+                    child: InkWell(
+                      key: const ValueKey('monitor-stream-hd'),
+                      borderRadius: const BorderRadius.horizontal(
+                        left: Radius.circular(7),
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        mainStreams ? 'HD' : 'SD',
-                        style: TextStyle(
+                      onTap: () {
+                        if (_mainStreams != true) {
+                          setState(() => _mainStreams = true);
+                          unawaited(_restartSessions());
+                        }
+                      },
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: veryCompact ? 6 : 9,
+                          vertical: veryCompact ? 4 : 5,
+                        ),
+                        decoration: BoxDecoration(
                           color: mainStreams
-                              ? Colors.white
-                              : const Color(0xFFECEFF1),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
+                              ? const Color(0xFF2563EB)
+                              : Colors.transparent,
+                          borderRadius: const BorderRadius.horizontal(
+                            left: Radius.circular(7),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.hd,
+                              size: 16,
+                              color: mainStreams
+                                  ? Colors.white
+                                  : const Color(0xFF94A3B8),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              'HD',
+                              style: TextStyle(
+                                color: mainStreams
+                                    ? Colors.white
+                                    : const Color(0xFF94A3B8),
+                                fontSize: 12,
+                                fontWeight: mainStreams
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                  Tooltip(
+                    message: 'Econômico (SD - Subfluxo)',
+                    child: InkWell(
+                      key: const ValueKey('monitor-stream-sd'),
+                      borderRadius: const BorderRadius.horizontal(
+                        right: Radius.circular(7),
+                      ),
+                      onTap: () {
+                        if (_mainStreams != false) {
+                          setState(() => _mainStreams = false);
+                          unawaited(_restartSessions());
+                        }
+                      },
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: veryCompact ? 6 : 9,
+                          vertical: veryCompact ? 4 : 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: !mainStreams
+                              ? const Color(0xFF0D9488)
+                              : Colors.transparent,
+                          borderRadius: const BorderRadius.horizontal(
+                            right: Radius.circular(7),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.sd,
+                              size: 16,
+                              color: !mainStreams
+                                  ? Colors.white
+                                  : const Color(0xFF94A3B8),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              'SD',
+                              style: TextStyle(
+                                color: !mainStreams
+                                    ? Colors.white
+                                    : const Color(0xFF94A3B8),
+                                fontSize: 12,
+                                fontWeight: !mainStreams
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: veryCompact ? 2 : 6),
             PopupMenuButton<String>(
+              padding: veryCompact
+                  ? EdgeInsets.zero
+                  : const EdgeInsets.all(8.0),
               tooltip: 'Ações do monitor',
               iconColor: Colors.white,
               onSelected: (value) {

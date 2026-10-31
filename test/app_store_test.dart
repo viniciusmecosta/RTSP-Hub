@@ -397,8 +397,8 @@ void main() {
       final raw = File('rtsp_hub_backup_cameras.json').readAsStringSync();
       final imported = await testStore.importConfiguration(raw);
       expect(imported, isTrue);
-      expect(testStore.cameras, hasLength(10));
-      expect(testStore.cameras.first.name, '192.168.1.3');
+      expect(testStore.cameras, hasLength(14));
+      expect(testStore.cameras.first.name, '192.168.1.2');
       expect(testStore.cameras.last.name, '192.168.1.110');
       expect(
         await testStore.passwordFor(testStore.cameras.first),

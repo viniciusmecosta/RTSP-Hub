@@ -27,6 +27,7 @@ class AppConfiguration {
     this.lastProfileId,
     this.monitorPageSize = 0,
     this.videoFitMode = 'smart',
+    this.defaultStreamMode = 'sub',
   });
 
   final int schemaVersion;
@@ -50,6 +51,7 @@ class AppConfiguration {
   final String? lastProfileId;
   final int monitorPageSize;
   final String videoFitMode;
+  final String defaultStreamMode;
 
   AppConfiguration copyWith({
     List<CameraDevice>? cameras,
@@ -73,6 +75,7 @@ class AppConfiguration {
     bool clearLastProfileId = false,
     int? monitorPageSize,
     String? videoFitMode,
+    String? defaultStreamMode,
   }) => AppConfiguration(
     schemaVersion: schemaVersion,
     cameras: cameras ?? this.cameras,
@@ -97,6 +100,7 @@ class AppConfiguration {
         : lastProfileId ?? this.lastProfileId,
     monitorPageSize: monitorPageSize ?? this.monitorPageSize,
     videoFitMode: videoFitMode ?? this.videoFitMode,
+    defaultStreamMode: defaultStreamMode ?? this.defaultStreamMode,
   );
 
   Map<String, Object?> toJson() => {
@@ -118,6 +122,7 @@ class AppConfiguration {
       'lastProfileId': lastProfileId,
       'monitorPageSize': monitorPageSize,
       'videoFitMode': videoFitMode,
+      'defaultStreamMode': defaultStreamMode,
     },
     'cameras': cameras.map((camera) => camera.toJson()).toList(),
     'monitorProfiles': monitorProfiles
@@ -208,6 +213,11 @@ class AppConfiguration {
         'contain' => 'contain',
         'fill' => 'fill',
         _ => 'smart',
+      },
+      defaultStreamMode: switch (settings['defaultStreamMode']) {
+        'main' => 'main',
+        'auto' => 'auto',
+        _ => 'sub',
       },
     );
   }

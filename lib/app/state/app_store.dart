@@ -937,6 +937,7 @@ class AppStore extends ChangeNotifier {
     int? lastMonitorPage,
     int? monitorPageSize,
     String? videoFitMode,
+    String? defaultStreamMode,
   }) async {
     if (monitorPageSize != null &&
         !MonitorPagingPolicy.choices.contains(monitorPageSize)) {
@@ -947,6 +948,12 @@ class AppStore extends ChangeNotifier {
     if (videoFitMode != null &&
         !{'smart', 'contain', 'fill'}.contains(videoFitMode)) {
       _message = 'Escolha um modo de proporção de vídeo válido.';
+      notifyListeners();
+      return;
+    }
+    if (defaultStreamMode != null &&
+        !{'sub', 'main', 'auto'}.contains(defaultStreamMode)) {
+      _message = 'Escolha uma predefinição de fluxo válida.';
       notifyListeners();
       return;
     }
@@ -968,7 +975,9 @@ class AppStore extends ChangeNotifier {
               lastMonitorPage == current.lastMonitorPage) &&
           (monitorPageSize == null ||
               monitorPageSize == current.monitorPageSize) &&
-          (videoFitMode == null || videoFitMode == current.videoFitMode)) {
+          (videoFitMode == null || videoFitMode == current.videoFitMode) &&
+          (defaultStreamMode == null ||
+              defaultStreamMode == current.defaultStreamMode)) {
         return Future<bool>.value(true);
       }
       return _commit(
@@ -985,6 +994,7 @@ class AppStore extends ChangeNotifier {
           lastMonitorPage: lastMonitorPage,
           monitorPageSize: monitorPageSize,
           videoFitMode: videoFitMode,
+          defaultStreamMode: defaultStreamMode,
         ),
       );
     });
