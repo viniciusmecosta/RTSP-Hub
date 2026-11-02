@@ -1,9 +1,47 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:rtsp_hub/features/camera_catalog/domain/camera_device.dart';
 import 'package:rtsp_hub/features/monitor/application/rtsp_session.dart';
 import 'package:rtsp_hub/features/monitor/application/rtsp_connection_coordinator.dart';
 
 void main() {
+  test('disposing cancels deadlines for active preparations', () {
+    fakeAsync((clock) {
+      final coordinator = RtspConnectionCoordinator(spacing: Duration.zero);
+      coordinator.request();
+      clock.flushMicrotasks();
+      expect(coordinator.activeConnections, 1);
+      expect(clock.pendingTimers, hasLength(1));
+      coordinator.dispose();
+      expect(coordinator.activeConnections, 0);
+      expect(clock.pendingTimers, isEmpty);
+    });
+  });
+
+  test('a stalled preparation cannot retain the connection queue', () {
+    fakeAsync((clock) {
+      final coordinator = RtspConnectionCoordinator(
+        maxConcurrent: 1,
+        spacing: Duration.zero,
+      );
+      RtspConnectionLease? first;
+      RtspConnectionLease? healthy;
+      coordinator.request().ready.then((lease) => first = lease);
+      coordinator.request().ready.then((lease) => healthy = lease);
+      clock.flushMicrotasks();
+      expect(first, isNotNull);
+      expect(healthy, isNull);
+      clock.elapse(const Duration(seconds: 2));
+      expect(healthy, isNotNull);
+      expect(coordinator.queuedConnections, 0);
+      first!.release();
+      expect(coordinator.activeConnections, 1);
+      healthy!.release();
+      expect(coordinator.activeConnections, 0);
+      coordinator.dispose();
+      expect(clock.pendingTimers, isEmpty);
+    });
+  });
   for (final dispose in [false, true]) {
     test(
       'cancels a queued native session when ${dispose ? 'disposed' : 'paused'}',

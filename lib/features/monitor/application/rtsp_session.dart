@@ -236,8 +236,10 @@ class RtspSession extends ChangeNotifier {
       _player = player;
       final backend = player.platform;
       if (backend is NativePlayer) {
-        await backend.setProperty('cache-on-disk', 'no');
-        await backend.setProperty('aid', 'no');
+        await backend
+            .setProperty('cache-on-disk', 'no')
+            .timeout(firstFrameTimeout);
+        await backend.setProperty('aid', 'no').timeout(firstFrameTimeout);
         _decodeBudget = RtspDecodeBudget(
           applySkipFrame: (value) => backend.setProperty(
             'vd-lavc-skipframe',
@@ -287,6 +289,8 @@ class RtspSession extends ChangeNotifier {
         await _disposePlayer(player);
         return;
       }
+      lease?.release();
+      lease = null;
       await player
           .open(Media(_streamUri.toString()), play: true)
           .timeout(firstFrameTimeout);
