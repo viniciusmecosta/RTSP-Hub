@@ -118,6 +118,31 @@ Future<({AppStore store, List<_Session> sessions})> _openMonitor(
 }
 
 void main() {
+  testWidgets('an empty page cannot focus a camera from another page', (
+    tester,
+  ) async {
+    final monitor = await _openMonitor(tester);
+    await monitor.store.updateSettings(monitorPageSize: 2);
+    await monitor.store.setSlot(0, null);
+    await monitor.store.setSlot(1, null);
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Ampliar câmera selecionada'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Voltar à grade'), findsNothing);
+    expect(monitor.sessions.where((s) => !s.released), isEmpty);
+    await tester.tap(find.byTooltip('Próxima página'));
+    await tester.pumpAndSettle();
+    expect(monitor.sessions.where((s) => !s.released).length, 2);
+    expect(
+      monitor.sessions.where((s) => !s.released).every((s) => !s.isBackground),
+      isTrue,
+    );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
   for (final size in [
     const Size(360, 640),
     const Size(800, 1280),
