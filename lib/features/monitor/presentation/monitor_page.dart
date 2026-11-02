@@ -872,6 +872,12 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                         );
                     _focusedCameraId = store.config.slotCameraIds
                         .skip(selectedIndex)
+                        .take(
+                          _pageSize(
+                            store.activeLayout,
+                            MediaQuery.sizeOf(context).width,
+                          ),
+                        )
                         .whereType<String>()
                         .firstOrNull;
                   } else {
