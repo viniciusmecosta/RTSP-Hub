@@ -12,6 +12,7 @@ import '../domain/rtsp_failure_message.dart';
 import '../domain/rtsp_stream_uri.dart';
 import '../domain/rtsp_playback_health.dart';
 import 'rtsp_connection_coordinator.dart';
+import 'rtsp_decode_budget.dart';
 
 enum CameraPlaybackStatus {
   idle,
@@ -64,6 +65,8 @@ class RtspSession extends ChangeNotifier {
   int _failures = 0;
   int _totalReconnectAttempts = 0;
   bool _disposed = false;
+  bool _background = false;
+  RtspDecodeBudget? _decodeBudget;
   int? _firstFrameLatencyMs;
   Duration? _nextRetryDelay;
   final _health = RtspPlaybackHealth();
@@ -81,6 +84,14 @@ class RtspSession extends ChangeNotifier {
   Duration? get nextRetryDelay => _nextRetryDelay;
   String? get hardwareDecoder => _hardwareDecoder;
   int? get droppedFrames => _droppedFrames;
+  bool get isBackground => _background;
+
+  Future<void> setBackground(bool background) {
+    if (_disposed) return Future.value();
+    _background = background;
+    if (!firstFrameRendered.value) return Future.value();
+    return _decodeBudget?.setBackground(background) ?? Future.value();
+  }
 
   Future<void> refreshDiagnostics() async {
     final currentPlayer = _player;
@@ -227,6 +238,13 @@ class RtspSession extends ChangeNotifier {
       if (backend is NativePlayer) {
         await backend.setProperty('cache-on-disk', 'no');
         await backend.setProperty('aid', 'no');
+        _decodeBudget = RtspDecodeBudget(
+          applySkipFrame: (value) => backend.setProperty(
+            'vd-lavc-skipframe',
+            value,
+            waitForInitialization: false,
+          ),
+        );
       }
       if (generation != _generation || _disposed) {
         await _closePlayer(player);
@@ -278,6 +296,8 @@ class RtspSession extends ChangeNotifier {
       if (controller == null || generation != _generation || _disposed) return;
       await controller.waitUntilFirstFrameRendered.timeout(firstFrameTimeout);
       if (generation == _generation && !_disposed) {
+        await _decodeBudget?.setBackground(_background);
+        if (generation != _generation || _disposed) return;
         _firstFrameLatencyMs = started.elapsedMilliseconds;
         _failures = 0;
         _health.begin(_healthClock.elapsed);
@@ -370,6 +390,8 @@ class RtspSession extends ChangeNotifier {
     _retryTimer?.cancel();
     _progressTimer?.cancel();
     _nextRetryDelay = null;
+    _decodeBudget?.dispose();
+    _decodeBudget = null;
     final player = _player;
     _player = null;
     _videoController = null;
@@ -395,6 +417,8 @@ class RtspSession extends ChangeNotifier {
 
   Future<void> _disposeSession() async {
     _disposed = true;
+    _decodeBudget?.dispose();
+    _decodeBudget = null;
     ++_generation;
     _connectionTicket?.cancel();
     _connectionTicket = null;
@@ -430,6 +454,8 @@ class RtspSession extends ChangeNotifier {
 
   void _markFailure(String message, {bool retry = true}) {
     ++_generation;
+    _decodeBudget?.dispose();
+    _decodeBudget = null;
     _connectionTicket?.cancel();
     _connectionTicket = null;
     final oldPlayer = _player;

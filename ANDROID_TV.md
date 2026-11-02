@@ -33,14 +33,14 @@ O foco da câmera tem um contorno visível. Os controles reaparecem com a intera
 | 1, 2, 4, 6, 9 ou 16 | Divide a grade em páginas com a quantidade escolhida. |
 | Todas da grade | Exibe simultaneamente todas as posições do layout, inclusive na televisão. |
 
-A escolha não apaga câmeras, canais, layouts ou perfis. A preferência acompanha o backup completo. Somente as câmeras da página visível mantêm sessões de reprodução; a página anterior é fechada antes de abrir a próxima. Ao ampliar uma câmera, as outras sessões também são liberadas.
+A escolha não apaga câmeras, canais, layouts ou perfis. A preferência acompanha o backup completo. Somente as câmeras da página visível mantêm sessões de reprodução; a página anterior é fechada antes de abrir a próxima. Ao ampliar uma câmera, as outras sessões da página permanecem conectadas para permitir o retorno à grade sem recarga. As superfícies ocultas não são desenhadas nem recebem foco e suas animações ficam suspensas. O decoder recebe uma solicitação para descartar quadros que não são referência enquanto a câmera está oculta, com restauração ao retornar à grade; a economia varia com o codec e o hardware.
 
 No Android TV, as aberturas e reconexões são coordenadas com uma conexão em preparação por vez. Isso não limita quantas câmeras já conectadas podem continuar reproduzindo.
 
 ## Desempenho
 
 - Comece pelo perfil **Leve** e pelo subfluxo das câmeras quando houver vários vídeos simultâneos.
-- A ampliação na TV preserva o subfluxo automático nos perfis Leve e Equilibrado. A opção manual de fluxo principal e o perfil Qualidade continuam disponíveis.
+- A ampliação preserva o fluxo atual em todas as plataformas, inclusive o subfluxo automático nos perfis Leve e Equilibrado. A opção manual de fluxo principal e o perfil Qualidade continuam disponíveis.
 - Se o aparelho apresentar lentidão, escolha duas câmeras por página. As demais continuam cadastradas e acessíveis nas próximas páginas.
 - A resolução do vídeo não é reduzida por um fator fixo de escala na interface. A redução de consumo depende principalmente do fluxo escolhido, das sessões em exibição e da aceleração de vídeo suportada pelo aparelho.
 - Quantidade de decodificadores, codec, resolução, FPS, taxa de dados e qualidade da rede afetam o resultado. Ter saída 1080p ou 4K não garante decodificar vários vídeos simultâneos nessa resolução.

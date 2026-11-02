@@ -76,7 +76,7 @@ Interface adaptada para smartphones, com quantidade de câmeras por página conf
 ## Funcionalidades principais
 
 - **Grades flexíveis:** layouts simétricos (1x1, 2x2, 3x3, 4x4) e composições com uma câmera principal em destaque.
-- **Modo foco com alívio de hardware:** ao ampliar uma câmera (duplo clique ou toque), os demais fluxos pausam em segundo plano para poupar processador, placa de vídeo e rede.
+- **Ampliação sem recarga:** ao ampliar uma câmera e voltar à grade, as transmissões da página continuam conectadas e as superfícies de vídeo são preservadas. As câmeras ocultas deixam de ser desenhadas, suspendem animações e solicitam ao decoder que descarte somente quadros não usados como referência. A qualidade HD/SD escolhida é mantida; a economia de decodificação depende do codec e do hardware.
 - **Canal principal e subfluxo:** suporta alta resolução para tela cheia e subfluxo leve para exibição simultânea na grade.
 - **Descoberta de rede e ONVIF:** varredura de sub-rede para identificar portas RTSP abertas (554) e rotas de vídeo compatíveis com cancelamento instantâneo.
 - **Teste prévio (Probe):** valida a decodificação da imagem e credenciais antes de salvar, gerando miniaturas com data e hora real da captura.
