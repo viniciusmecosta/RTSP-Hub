@@ -202,12 +202,22 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.select);
     await tester.pumpAndSettle();
     expect(find.byType(MonitorCameraTile), findsOneWidget);
-    expect(sessions.where((s) => !s.released).length, 1);
-    expect(sessions.where((s) => !s.released).single.useMainStream, isFalse);
+    expect(sessions.where((s) => !s.released).length, 4);
+    expect(
+      sessions.where((s) => !s.released).every((s) => !s.useMainStream),
+      isTrue,
+    );
+    expect(sessions.length, 8);
+    expect(sessions.where((s) => !s.released && s.isBackground).length, 3);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(find.byType(MonitorCameraTile), findsNWidgets(4));
     expect(sessions.where((s) => !s.released).length, 4);
+    expect(sessions.length, 8);
+    expect(
+      sessions.where((s) => !s.released).every((s) => !s.isBackground),
+      isTrue,
+    );
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
     expect(sessions.every((s) => s.released), isTrue);

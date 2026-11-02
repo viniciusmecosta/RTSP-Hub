@@ -9,15 +9,14 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../../features/camera_catalog/domain/camera_device.dart';
-import '../../../features/layouts/domain/freeform_slot.dart';
 import '../../../features/layouts/domain/layout_preset.dart';
-import '../../../features/layouts/domain/layout_geometry.dart';
 import '../application/rtsp_session.dart';
 import '../application/rtsp_connection_coordinator.dart';
 import '../domain/stream_selection_policy.dart';
 import '../domain/monitor_paging_policy.dart';
 import '../../../shared/platform/device_environment.dart';
 import 'widgets/monitor_camera_tile.dart';
+import 'widgets/monitor_camera_viewport.dart';
 
 typedef MonitorSessionFactory =
     RtspSession Function({
@@ -191,10 +190,14 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     final start = _page * pageSize;
     final end = (start + pageSize).clamp(0, ids.length);
     final pageSlots = ids.sublist(start, end);
-    final requestedIds =
-        (_focusedCameraId == null ? pageSlots : <String?>[_focusedCameraId])
-            .whereType<String>();
-    final visibleIds = requestedIds.toSet();
+    final visibleIds = pageSlots
+        .whereType<String>()
+        .where(cameraById.containsKey)
+        .toSet();
+    if (_focusedCameraId != null && !visibleIds.contains(_focusedCameraId)) {
+      _focusedCameraId = null;
+    }
+    _syncBackgroundSessions();
     final staleSessions = <RtspSession>[];
     for (final id in _sessions.keys.toList()) {
       if (!visibleIds.contains(id)) {
@@ -208,7 +211,6 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       final id = ids[index];
       if (id == null) continue;
       if (!visibleIds.contains(id)) continue;
-      if (_focusedCameraId != null && id != _focusedCameraId) continue;
       final camera = cameraById[id];
       if (camera == null) continue;
       final secret = await store.passwordFor(camera);
@@ -219,8 +221,6 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
         resourceMode: store.config.resourceMode,
         defaultStreamMode: store.config.defaultStreamMode,
         manualChoice: _mainStreams,
-        focused: _focusedCameraId == id,
-        upgradeFocusedStream: !television,
         hasSubStream: effectiveCamera.activeChannel?.sub != null,
       );
       if (existing != null &&
@@ -246,6 +246,11 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
         connectionPriority: _focusedCameraId == id ? 10 : 0,
       );
       _sessions[id] = session;
+      unawaited(
+        session.setBackground(
+          _focusedCameraId != null && _focusedCameraId != id,
+        ),
+      );
       _captureFirstSnapshot(camera, session);
       setState(() {});
       unawaited(session.start());
@@ -365,10 +370,8 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     final focusedIndex = _focusedCameraId == null
         ? -1
         : slots.indexOf(_focusedCameraId!);
-    final from = focusedIndex >= 0 ? focusedIndex : _page * perPage;
-    final visibleCount = focusedIndex >= 0
-        ? 1
-        : (slots.length - from).clamp(0, perPage);
+    final from = _page * perPage;
+    final visibleCount = (slots.length - from).clamp(0, perPage);
     final cameraById = {for (final camera in store.cameras) camera.id: camera};
     return PopScope<Object?>(
       canPop: false,
@@ -480,126 +483,23 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                             message:
                                 'A grade está vazia. Associe câmeras em Layouts.',
                           )
-                        : LayoutBuilder(
-                            builder: (context, constraints) {
-                              final canvasSize = Size(
-                                constraints.maxWidth,
-                                constraints.maxHeight,
-                              );
-                              if (layout.id == 'FREEFORM' && focusedIndex < 0) {
-                                final freeform =
-                                    store.config.freeformSlots.isEmpty
-                                    ? [
-                                        const FreeformSlot(
-                                          x: 0,
-                                          y: 0,
-                                          width: 1.0,
-                                          height: 1.0,
-                                        ),
-                                      ]
-                                    : store.config.freeformSlots;
-                                final rectangles = LayoutGeometry.freeformTiles(
-                                  freeform,
-                                  canvasSize,
-                                );
-                                return Stack(
-                                  children: [
-                                    for (
-                                      var offset = 0;
-                                      offset < visibleCount &&
-                                          offset < rectangles.length;
-                                      offset++
-                                    )
-                                      Positioned.fromRect(
-                                        rect: rectangles[offset].deflate(1.5),
-                                        child: _cameraTile(
-                                          slots,
-                                          from + offset,
-                                          cameraById,
-                                        ),
-                                      ),
-                                  ],
-                                );
-                              }
-                              final columns = LayoutGeometry.bestColumns(
-                                layout: layout,
-                                canvas: canvasSize,
-                                visibleCount: visibleCount,
-                              );
-                              final rows = (visibleCount / columns).ceil();
-                              if (layout.focusIndex != null &&
-                                  constraints.maxWidth >= 600 &&
-                                  focusedIndex < 0 &&
-                                  from == 0 &&
-                                  visibleCount == layout.cameraCount) {
-                                final rectangles = LayoutGeometry.tiles(
-                                  layout.id,
-                                  canvasSize,
-                                );
-                                if (rectangles.length == visibleCount) {
-                                  return Stack(
-                                    children: [
-                                      for (
-                                        var offset = 0;
-                                        offset < visibleCount;
-                                        offset++
-                                      )
-                                        Positioned.fromRect(
-                                          rect: rectangles[offset].deflate(1.5),
-                                          child: _cameraTile(
-                                            slots,
-                                            offset,
-                                            cameraById,
-                                          ),
-                                        ),
-                                    ],
-                                  );
-                                }
-                              }
-                              final estimatedHeight =
-                                  rows *
-                                  ((constraints.maxWidth / columns) /
-                                      LayoutGeometry.cameraAspectRatio);
-                              final shouldScroll =
-                                  constraints.maxWidth < 600 &&
-                                  estimatedHeight > constraints.maxHeight;
-                              const padding = 3.0;
-                              const spacing = 3.0;
-                              final availableWidth = max(
-                                1.0,
-                                constraints.maxWidth -
-                                    padding * 2 -
-                                    spacing * (columns - 1),
-                              );
-                              final availableHeight = max(
-                                1.0,
-                                constraints.maxHeight -
-                                    padding * 2 -
-                                    spacing * (rows - 1),
-                              );
-                              return GridView.builder(
-                                padding: const EdgeInsets.all(padding),
-                                physics: shouldScroll
-                                    ? const ClampingScrollPhysics()
-                                    : const NeverScrollableScrollPhysics(),
-                                itemCount: visibleCount,
-                                gridDelegate:
-                                    SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: columns,
-                                      mainAxisSpacing: spacing,
-                                      crossAxisSpacing: spacing,
-                                      childAspectRatio: shouldScroll
-                                          ? LayoutGeometry.cameraAspectRatio
-                                          : (availableWidth / columns) /
-                                                (availableHeight / rows),
-                                    ),
-                                itemBuilder: (context, offset) => _cameraTile(
-                                  slots,
-                                  from + offset,
-                                  cameraById,
-                                ),
-                              );
-                            },
+                        : MonitorCameraViewport(
+                            layout: layout,
+                            pageStart: from,
+                            freeformSlots: store.config.freeformSlots,
+                            focusedIndex:
+                                focusedIndex >= from &&
+                                    focusedIndex < from + visibleCount
+                                ? focusedIndex - from
+                                : null,
+                            children: [
+                              for (
+                                var offset = 0;
+                                offset < visibleCount;
+                                offset++
+                              )
+                                _cameraTile(slots, from + offset, cameraById),
+                            ],
                           ),
                   ),
                 ),
@@ -668,7 +568,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
           setState(() {
             _focusedCameraId = _focusedCameraId == camera.id ? null : camera.id;
           });
-          _syncSessions();
+          _syncBackgroundSessions();
         } else {
           _revealControls();
         }
@@ -685,7 +585,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                     ? null
                     : camera.id;
               });
-              _syncSessions();
+              _syncBackgroundSessions();
             },
       onRetry: session == null ? null : () => session.start(),
     );
@@ -839,10 +739,20 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
         ),
       );
 
+  void _syncBackgroundSessions() {
+    for (final entry in _sessions.entries) {
+      unawaited(
+        entry.value.setBackground(
+          _focusedCameraId != null && entry.key != _focusedCameraId,
+        ),
+      );
+    }
+  }
+
   void _handleBack() {
     if (_focusedCameraId != null) {
       setState(() => _focusedCameraId = null);
-      _syncSessions();
+      _syncBackgroundSessions();
     } else if (_showDiagnostics) {
       _closeDiagnostics();
     } else if (!_showControls) {
@@ -923,8 +833,6 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       resourceMode: store.config.resourceMode,
       defaultStreamMode: store.config.defaultStreamMode,
       manualChoice: _mainStreams,
-      focused: _focusedCameraId != null,
-      upgradeFocusedStream: !DeviceEnvironmentScope.of(context).isTelevision,
     );
     final desktop =
         !kIsWeb &&
@@ -970,7 +878,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                     _focusedCameraId = null;
                   }
                 });
-                _syncSessions();
+                _syncBackgroundSessions();
               },
               icon: Icon(
                 _focusedCameraId == null
