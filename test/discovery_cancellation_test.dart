@@ -59,6 +59,7 @@ void main() {
           request.response.statusCode = HttpStatus.unauthorized;
           await request.response.close();
         } on HttpException {
+          return;
         }
       });
       addTearDown(() async {

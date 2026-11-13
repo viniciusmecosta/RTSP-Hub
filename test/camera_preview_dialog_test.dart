@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rtsp_hub/features/camera_catalog/domain/camera_device.dart';
 import 'package:rtsp_hub/features/camera_catalog/presentation/camera_preview_dialog.dart';
