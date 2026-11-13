@@ -15,12 +15,15 @@ import '../../../shared/design_system/page_frame.dart';
 import '../../../shared/platform/windows_startup_service.dart';
 import '../../../shared/platform/linux_startup_service.dart';
 import 'global_connection_page.dart';
+import 'credential_export_dialog.dart';
 import '../domain/performance_preset.dart';
 import '../../monitor/domain/rtsp_buffer_policy.dart';
 import '../../../shared/platform/device_environment.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  const SettingsPage({this.onImported, super.key});
+
+  final VoidCallback? onImported;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -369,7 +372,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Transfira câmeras, perfis, preferências, miniaturas e todas as credenciais. O arquivo inclui senhas legíveis; guarde-o em um local privado.',
+                    'Transfira câmeras, layouts, perfis e preferências. Você escolhe se deseja incluir os dados de acesso.',
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -396,7 +399,15 @@ class _SettingsPageState extends State<SettingsPage> {
                                 () => _importBackup(context, store),
                               ),
                         icon: const Icon(Icons.restore_outlined),
-                        label: const Text('Importar backup'),
+                        label: const Text('Importar arquivo JSON'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _backupBusy
+                            ? null
+                            : () =>
+                                  _runBackup(() => _importCode(context, store)),
+                        icon: const Icon(Icons.paste),
+                        label: const Text('Colar código JSON'),
                       ),
                     ],
                   ),
@@ -456,6 +467,49 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
     if (!context.mounted) return;
+    await _confirmImport(context, store, source);
+  }
+
+  Future<void> _importCode(BuildContext context, AppStore store) async {
+    final controller = TextEditingController();
+    final source = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Colar configuração JSON'),
+        content: SizedBox(
+          width: 480,
+          child: TextField(
+            controller: controller,
+            minLines: 4,
+            maxLines: 10,
+            maxLength: AppStore.maxBackupBytes,
+            decoration: const InputDecoration(labelText: 'Código JSON'),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    controller.dispose();
+    if (source != null && context.mounted) {
+      await _confirmImport(context, store, source);
+    }
+  }
+
+  Future<void> _confirmImport(
+    BuildContext context,
+    AppStore store,
+    String source,
+  ) async {
     final accepted = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -482,11 +536,12 @@ class _SettingsPageState extends State<SettingsPage> {
       SnackBar(
         content: Text(
           imported
-              ? 'Restauração concluída. Backups antigos sem credenciais mantêm as senhas locais existentes.'
+              ? 'Configuração importada. Você já pode trocar câmeras e editar o layout.'
               : store.message ?? 'O backup não pôde ser importado.',
         ),
       ),
     );
+    if (imported) widget.onImported?.call();
   }
 
   Future<void> _runBackup(Future<void> Function() operation) async {
@@ -510,7 +565,9 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _exportBackup(BuildContext context, AppStore store) async {
-    final content = await store.exportBackup();
+    final include = await askExportCredentials(context);
+    if (include == null) return;
+    final content = await store.exportBackup(includeCredentials: include);
     if (!context.mounted) return;
     final now = DateTime.now();
     final filename = 'rtsp-hub-backup-${now.millisecondsSinceEpoch}.json';
@@ -550,11 +607,9 @@ class _SettingsPageState extends State<SettingsPage> {
     if (location == null) return;
     await File(location.path).writeAsString(content, flush: true);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Backup completo salvo com credenciais e miniaturas.'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Configuração JSON salva.')));
     }
   }
 }

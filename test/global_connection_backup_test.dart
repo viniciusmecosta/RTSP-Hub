@@ -92,6 +92,17 @@ void main() {
       isTrue,
     );
   });
+  test('backup excludes credentials unless explicitly requested', () async {
+    final decoded = jsonDecode(await store.exportBackup()) as Map;
+    expect(
+      (decoded['credentials'] as Map).values.every((v) => v == null),
+      isTrue,
+    );
+    expect(decoded['includesCredentials'], isFalse);
+    expect(decoded['configuration']['settings']['defaultUser'], '');
+    expect(decoded.toString(), isNot(contains('global:@ç#?')));
+  });
+
   tearDown(() async {
     store.dispose();
     snapshots.dispose();
@@ -360,7 +371,7 @@ void main() {
         name: 'Portaria',
         startupSection: 'monitor',
       );
-      final source = await store.exportBackup();
+      final source = await store.exportBackup(includeCredentials: true);
       final destinationDirectory = await Directory.systemTemp.createTemp(
         'hub-destination',
       );
@@ -402,7 +413,8 @@ void main() {
       await save(password: 'old');
       final id = store.cameras.single.id;
       final decoded =
-          jsonDecode(await store.exportBackup()) as Map<String, dynamic>;
+          jsonDecode(await store.exportBackup(includeCredentials: true))
+              as Map<String, dynamic>;
       (decoded['credentials'] as Map)[id] = 'replacement';
       repository.fail = true;
       expect(await store.importConfiguration(jsonEncode(decoded)), isFalse);
@@ -416,7 +428,7 @@ void main() {
     () async {
       await save(password: 'old');
       final id = store.cameras.single.id;
-      final source = await store.exportBackup();
+      final source = await store.exportBackup(includeCredentials: true);
       final png = base64Decode(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ9kAAAAASUVORK5CYII=',
       );
@@ -474,7 +486,8 @@ void main() {
     () async {
       await save(password: 'old');
       final decoded =
-          jsonDecode(await store.exportBackup()) as Map<String, dynamic>;
+          jsonDecode(await store.exportBackup(includeCredentials: true))
+              as Map<String, dynamic>;
       final missing = Map<String, dynamic>.from(decoded)..['credentials'] = {};
       expect(await store.importConfiguration(jsonEncode(missing)), isFalse);
       decoded['thumbnails'] = {
@@ -489,7 +502,10 @@ void main() {
     'backup fails explicitly when the secure store cannot be read',
     () async {
       credentials.failRead = true;
-      await expectLater(store.exportBackup(), throwsStateError);
+      await expectLater(
+        store.exportBackup(includeCredentials: true),
+        throwsStateError,
+      );
     },
   );
 }

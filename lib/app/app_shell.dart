@@ -88,7 +88,7 @@ class _AppShellState extends State<AppShell> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Este arquivo contém $cameraCount câmera(s), senhas salvas e preferências.',
+                'Este arquivo contém $cameraCount câmera(s) e preferências. Pode incluir dados de acesso.',
               ),
               const SizedBox(height: 12),
               const Text(
@@ -363,7 +363,7 @@ class _AppShellState extends State<AppShell> {
       onConfigure: () => _selectIndex(1),
       onOpenLayouts: () => _selectIndex(2),
     ),
-    const SettingsPage(),
+    SettingsPage(onImported: () => _selectSection(AppSection.monitor)),
   ];
 
   void _selectIndex(int index) {
