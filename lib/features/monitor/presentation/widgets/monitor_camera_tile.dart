@@ -13,6 +13,8 @@ class MonitorCameraTile extends StatelessWidget {
     required this.session,
     required this.onTap,
     this.onFocus,
+    this.onDoubleTap,
+    this.onChoose,
     this.onClone,
     this.onSwitchChannel,
     this.autofocus = false,
@@ -27,6 +29,8 @@ class MonitorCameraTile extends StatelessWidget {
   final RtspSession? session;
   final VoidCallback onTap;
   final VoidCallback? onFocus;
+  final VoidCallback? onDoubleTap;
+  final VoidCallback? onChoose;
   final VoidCallback? onClone;
   final ValueChanged<String>? onSwitchChannel;
   final VoidCallback? onRetry;
@@ -115,6 +119,8 @@ class MonitorCameraTile extends StatelessWidget {
             onActivate: onFocus,
             child: GestureDetector(
               onTap: onTap,
+              onDoubleTap: onDoubleTap,
+              onLongPress: onChoose,
               onSecondaryTap: onFocus,
               behavior: HitTestBehavior.opaque,
               child: Stack(

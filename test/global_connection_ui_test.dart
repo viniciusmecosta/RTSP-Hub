@@ -27,6 +27,7 @@ void main() {
         );
         addTearDown(store.dispose);
         await store.load();
+        await store.updateSettings(simpleMode: false);
         await tester.pumpWidget(
           AppScope(
             store: store,
@@ -80,6 +81,7 @@ void main() {
       );
       addTearDown(store.dispose);
       await store.load();
+      await store.updateSettings(simpleMode: false);
       await store.saveGlobalConnection(
         username: 'operator',
         password: 'global',
