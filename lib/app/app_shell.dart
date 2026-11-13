@@ -34,7 +34,7 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  AppSection _section = AppSection.dashboard;
+  AppSection _section = AppSection.monitor;
   bool _startupApplied = false;
   bool _tutorialQueued = false;
   bool? _lastFullscreen;
@@ -153,18 +153,17 @@ class _AppShellState extends State<AppShell> {
       _startupApplied = true;
       _section = widget.forceConfiguration
           ? AppSection.cameras
+          : store.config.simpleMode
+          ? AppSection.monitor
+          : store.config.simpleMode
+          ? AppSection.monitor
           : switch (store.config.startupSection) {
               'monitor' => AppSection.monitor,
               'cameras' => AppSection.cameras,
               'layouts' => AppSection.layouts,
               'settings' => AppSection.settings,
               'last' => _sectionFromName(store.config.lastSection),
-              'auto' =>
-                store.cameras.isEmpty
-                    ? AppSection.cameras
-                    : store.config.slotCameraIds.any((id) => id != null)
-                    ? AppSection.monitor
-                    : AppSection.layouts,
+              'auto' => AppSection.monitor,
               _ => AppSection.dashboard,
             };
     }
@@ -202,14 +201,14 @@ class _AppShellState extends State<AppShell> {
             Text(
               DeviceEnvironmentScope.of(context).isTelevision
                   ? '3. Abra o monitor. Use as setas para selecionar, OK para ampliar e Voltar para retornar à grade. Ajustes permite escolher quantas câmeras aparecem por página.'
-                  : '3. Abra o monitor para acompanhar as câmeras. No computador, use F3 para ver estados e Esc para voltar.',
+                  : '3. Toque nas câmeras para ver os controles. Amplie uma imagem ou troque a câmera de cada espaço.',
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Entendi'),
+            child: const Text('Pular'),
           ),
           FilledButton.icon(
             onPressed: () => Navigator.pop(context, true),
@@ -235,6 +234,13 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final television = DeviceEnvironmentScope.of(context).isTelevision;
+    final simple = AppScope.of(context).config.simpleMode;
+    final destinations = _destinations
+        .where((item) => !simple || item.$1 != AppSection.dashboard)
+        .toList();
+    final navigationIndex = destinations.indexWhere(
+      (item) => item.$1 == _section,
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -276,13 +282,14 @@ class _AppShellState extends State<AppShell> {
                               ),
                               child: const AppLogo(),
                             ),
-                      selectedIndex: _selectedIndex,
+                      selectedIndex: navigationIndex < 0 ? 0 : navigationIndex,
                       labelType: shortLandscape
                           ? NavigationRailLabelType.none
                           : NavigationRailLabelType.all,
-                      onDestinationSelected: _selectIndex,
+                      onDestinationSelected: (index) =>
+                          _selectSection(destinations[index].$1),
                       destinations: [
-                        for (final item in _destinations)
+                        for (final item in destinations)
                           NavigationRailDestination(
                             icon: Icon(item.$3),
                             selectedIcon: Icon(item.$4),
@@ -301,10 +308,11 @@ class _AppShellState extends State<AppShell> {
             ),
             bottomNavigationBar: compact && _section != AppSection.monitor
                 ? NavigationBar(
-                    selectedIndex: _selectedIndex,
-                    onDestinationSelected: _selectIndex,
+                    selectedIndex: navigationIndex < 0 ? 0 : navigationIndex,
+                    onDestinationSelected: (index) =>
+                        _selectSection(destinations[index].$1),
                     destinations: [
-                      for (final item in _destinations)
+                      for (final item in destinations)
                         NavigationDestination(
                           icon: Icon(item.$3),
                           selectedIcon: Icon(item.$4),
@@ -347,7 +355,11 @@ class _AppShellState extends State<AppShell> {
     const CameraCatalogPage(),
     LayoutsPage(onOpenMonitor: () => _selectIndex(3)),
     MonitorPage(
-      onExit: () => _selectIndex(0),
+      onExit: () => _selectSection(
+        AppScope.of(context).config.simpleMode
+            ? AppSection.settings
+            : AppSection.dashboard,
+      ),
       onConfigure: () => _selectIndex(1),
       onOpenLayouts: () => _selectIndex(2),
     ),
@@ -450,7 +462,11 @@ class _DesktopSidebar extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    for (final item in _items)
+                    for (final item in _items.where(
+                      (item) =>
+                          !AppScope.of(context).config.simpleMode ||
+                          item.$1 != AppSection.dashboard,
+                    ))
                       _SidebarDestination(
                         section: item.$1,
                         label: item.$2,
@@ -462,24 +478,28 @@ class _DesktopSidebar extends StatelessWidget {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Material(
-                color: Colors.transparent,
-                child: ListTile(
-                  leading: Icon(Icons.settings_ethernet, color: colors.primary),
-                  minLeadingWidth: 24,
-                  horizontalTitleGap: 10,
-                  title: Text(
-                    'Conexão global',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium,
+            if (!AppScope.of(context).config.simpleMode)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.settings_ethernet,
+                      color: colors.primary,
+                    ),
+                    minLeadingWidth: 24,
+                    horizontalTitleGap: 10,
+                    title: Text(
+                      'Conexão global',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    onTap: () => GlobalConnectionPage.open(context),
                   ),
-                  onTap: () => GlobalConnectionPage.open(context),
                 ),
               ),
-            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
               child: Row(

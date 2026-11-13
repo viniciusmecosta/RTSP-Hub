@@ -521,7 +521,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                         : const SizedBox.shrink(),
                   ),
                 ),
-                if (_showDiagnostics)
+                if (_showDiagnostics && !store.config.simpleMode)
                   Positioned(
                     top: 76,
                     right: 12,
@@ -936,126 +936,127 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                   color: _page + 1 < pages ? Colors.white : Colors.white38,
                 ),
               ),
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF334155)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Tooltip(
-                    message: 'Alta Definição (HD - Fluxo principal)',
-                    child: InkWell(
-                      key: const ValueKey('monitor-stream-hd'),
-                      borderRadius: const BorderRadius.horizontal(
-                        left: Radius.circular(7),
-                      ),
-                      onTap: () {
-                        if (_mainStreams != true) {
-                          setState(() => _mainStreams = true);
-                          unawaited(_restartSessions());
-                        }
-                      },
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: veryCompact ? 6 : 9,
-                          vertical: veryCompact ? 4 : 5,
+            if (!store.config.simpleMode)
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF334155)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Tooltip(
+                      message: 'Alta Definição (HD - Fluxo principal)',
+                      child: InkWell(
+                        key: const ValueKey('monitor-stream-hd'),
+                        borderRadius: const BorderRadius.horizontal(
+                          left: Radius.circular(7),
                         ),
-                        decoration: BoxDecoration(
-                          color: mainStreams
-                              ? const Color(0xFF2563EB)
-                              : Colors.transparent,
-                          borderRadius: const BorderRadius.horizontal(
-                            left: Radius.circular(7),
+                        onTap: () {
+                          if (_mainStreams != true) {
+                            setState(() => _mainStreams = true);
+                            unawaited(_restartSessions());
+                          }
+                        },
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: veryCompact ? 6 : 9,
+                            vertical: veryCompact ? 4 : 5,
                           ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.hd,
-                              size: 16,
-                              color: mainStreams
-                                  ? Colors.white
-                                  : const Color(0xFF94A3B8),
+                          decoration: BoxDecoration(
+                            color: mainStreams
+                                ? const Color(0xFF2563EB)
+                                : Colors.transparent,
+                            borderRadius: const BorderRadius.horizontal(
+                              left: Radius.circular(7),
                             ),
-                            const SizedBox(width: 3),
-                            Text(
-                              'HD',
-                              style: TextStyle(
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.hd,
+                                size: 16,
                                 color: mainStreams
                                     ? Colors.white
                                     : const Color(0xFF94A3B8),
-                                fontSize: 12,
-                                fontWeight: mainStreams
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 3),
+                              Text(
+                                'HD',
+                                style: TextStyle(
+                                  color: mainStreams
+                                      ? Colors.white
+                                      : const Color(0xFF94A3B8),
+                                  fontSize: 12,
+                                  fontWeight: mainStreams
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Tooltip(
-                    message: 'Econômico (SD - Subfluxo)',
-                    child: InkWell(
-                      key: const ValueKey('monitor-stream-sd'),
-                      borderRadius: const BorderRadius.horizontal(
-                        right: Radius.circular(7),
-                      ),
-                      onTap: () {
-                        if (_mainStreams != false) {
-                          setState(() => _mainStreams = false);
-                          unawaited(_restartSessions());
-                        }
-                      },
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: veryCompact ? 6 : 9,
-                          vertical: veryCompact ? 4 : 5,
+                    Tooltip(
+                      message: 'Econômico (SD - Subfluxo)',
+                      child: InkWell(
+                        key: const ValueKey('monitor-stream-sd'),
+                        borderRadius: const BorderRadius.horizontal(
+                          right: Radius.circular(7),
                         ),
-                        decoration: BoxDecoration(
-                          color: !mainStreams
-                              ? const Color(0xFF0D9488)
-                              : Colors.transparent,
-                          borderRadius: const BorderRadius.horizontal(
-                            right: Radius.circular(7),
+                        onTap: () {
+                          if (_mainStreams != false) {
+                            setState(() => _mainStreams = false);
+                            unawaited(_restartSessions());
+                          }
+                        },
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: veryCompact ? 6 : 9,
+                            vertical: veryCompact ? 4 : 5,
                           ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.sd,
-                              size: 16,
-                              color: !mainStreams
-                                  ? Colors.white
-                                  : const Color(0xFF94A3B8),
+                          decoration: BoxDecoration(
+                            color: !mainStreams
+                                ? const Color(0xFF0D9488)
+                                : Colors.transparent,
+                            borderRadius: const BorderRadius.horizontal(
+                              right: Radius.circular(7),
                             ),
-                            const SizedBox(width: 3),
-                            Text(
-                              'SD',
-                              style: TextStyle(
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.sd,
+                                size: 16,
                                 color: !mainStreams
                                     ? Colors.white
                                     : const Color(0xFF94A3B8),
-                                fontSize: 12,
-                                fontWeight: !mainStreams
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 3),
+                              Text(
+                                'SD',
+                                style: TextStyle(
+                                  color: !mainStreams
+                                      ? Colors.white
+                                      : const Color(0xFF94A3B8),
+                                  fontSize: 12,
+                                  fontWeight: !mainStreams
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             SizedBox(width: veryCompact ? 2 : 6),
             PopupMenuButton<String>(
               padding: veryCompact
@@ -1064,7 +1065,9 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
               tooltip: 'Ações do monitor',
               iconColor: Colors.white,
               onSelected: (value) {
-                if (value.startsWith('layout:')) {
+                if (value == 'mode') {
+                  store.updateSettings(simpleMode: !store.config.simpleMode);
+                } else if (value.startsWith('layout:')) {
                   store.setLayout(value.substring(7));
                 } else if (value == 'auto-quality') {
                   setState(() => _mainStreams = null);
@@ -1090,6 +1093,12 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                 }
               },
               itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'mode',
+                  child: Text(
+                    store.config.simpleMode ? 'Modo Avançado' : 'Modo Simples',
+                  ),
+                ),
                 if (_mainStreams != null)
                   const PopupMenuItem(
                     value: 'auto-quality',
@@ -1104,14 +1113,15 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                     value: 'layouts',
                     child: Text('Editar layout e perfis'),
                   ),
-                PopupMenuItem(
-                  value: 'diagnostics',
-                  child: Text(
-                    _showDiagnostics
-                        ? 'Fechar diagnósticos'
-                        : 'Diagnósticos das câmeras',
+                if (!store.config.simpleMode)
+                  PopupMenuItem(
+                    value: 'diagnostics',
+                    child: Text(
+                      _showDiagnostics
+                          ? 'Fechar diagnósticos'
+                          : 'Diagnósticos das câmeras',
+                    ),
                   ),
-                ),
                 if (desktop)
                   const PopupMenuItem(
                     value: 'fullscreen',

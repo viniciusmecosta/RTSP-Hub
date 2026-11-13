@@ -51,11 +51,12 @@ class _CameraCatalogPageState extends State<CameraCatalogPage> {
       title: 'Câmeras',
       subtitle: 'Seus dispositivos, imagens e conexões em um só lugar.',
       actions: [
-        OutlinedButton.icon(
-          onPressed: () => GlobalConnectionPage.open(context),
-          icon: const Icon(Icons.settings_ethernet),
-          label: const Text('Conexão global'),
-        ),
+        if (!store.config.simpleMode)
+          OutlinedButton.icon(
+            onPressed: () => GlobalConnectionPage.open(context),
+            icon: const Icon(Icons.settings_ethernet),
+            label: const Text('Conexão global'),
+          ),
         FilledButton.icon(
           onPressed: () => _edit(context),
           icon: const Icon(Icons.add),
@@ -63,7 +64,8 @@ class _CameraCatalogPageState extends State<CameraCatalogPage> {
         ),
       ],
       slivers: [
-        const SliverToBoxAdapter(child: NetworkCameraDiscovery()),
+        if (!store.config.simpleMode)
+          const SliverToBoxAdapter(child: NetworkCameraDiscovery()),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -128,6 +130,7 @@ class _CameraCatalogPageState extends State<CameraCatalogPage> {
                       cameras[index],
                     ),
                     camera: cameras[index],
+                    showHost: !store.config.simpleMode,
                     onEdit: () => _edit(context, cameras[index]),
                     onClone: () => _clone(context, store, cameras[index]),
                     onDelete: () => _delete(context, store, cameras[index]),
