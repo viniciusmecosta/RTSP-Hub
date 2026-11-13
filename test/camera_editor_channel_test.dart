@@ -38,6 +38,7 @@ void main() {
         repository: MemoryRepository(),
         credentials: MemoryCredentials(),
       );
+      await store.updateSettings(simpleMode: false);
       addTearDown(store.dispose);
       await tester.pumpWidget(
         MaterialApp(

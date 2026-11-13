@@ -551,6 +551,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     return MonitorCameraTile(
       key: ValueKey('monitor-camera-slot-$slotIndex'),
       camera: camera,
+      simpleMode: store.config.simpleMode,
       fitMode: store.config.videoFitMode,
       autofocus:
           DeviceEnvironmentScope.of(context).isTelevision &&

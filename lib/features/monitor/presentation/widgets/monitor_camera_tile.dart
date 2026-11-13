@@ -18,6 +18,7 @@ class MonitorCameraTile extends StatelessWidget {
     this.autofocus = false,
     this.fitMode = 'smart',
     this.showMenu = true,
+    this.simpleMode = false,
     required this.onRetry,
     super.key,
   });
@@ -32,6 +33,7 @@ class MonitorCameraTile extends StatelessWidget {
   final bool autofocus;
   final String fitMode;
   final bool showMenu;
+  final bool simpleMode;
 
   @override
   Widget build(BuildContext context) {
@@ -142,6 +144,7 @@ class MonitorCameraTile extends StatelessWidget {
                           session?.firstFrameRendered.value != true))
                     Positioned.fill(
                       child: CameraLoadingView(
+                        simpleMode: simpleMode,
                         status:
                             session?.status.value ?? CameraPlaybackStatus.idle,
                         error: session?.error.value,
