@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../layouts/domain/freeform_slot.dart';
 import '../../../layouts/domain/layout_geometry.dart';

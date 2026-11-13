@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import '../../features/camera_catalog/data/camera_snapshot_store.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../features/monitor/domain/monitor_paging_policy.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';

@@ -23,6 +23,10 @@ A reprodução usa decodificação acelerada por hardware via `libmpv`, renderiz
 
 ---
 
+## SDK do projeto
+
+Use Flutter **3.50.0 stable**, com Dart **3.14.0** incluído nesse SDK. A pipeline define explicitamente `flutter-version: '3.50.0'` nos jobs Android, Ubuntu e Windows. Não é necessário instalar outro Dart. Os componentes visuais usam o pacote oficial `material_ui` 1.0.0, correspondente à versão do Material anteriormente incluída no SDK.
+
 ## Uso simples e transferência de perfis
 
 O aplicativo inicia no monitor no **Modo Simples**. Toque numa célula para escolher a câmera e dê dois toques para ampliar ou voltar à grade. Os controles desaparecem após quatro segundos; ao tocar, aparecem os layouts rápidos 1×1, 2×2, 3×3 e 1+5. O Modo Avançado continua disponível no menu do monitor e em Ajustes, com a escolha salva neste aparelho.

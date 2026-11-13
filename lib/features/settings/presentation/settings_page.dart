@@ -4,7 +4,7 @@ import '../../../app/data/transfer_codec.dart';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../shared/design_system/app_logo.dart';
 import 'package:package_info_plus/package_info_plus.dart';

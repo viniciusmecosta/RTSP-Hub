@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class AppLogo extends StatelessWidget {
   const AppLogo({this.size = 40, this.semanticLabel, super.key})
