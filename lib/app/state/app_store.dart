@@ -17,6 +17,8 @@ import '../../shared/infrastructure/secure_store/credential_store.dart';
 import '../../shared/infrastructure/storage/config_repository.dart';
 import '../data/app_backup_service.dart';
 import '../data/app_configuration.dart';
+import '../data/export_privacy.dart';
+import 'dart:convert';
 
 class AppStore extends ChangeNotifier {
   static const _networkDiscoveryCredentialId = '__network_discovery__';
@@ -1015,12 +1017,56 @@ class AppStore extends ChangeNotifier {
       _backupService.importMonitorProfiles(
         source: source,
         currentConfig: _config,
+        credentials: _credentials,
+        passwordsCache: _passwords,
         commit: _commit,
         setMessage: (msg) {
           _message = msg;
           notifyListeners();
         },
       );
+
+  Future<String> exportPortableProfile(
+    String id, {
+    required bool includeCredentials,
+  }) => exportPortableProfiles(
+    profileIds: {id},
+    includeCredentials: includeCredentials,
+  );
+
+  Future<String> exportPortableProfiles({
+    Set<String>? profileIds,
+    required bool includeCredentials,
+  }) async {
+    final snapshot = _config;
+    final profiles = snapshot.monitorProfiles
+        .where((p) => profileIds == null || profileIds.contains(p.id))
+        .toList();
+    if (profiles.isEmpty) throw StateError('Perfil não encontrado.');
+    final ids = {
+      for (final profile in profiles)
+        ...profile.slotCameraIds.whereType<String>(),
+    };
+    final selected = snapshot.cameras.where((c) => ids.contains(c.id)).toList();
+    final secrets = <String, String>{};
+    if (includeCredentials) {
+      for (final camera in selected) {
+        final secret = await passwordFor(camera);
+        if (secret != null && secret.isNotEmpty) secrets[camera.id] = secret;
+      }
+    }
+    final data = {
+      'format': profileExportFormat,
+      'version': 3,
+      'profiles': profiles.map((p) => p.toJson()).toList(),
+      'cameras': selected.map((c) => resolveCamera(c).toJson()).toList(),
+      if (includeCredentials) 'credentials': secrets,
+    };
+    if (!identical(snapshot, _config)) {
+      throw StateError('O perfil mudou. Tente novamente.');
+    }
+    return jsonEncode(includeCredentials ? data : withoutCredentials(data));
+  }
 
   Future<String> exportBackup({bool includeCredentials = false}) =>
       _backupService.exportBackup(

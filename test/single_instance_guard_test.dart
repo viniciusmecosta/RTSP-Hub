@@ -7,7 +7,19 @@ import 'package:rtsp_hub/shared/infrastructure/single_instance/single_instance_g
 void main() {
   test('blocks another process and releases lock after shutdown', () async {
     final directory = await Directory.systemTemp.createTemp('rtsp-hub-lock');
-    final process = await Process.start('dart', [
+    final packageFile = File('.dart_tool/package_config.json').absolute;
+    final packages =
+        (jsonDecode(await packageFile.readAsString()) as Map)['packages']
+            as List;
+    final flutter = packages.cast<Map>().firstWhere(
+      (package) => package['name'] == 'flutter',
+    );
+    final sdk = Directory.fromUri(
+      packageFile.uri.resolve(flutter['rootUri'] as String),
+    ).parent.parent;
+    final dart =
+        '${sdk.path}/bin/cache/dart-sdk/bin/dart${Platform.isWindows ? '.exe' : ''}';
+    final process = await Process.start(dart, [
       '--packages=${Directory.current.path}/.dart_tool/package_config.json',
       '${Directory.current.path}/tool/hold_single_instance.dart',
       directory.path,

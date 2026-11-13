@@ -1,13 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
+import '../../../app/data/transfer_codec.dart';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../shared/design_system/app_logo.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:file_selector/file_selector.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../app/state/app_store.dart';
@@ -16,6 +15,8 @@ import '../../../shared/platform/windows_startup_service.dart';
 import '../../../shared/platform/linux_startup_service.dart';
 import 'global_connection_page.dart';
 import 'credential_export_dialog.dart';
+import 'transfer_export_dialog.dart';
+import 'transfer_import_dialog.dart';
 import '../domain/performance_preset.dart';
 import '../../monitor/domain/rtsp_buffer_policy.dart';
 import '../../../shared/platform/device_environment.dart';
@@ -399,15 +400,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 () => _importBackup(context, store),
                               ),
                         icon: const Icon(Icons.restore_outlined),
-                        label: const Text('Importar arquivo JSON'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _backupBusy
-                            ? null
-                            : () =>
-                                  _runBackup(() => _importCode(context, store)),
-                        icon: const Icon(Icons.paste),
-                        label: const Text('Colar código JSON'),
+                        label: const Text('Importar arquivo, QR ou código'),
                       ),
                     ],
                   ),
@@ -439,67 +432,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _importBackup(BuildContext context, AppStore store) async {
-    String source;
-    try {
-      final backup = await openFile(
-        acceptedTypeGroups: const [
-          XTypeGroup(label: 'Backup RTSP Hub', extensions: ['json']),
-        ],
-      );
-      if (backup == null) return;
-      if (await backup.length() > AppStore.maxBackupBytes) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('O backup excede o limite de 64 MB.')),
-          );
-        }
-        return;
-      }
-      source = await backup.readAsString();
-    } on Object {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Não foi possível abrir o arquivo de backup.'),
-          ),
-        );
-      }
-      return;
-    }
-    if (!context.mounted) return;
-    await _confirmImport(context, store, source);
-  }
-
-  Future<void> _importCode(BuildContext context, AppStore store) async {
-    final controller = TextEditingController();
-    final source = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Colar configuração JSON'),
-        content: SizedBox(
-          width: 480,
-          child: TextField(
-            controller: controller,
-            minLines: 4,
-            maxLines: 10,
-            maxLength: AppStore.maxBackupBytes,
-            decoration: const InputDecoration(labelText: 'Código JSON'),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Continuar'),
-          ),
-        ],
-      ),
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    controller.dispose();
+    final source = await readTransferSource(context);
     if (source != null && context.mounted) {
       await _confirmImport(context, store, source);
     }
@@ -510,12 +443,31 @@ class _SettingsPageState extends State<SettingsPage> {
     AppStore store,
     String source,
   ) async {
+    bool profile;
+    try {
+      final decoded = jsonDecode(TransferCodec.decode(source));
+      if (decoded is! Map) throw const FormatException();
+      profile = decoded['format'] == AppStore.profileExportFormat;
+    } on Object {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Configuração inválida. Confira o arquivo ou copie o código completo.',
+          ),
+        ),
+      );
+      return;
+    }
     final accepted = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Substituir configurações?'),
-        content: const Text(
-          'O backup completo substituirá câmeras, layouts, preferências, miniaturas e credenciais deste dispositivo. Arquivos antigos de configuração continuam aceitos, mas não contêm senhas.',
+        title: Text(
+          profile ? 'Adicionar perfis recebidos?' : 'Substituir configurações?',
+        ),
+        content: Text(
+          profile
+              ? 'Os perfis e câmeras recebidos serão adicionados. Seus perfis atuais serão mantidos.'
+              : 'Esta configuração substituirá câmeras, layouts, preferências, miniaturas e credenciais deste dispositivo.',
         ),
         actions: [
           TextButton(
@@ -530,7 +482,18 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
     if (accepted != true) return;
-    final imported = await store.importConfiguration(source);
+    bool imported;
+    if (profile) {
+      final added = await store.importMonitorProfiles(source);
+      imported = added != null && added > 0;
+      if (imported) {
+        imported = await store.applyMonitorProfile(
+          store.config.monitorProfiles.last.id,
+        );
+      }
+    } else {
+      imported = await store.importConfiguration(source);
+    }
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -569,48 +532,11 @@ class _SettingsPageState extends State<SettingsPage> {
     if (include == null) return;
     final content = await store.exportBackup(includeCredentials: include);
     if (!context.mounted) return;
-    final now = DateTime.now();
-    final filename = 'rtsp-hub-backup-${now.millisecondsSinceEpoch}.json';
-    if (Platform.isAndroid || Platform.isIOS) {
-      final box = context.findRenderObject() as RenderBox?;
-      final origin = box == null
-          ? null
-          : box.localToGlobal(Offset.zero) & box.size;
-      final directory = Directory(
-        '${(await getTemporaryDirectory()).path}/hub-backup',
-      );
-      await directory.create(recursive: true);
-      await for (final entry in directory.list()) {
-        if (entry is File &&
-            DateTime.now().difference((await entry.stat()).modified).inDays >=
-                1) {
-          await entry.delete();
-        }
-      }
-      final file = File('${directory.path}/$filename');
-      await file.writeAsString(content, flush: true);
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path, mimeType: 'application/json')],
-          sharePositionOrigin: origin,
-          title: 'Salvar backup completo',
-        ),
-      );
-      return;
-    }
-    final location = await getSaveLocation(
-      acceptedTypeGroups: const [
-        XTypeGroup(label: 'Backup RTSP Hub', extensions: ['json']),
-      ],
-      suggestedName: filename,
+    await showDialog<void>(
+      context: context,
+      builder: (_) =>
+          TransferExportDialog(json: content, includesCredentials: include),
     );
-    if (location == null) return;
-    await File(location.path).writeAsString(content, flush: true);
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Configuração JSON salva.')));
-    }
   }
 }
 

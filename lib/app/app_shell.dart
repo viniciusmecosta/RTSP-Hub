@@ -16,6 +16,7 @@ import '../shared/design_system/app_logo.dart';
 import '../shared/platform/android_file_import_service.dart';
 import '../shared/platform/device_environment.dart';
 import 'state/app_store.dart';
+import 'data/transfer_codec.dart';
 
 enum AppSection { dashboard, cameras, layouts, monitor, settings }
 
@@ -65,8 +66,9 @@ class _AppShellState extends State<AppShell> {
   Future<void> _handleIncomingBackupFile(IncomingBackupFile file) async {
     final store = AppScope.of(context);
     try {
-      final decoded = jsonDecode(file.content);
+      final decoded = jsonDecode(TransferCodec.decode(file.content));
       if (decoded is! Map) throw const FormatException();
+      final isProfile = decoded['format'] == AppStore.profileExportFormat;
       final isHubBackup = decoded['format'] == 'rtsp_hub_backup';
       final rawConfig = isHubBackup ? decoded['configuration'] : decoded;
       final rawCameras = rawConfig is Map ? rawConfig['cameras'] : null;
@@ -77,7 +79,11 @@ class _AppShellState extends State<AppShell> {
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
           icon: const Icon(Icons.settings_backup_restore_outlined, size: 36),
-          title: const Text('Restaurar backup recebido?'),
+          title: Text(
+            isProfile
+                ? 'Adicionar perfis recebidos?'
+                : 'Restaurar configuração recebida?',
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,8 +97,10 @@ class _AppShellState extends State<AppShell> {
                 'Este arquivo contém $cameraCount câmera(s) e preferências. Pode incluir dados de acesso.',
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Deseja importar e substituir as configurações atuais pelas deste arquivo?',
+              Text(
+                isProfile
+                    ? 'Os perfis recebidos serão adicionados. Seus perfis atuais serão mantidos.'
+                    : 'Deseja substituir as configurações atuais pelas deste arquivo?',
               ),
             ],
           ),
@@ -111,7 +119,18 @@ class _AppShellState extends State<AppShell> {
       );
 
       if (confirm == true && mounted) {
-        final success = await store.importConfiguration(file.content);
+        bool success;
+        if (isProfile) {
+          final added = await store.importMonitorProfiles(file.content);
+          success = added != null && added > 0;
+          if (success) {
+            success = await store.applyMonitorProfile(
+              store.config.monitorProfiles.last.id,
+            );
+          }
+        } else {
+          success = await store.importConfiguration(file.content);
+        }
         if (!mounted) return;
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -191,11 +210,11 @@ class _AppShellState extends State<AppShell> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '1. Encontre câmeras na rede ou cadastre o IP. Use Testar vídeo para conferir a imagem.',
+              '1. Adicione uma câmera. O assistente guia você pelo endereço, usuário e senha.',
             ),
             const SizedBox(height: 12),
             const Text(
-              '2. Escolha um layout; câmeras novas ocupam espaços vazios.',
+              '2. Escolha um layout; câmeras novas ocupam espaços vazios. Você também pode importar uma configuração recebida.',
             ),
             const SizedBox(height: 12),
             Text(

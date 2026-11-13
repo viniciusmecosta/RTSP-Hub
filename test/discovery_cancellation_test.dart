@@ -54,9 +54,12 @@ void main() {
     () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final subscription = server.listen((request) async {
-        await request.drain<void>();
-        request.response.statusCode = HttpStatus.unauthorized;
-        await request.response.close();
+        try {
+          await request.drain<void>();
+          request.response.statusCode = HttpStatus.unauthorized;
+          await request.response.close();
+        } on HttpException {
+        }
       });
       addTearDown(() async {
         await server.close(force: true);
