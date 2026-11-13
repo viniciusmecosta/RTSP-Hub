@@ -93,7 +93,21 @@ class _SettingsPageState extends State<SettingsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const GlobalConnectionShortcut(),
+          Card(
+            child: SwitchListTile(
+              secondary: const Icon(Icons.tune),
+              title: Text(
+                store.config.simpleMode ? 'Modo Simples' : 'Modo Avançado',
+              ),
+              subtitle: const Text(
+                'Ative para mostrar conexões e todos os ajustes técnicos.',
+              ),
+              value: !store.config.simpleMode,
+              onChanged: (advanced) =>
+                  store.updateSettings(simpleMode: !advanced),
+            ),
+          ),
+          if (!store.config.simpleMode) const GlobalConnectionShortcut(),
           const SizedBox(height: 24),
           Text(
             'Aparência e inicialização',
@@ -127,30 +141,49 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 const Divider(height: 1),
-                _SettingDropdownTile<String>(
-                  icon: Icons.start_outlined,
-                  title: 'Ao abrir o aplicativo',
-                  subtitle:
-                      'Automático escolhe o monitor quando há câmeras na grade; Última tela usada retoma onde você saiu.',
-                  value: store.config.startupSection,
-                  items: const [
-                    DropdownMenuItem(value: 'auto', child: Text('Automático')),
-                    DropdownMenuItem(
-                      value: 'last',
-                      child: Text('Última tela usada'),
-                    ),
-                    DropdownMenuItem(value: 'dashboard', child: Text('Início')),
-                    DropdownMenuItem(value: 'monitor', child: Text('Monitor')),
-                    DropdownMenuItem(value: 'cameras', child: Text('Câmeras')),
-                    DropdownMenuItem(value: 'layouts', child: Text('Layouts')),
-                    DropdownMenuItem(value: 'settings', child: Text('Ajustes')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      store.updateSettings(startupSection: value);
-                    }
-                  },
-                ),
+                if (!store.config.simpleMode)
+                  _SettingDropdownTile<String>(
+                    icon: Icons.start_outlined,
+                    title: 'Ao abrir o aplicativo',
+                    subtitle:
+                        'Automático escolhe o monitor quando há câmeras na grade; Última tela usada retoma onde você saiu.',
+                    value: store.config.startupSection,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'auto',
+                        child: Text('Automático'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'last',
+                        child: Text('Última tela usada'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'dashboard',
+                        child: Text('Início'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'monitor',
+                        child: Text('Monitor'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'cameras',
+                        child: Text('Câmeras'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'layouts',
+                        child: Text('Layouts'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'settings',
+                        child: Text('Ajustes'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        store.updateSettings(startupSection: value);
+                      }
+                    },
+                  ),
                 if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) ...[
                   const Divider(height: 1),
                   SwitchListTile(
@@ -187,134 +220,142 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 24),
-          Text(
-            'Reprodução e desempenho',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: Column(
-              children: [
-                _SettingDropdownTile<String>(
-                  icon: Icons.memory_outlined,
-                  title: 'Perfil de desempenho',
-                  subtitle:
-                      'O fluxo secundário reduz o trabalho do computador. O cache varia conforme a taxa do vídeo.',
-                  value: store.config.resourceMode,
-                  items: [
-                    for (final preset in PerformancePreset.values)
-                      DropdownMenuItem(
-                        value: preset.id,
-                        child: Text(preset.label),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      store.updateSettings(
-                        resourceMode: value,
-                        bufferMs: PerformancePreset.fromId(value).bufferMs,
-                      );
-                    }
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.high_quality_outlined),
-                  title: const Text('Cache de rede por câmera'),
-                  subtitle: Text(
-                    'Econômico: ${RtspBufferPolicy.bytesFor(targetMilliseconds: store.config.bufferMs, mainStream: false) ~/ 1024} KiB · principal: ${RtspBufferPolicy.bytesFor(targetMilliseconds: store.config.bufferMs, mainStream: true) ~/ 1024} KiB. Limite de cache, sem reduzir a resolução. Decodificação e imagens usam memória adicional.',
-                  ),
-                ),
-                const Divider(height: 1),
-                _SettingDropdownTile<int>(
-                  icon: Icons.view_comfortable_outlined,
-                  title: 'Câmeras por página',
-                  subtitle: television
-                      ? 'Automático exibe até 4 câmeras na TV. Apenas a página visível reproduz vídeo.'
-                      : 'Automático mostra a grade inteira. Use páginas menores para reduzir o consumo; as outras câmeras ficam em espera.',
-                  value: store.config.monitorPageSize,
-                  items: const [
-                    DropdownMenuItem(value: 0, child: Text('Automático')),
-                    DropdownMenuItem(value: -1, child: Text('Todas da grade')),
-                    DropdownMenuItem(value: 1, child: Text('1 câmera')),
-                    DropdownMenuItem(value: 2, child: Text('2 câmeras')),
-                    DropdownMenuItem(value: 4, child: Text('4 câmeras')),
-                    DropdownMenuItem(value: 6, child: Text('6 câmeras')),
-                    DropdownMenuItem(value: 9, child: Text('9 câmeras')),
-                    DropdownMenuItem(value: 16, child: Text('16 câmeras')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      store.updateSettings(monitorPageSize: value);
-                    }
-                  },
-                ),
-                const Divider(height: 1),
-                _SettingDropdownTile<String>(
-                  icon: Icons.aspect_ratio_outlined,
-                  title: 'Ajuste de vídeo no monitor',
-                  subtitle:
-                      'Inteligente estende o vídeo de forma controlada para aproveitar o espaço sem distorcer demais. Proporção original evita qualquer estiramento.',
-                  value: store.config.videoFitMode,
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'smart',
-                      child: Text('Inteligente (sem exagero)'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'contain',
-                      child: Text('Proporção original'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'fill',
-                      child: Text('Esticar ao máximo'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      store.updateSettings(videoFitMode: value);
-                    }
-                  },
-                ),
-                const Divider(height: 1),
-                _SettingDropdownTile<String>(
-                  icon: Icons.hd_outlined,
-                  title: 'Fluxo padrão no monitor',
-                  subtitle:
-                      'Subfluxo (SD) é mais econômico e leve para múltiplas câmeras. Fluxo principal (HD) exibe sempre em alta definição.',
-                  value: store.config.defaultStreamMode,
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'sub',
-                      child: Text('Subfluxo (Econômico / SD)'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'main',
-                      child: Text('Fluxo principal (HD)'),
-                    ),
-                    DropdownMenuItem(value: 'auto', child: Text('Automático')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      store.updateSettings(defaultStreamMode: value);
-                    }
-                  },
-                ),
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-                  child: Text(
-                    PerformancePreset.fromId(
-                      store.config.resourceMode,
-                    ).description,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
+          if (!store.config.simpleMode) ...[
+            Text(
+              'Reprodução e desempenho',
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-          ),
+            const SizedBox(height: 12),
+            Card(
+              child: Column(
+                children: [
+                  _SettingDropdownTile<String>(
+                    icon: Icons.memory_outlined,
+                    title: 'Perfil de desempenho',
+                    subtitle:
+                        'O fluxo secundário reduz o trabalho do computador. O cache varia conforme a taxa do vídeo.',
+                    value: store.config.resourceMode,
+                    items: [
+                      for (final preset in PerformancePreset.values)
+                        DropdownMenuItem(
+                          value: preset.id,
+                          child: Text(preset.label),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        store.updateSettings(
+                          resourceMode: value,
+                          bufferMs: PerformancePreset.fromId(value).bufferMs,
+                        );
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.high_quality_outlined),
+                    title: const Text('Cache de rede por câmera'),
+                    subtitle: Text(
+                      'Econômico: ${RtspBufferPolicy.bytesFor(targetMilliseconds: store.config.bufferMs, mainStream: false) ~/ 1024} KiB · principal: ${RtspBufferPolicy.bytesFor(targetMilliseconds: store.config.bufferMs, mainStream: true) ~/ 1024} KiB. Limite de cache, sem reduzir a resolução. Decodificação e imagens usam memória adicional.',
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  _SettingDropdownTile<int>(
+                    icon: Icons.view_comfortable_outlined,
+                    title: 'Câmeras por página',
+                    subtitle: television
+                        ? 'Automático exibe até 4 câmeras na TV. Apenas a página visível reproduz vídeo.'
+                        : 'Automático mostra a grade inteira. Use páginas menores para reduzir o consumo; as outras câmeras ficam em espera.',
+                    value: store.config.monitorPageSize,
+                    items: const [
+                      DropdownMenuItem(value: 0, child: Text('Automático')),
+                      DropdownMenuItem(
+                        value: -1,
+                        child: Text('Todas da grade'),
+                      ),
+                      DropdownMenuItem(value: 1, child: Text('1 câmera')),
+                      DropdownMenuItem(value: 2, child: Text('2 câmeras')),
+                      DropdownMenuItem(value: 4, child: Text('4 câmeras')),
+                      DropdownMenuItem(value: 6, child: Text('6 câmeras')),
+                      DropdownMenuItem(value: 9, child: Text('9 câmeras')),
+                      DropdownMenuItem(value: 16, child: Text('16 câmeras')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        store.updateSettings(monitorPageSize: value);
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _SettingDropdownTile<String>(
+                    icon: Icons.aspect_ratio_outlined,
+                    title: 'Ajuste de vídeo no monitor',
+                    subtitle:
+                        'Inteligente estende o vídeo de forma controlada para aproveitar o espaço sem distorcer demais. Proporção original evita qualquer estiramento.',
+                    value: store.config.videoFitMode,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'smart',
+                        child: Text('Inteligente (sem exagero)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'contain',
+                        child: Text('Proporção original'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'fill',
+                        child: Text('Esticar ao máximo'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        store.updateSettings(videoFitMode: value);
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _SettingDropdownTile<String>(
+                    icon: Icons.hd_outlined,
+                    title: 'Fluxo padrão no monitor',
+                    subtitle:
+                        'Subfluxo (SD) é mais econômico e leve para múltiplas câmeras. Fluxo principal (HD) exibe sempre em alta definição.',
+                    value: store.config.defaultStreamMode,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'sub',
+                        child: Text('Subfluxo (Econômico / SD)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'main',
+                        child: Text('Fluxo principal (HD)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'auto',
+                        child: Text('Automático'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        store.updateSettings(defaultStreamMode: value);
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+                    child: Text(
+                      PerformancePreset.fromId(
+                        store.config.resourceMode,
+                      ).description,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           Card(
             child: Padding(

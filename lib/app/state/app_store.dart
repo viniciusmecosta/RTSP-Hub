@@ -925,6 +925,7 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> updateSettings({
+    bool? simpleMode,
     int? defaultPort,
     String? defaultUser,
     String? defaultPath,
@@ -959,7 +960,8 @@ class AppStore extends ChangeNotifier {
     }
     final operation = _settingsQueue.then((_) {
       final current = _config;
-      if ((defaultPort == null || defaultPort == current.defaultPort) &&
+      if ((simpleMode == null || simpleMode == current.simpleMode) &&
+          (defaultPort == null || defaultPort == current.defaultPort) &&
           (defaultUser == null || defaultUser == current.defaultUser) &&
           (defaultPath == null || defaultPath == current.defaultPath) &&
           (bufferMs == null || bufferMs == current.bufferMs) &&
@@ -982,6 +984,7 @@ class AppStore extends ChangeNotifier {
       }
       return _commit(
         current.copyWith(
+          simpleMode: simpleMode,
           defaultPort: defaultPort,
           defaultUser: defaultUser,
           defaultPath: defaultPath,

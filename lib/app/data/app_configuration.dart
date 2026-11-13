@@ -7,6 +7,7 @@ import '../../features/monitor/domain/monitor_paging_policy.dart';
 class AppConfiguration {
   const AppConfiguration({
     this.schemaVersion = 1,
+    this.simpleMode = true,
     this.cameras = const [],
     this.monitorProfiles = const [],
     this.layoutId = 'GRID_4',
@@ -30,6 +31,7 @@ class AppConfiguration {
     this.defaultStreamMode = 'sub',
   });
 
+  final bool simpleMode;
   final int schemaVersion;
   final List<CameraDevice> cameras;
   final List<SavedMonitorProfile> monitorProfiles;
@@ -54,6 +56,7 @@ class AppConfiguration {
   final String defaultStreamMode;
 
   AppConfiguration copyWith({
+    bool? simpleMode,
     List<CameraDevice>? cameras,
     List<SavedMonitorProfile>? monitorProfiles,
     String? layoutId,
@@ -78,6 +81,7 @@ class AppConfiguration {
     String? defaultStreamMode,
   }) => AppConfiguration(
     schemaVersion: schemaVersion,
+    simpleMode: simpleMode ?? this.simpleMode,
     cameras: cameras ?? this.cameras,
     monitorProfiles: monitorProfiles ?? this.monitorProfiles,
     layoutId: layoutId ?? this.layoutId,
@@ -107,6 +111,7 @@ class AppConfiguration {
     'schemaVersion': schemaVersion,
     'savedAt': DateTime.now().toUtc().toIso8601String(),
     'settings': {
+      'simpleMode': simpleMode,
       'defaultPort': defaultPort,
       'defaultUser': defaultUser,
       'defaultPath': defaultPath,
@@ -166,6 +171,7 @@ class AppConfiguration {
         )
         .toList(growable: false);
     return AppConfiguration(
+      simpleMode: settings['simpleMode'] as bool? ?? true,
       schemaVersion: (json['schemaVersion'] as num?)?.toInt() ?? 1,
       cameras: cameras,
       monitorProfiles: monitorProfiles,
