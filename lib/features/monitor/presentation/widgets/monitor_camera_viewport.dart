@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../layouts/domain/freeform_slot.dart';
+import '../../../../shared/design_system/app_motion.dart';
 import '../../../layouts/domain/layout_geometry.dart';
 import '../../../layouts/domain/layout_preset.dart';
 
@@ -175,7 +176,11 @@ class _MonitorCameraViewportState extends State<MonitorCameraViewport> {
           child: Stack(
             children: [
               for (var index = 0; index < count; index++)
-                Positioned.fromRect(
+                AnimatedPositioned.fromRect(
+                  duration: AppMotion.reduced(context)
+                      ? Duration.zero
+                      : AppMotion.focusDuration,
+                  curve: Curves.easeInOutCubic,
                   key: ValueKey((
                     'camera-position',
                     widget.children[index].key,

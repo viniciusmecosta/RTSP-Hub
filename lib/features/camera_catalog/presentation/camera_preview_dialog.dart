@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../../app/state/app_store.dart';
+import '../../../shared/design_system/app_motion.dart';
 import '../../monitor/application/rtsp_session.dart';
 import '../../monitor/presentation/camera_loading_view.dart';
 import '../domain/camera_device.dart';
@@ -199,9 +200,13 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _close();
       },
-      child: widget.captureOnly
-          ? _compactDialog(context, controller)
-          : _fullscreenPlayer(context, controller),
+      child: MotionEntrance(
+        beginScale: 0.985,
+        offset: Offset.zero,
+        child: widget.captureOnly
+            ? _compactDialog(context, controller)
+            : _fullscreenPlayer(context, controller),
+      ),
     );
   }
 

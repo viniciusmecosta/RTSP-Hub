@@ -13,6 +13,7 @@ import '../features/monitor/presentation/monitor_page.dart';
 import '../features/settings/presentation/settings_page.dart';
 import '../features/settings/presentation/global_connection_page.dart';
 import '../shared/design_system/app_logo.dart';
+import '../shared/design_system/app_motion.dart';
 import '../shared/platform/android_file_import_service.dart';
 import '../shared/platform/device_environment.dart';
 import 'state/app_store.dart';
@@ -289,9 +290,9 @@ class _AppShellState extends State<AppShell> {
                 children: [
                   if (!compact && rail && _section != AppSection.monitor)
                     NavigationRail(
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerLow,
+                      backgroundColor: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerLow,
                       leading: shortLandscape
                           ? null
                           : Padding(
@@ -321,7 +322,12 @@ class _AppShellState extends State<AppShell> {
                       section: _section,
                       onSelected: _selectSection,
                     ),
-                  Expanded(child: _pages[_selectedIndex]),
+                  Expanded(
+                    child: MotionEntrance(
+                      replayKey: _section,
+                      child: _pages[_selectedIndex],
+                    ),
+                  ),
                 ],
               ),
             ),

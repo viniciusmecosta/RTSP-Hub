@@ -4,6 +4,64 @@ import 'package:rtsp_hub/features/layouts/domain/layout_preset.dart';
 import 'package:rtsp_hub/features/monitor/presentation/widgets/monitor_camera_viewport.dart';
 
 void main() {
+  for (final reduced in [false, true]) {
+    testWidgets(
+      'focus animates without remounting the camera (reduced: $reduced)',
+      (tester) async {
+        int? focused;
+        late StateSetter update;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(disableAnimations: reduced),
+              child: StatefulBuilder(
+                builder: (context, setState) {
+                  update = setState;
+                  return MonitorCameraViewport(
+                    layout: LayoutPreset.byId('GRID_4'),
+                    pageStart: 0,
+                    focusedIndex: focused,
+                    children: [
+                      for (var i = 0; i < 4; i++)
+                        ColoredBox(
+                          key: ValueKey('tile-$i'),
+                          color: Colors.blue,
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final tile = find.byKey(const ValueKey('tile-0'));
+        final element = tester.element(tile);
+        final initial = tester.getSize(tile);
+        update(() => focused = 0);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 110));
+        final during = tester.getSize(tile);
+        expect(during.width, greaterThan(initial.width));
+        if (reduced) {
+          expect(during, tester.getSize(find.byType(MonitorCameraViewport)));
+        } else {
+          expect(
+            during.width,
+            lessThan(tester.getSize(find.byType(MonitorCameraViewport)).width),
+          );
+        }
+        await tester.pumpAndSettle();
+        expect(
+          tester.getSize(tile),
+          tester.getSize(find.byType(MonitorCameraViewport)),
+        );
+        expect(tester.element(tile), same(element));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'a scrolled grid returns to the same position without remounting tiles',
     (tester) async {
