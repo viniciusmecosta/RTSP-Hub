@@ -1022,12 +1022,14 @@ class AppStore extends ChangeNotifier {
         },
       );
 
-  Future<String> exportBackup() => _backupService.exportBackup(
-    config: _config,
-    credentials: _credentials,
-    snapshots: snapshots,
-    getCurrentConfig: () => _config,
-  );
+  Future<String> exportBackup({bool includeCredentials = false}) =>
+      _backupService.exportBackup(
+        includeCredentials: includeCredentials,
+        config: _config,
+        credentials: _credentials,
+        snapshots: snapshots,
+        getCurrentConfig: () => _config,
+      );
 
   String exportConfiguration() => _backupService.exportConfiguration(_config);
 

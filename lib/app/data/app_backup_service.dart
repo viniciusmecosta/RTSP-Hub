@@ -10,6 +10,7 @@ import '../../features/layouts/domain/layout_preset.dart';
 import '../../features/layouts/domain/saved_monitor_profile.dart';
 import '../../shared/infrastructure/secure_store/credential_store.dart';
 import 'app_configuration.dart';
+import 'export_privacy.dart';
 
 class AppBackupService {
   const AppBackupService();
@@ -200,6 +201,7 @@ class AppBackupService {
   }
 
   Future<String> exportBackup({
+    bool includeCredentials = false,
     required AppConfiguration config,
     required CredentialStore credentials,
     required CameraSnapshotStore snapshots,
@@ -212,7 +214,7 @@ class AppBackupService {
       networkDiscoveryCredentialId,
       ...config.cameras.map((camera) => camera.id),
     ]) {
-      creds[id] = await credentials.read(id);
+      creds[id] = includeCredentials ? await credentials.read(id) : null;
     }
     for (final camera in config.cameras) {
       final bytes = await snapshots.read(camera.id);
@@ -232,7 +234,10 @@ class AppBackupService {
     return jsonEncode({
       'format': 'rtsp_hub_backup',
       'version': 1,
-      'configuration': config.toJson(),
+      'configuration': includeCredentials
+          ? config.toJson()
+          : withoutCredentials(config.toJson()),
+      'includesCredentials': includeCredentials,
       'credentials': creds,
       'thumbnails': images,
     });
@@ -396,6 +401,10 @@ class AppBackupService {
           rawConfiguration['cameras'] is! List ||
           rawConfiguration['settings'] is! Map ||
           rawConfiguration['layout'] is! Map) {
+        throw const FormatException();
+      }
+      final version = rawConfiguration['schemaVersion'];
+      if (version != null && (version is! int || version != 1)) {
         throw const FormatException();
       }
       final configuration = AppConfiguration.fromJson(
