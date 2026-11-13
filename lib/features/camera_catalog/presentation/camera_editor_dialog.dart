@@ -415,7 +415,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
     });
   }
 
-  void _applyUrl() {
+  bool _applyUrl() {
     try {
       final uri = Uri.parse(_url.text.trim());
       final path = uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
@@ -447,6 +447,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
         _selectedChannelId = '';
         _url.clear();
       });
+      return true;
     } on Object {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -455,10 +456,12 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
           ),
         ),
       );
+      return false;
     }
   }
 
   Future<void> _testStream() async {
+    if (_url.text.trim().isNotEmpty && !_applyUrl()) return;
     if (!_formKey.currentState!.validate()) return;
     FocusManager.instance.primaryFocus?.unfocus();
     final host = _host.text.trim();
@@ -666,6 +669,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
   }
 
   Future<void> _save() async {
+    if (_url.text.trim().isNotEmpty && !_applyUrl()) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _busy = true);
     if (!_simple &&

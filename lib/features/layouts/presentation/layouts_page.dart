@@ -1,11 +1,9 @@
-import 'dart:io';
-
-import 'package:file_selector/file_selector.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../../app/state/app_store.dart';
+import '../../settings/presentation/credential_export_dialog.dart';
+import '../../settings/presentation/transfer_export_dialog.dart';
+import '../../settings/presentation/transfer_import_dialog.dart';
 import '../../camera_catalog/domain/camera_device.dart';
 import '../../camera_catalog/presentation/camera_picker.dart';
 import '../../camera_catalog/presentation/camera_thumbnail.dart';
@@ -50,6 +48,7 @@ class LayoutsPage extends StatelessWidget {
             }
           },
           onRemove: store.removeMonitorProfile,
+          onImported: onOpenMonitor,
         ),
       ],
     );
@@ -159,6 +158,8 @@ class LayoutsPage extends StatelessWidget {
                       cameraId: camera?.id,
                       cameraDetail: camera == null
                           ? null
+                          : store.config.simpleMode
+                          ? 'Câmera selecionada'
                           : '${camera.host}:${camera.effectivePort(store.config.defaultPort)} · ${camera.mainPath}',
                       onTap: () =>
                           _selectCamera(context, store, index, selected),
@@ -418,12 +419,14 @@ class _SavedProfiles extends StatelessWidget {
     required this.onSave,
     required this.onApply,
     required this.onRemove,
+    this.onImported,
   });
 
   final List<SavedMonitorProfile> profiles;
   final VoidCallback onSave;
   final ValueChanged<String> onApply;
   final ValueChanged<String> onRemove;
+  final VoidCallback? onImported;
 
   @override
   Widget build(BuildContext context) {
@@ -522,6 +525,12 @@ class _SavedProfiles extends StatelessWidget {
                         icon: const Icon(Icons.play_arrow),
                       ),
                       IconButton(
+                        tooltip: 'Compartilhar perfil por QR ou arquivo',
+                        onPressed: () =>
+                            _shareProfile(context, store, profile.id),
+                        icon: const Icon(Icons.qr_code),
+                      ),
+                      IconButton(
                         tooltip: 'Remover perfil',
                         onPressed: () => onRemove(profile.id),
                         icon: const Icon(Icons.delete_outline),
@@ -545,86 +554,106 @@ class _SavedProfiles extends StatelessWidget {
     );
   }
 
-  Future<void> _exportProfiles(BuildContext context, AppStore store) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final content = store.exportMonitorProfiles();
-    final now = DateTime.now();
-    final filename =
-        'rtsp-hub-perfis-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.json';
+  Future<void> _shareProfile(
+    BuildContext context,
+    AppStore store,
+    String id,
+  ) async {
+    final include = await askExportCredentials(context);
+    if (include == null) return;
     try {
-      String? path;
-      if (!kIsWeb &&
-          (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
-        path = (await getSaveLocation(
-          acceptedTypeGroups: const [
-            XTypeGroup(label: 'Perfis RTSP Hub', extensions: ['json']),
-          ],
-          suggestedName: filename,
-        ))?.path;
-        if (path == null) return;
-      } else if (!kIsWeb && Platform.isAndroid) {
-        final directory = await getDirectoryPath(
-          confirmButtonText: 'Salvar perfis nesta pasta',
-        );
-        if (directory == null) return;
-        path = '$directory${Platform.pathSeparator}$filename';
-      }
-      if (path == null) {
-        await Clipboard.setData(ClipboardData(text: content));
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Perfis copiados para a área de transferência.'),
-          ),
-        );
-        return;
-      }
-      await File(path).writeAsString(content, flush: true);
-      messenger.showSnackBar(
-        SnackBar(content: Text('Perfis exportados para $path.')),
+      final content = await store.exportPortableProfile(
+        id,
+        includeCredentials: include,
+      );
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) =>
+            TransferExportDialog(json: content, includesCredentials: include),
       );
     } on Object {
-      await Clipboard.setData(ClipboardData(text: content));
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Não foi possível salvar o arquivo; os perfis foram copiados.',
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Não foi possível preparar o perfil. Tente novamente.',
+            ),
           ),
-        ),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportProfiles(BuildContext context, AppStore store) async {
+    final include = await askExportCredentials(context);
+    if (include == null) return;
+    try {
+      final content = await store.exportPortableProfiles(
+        includeCredentials: include,
       );
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) =>
+            TransferExportDialog(json: content, includesCredentials: include),
+      );
+    } on Object {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Não foi possível preparar os perfis. Tente novamente.',
+            ),
+          ),
+        );
+      }
     }
   }
 
   Future<void> _importProfiles(BuildContext context, AppStore store) async {
-    final messenger = ScaffoldMessenger.of(context);
-    String? source;
-    try {
-      final file = await openFile(
-        acceptedTypeGroups: const [
-          XTypeGroup(label: 'Perfis RTSP Hub', extensions: ['json']),
-        ],
-      );
-      if (file == null) return;
-      if (await file.length() > 5 * 1024 * 1024) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('O arquivo excede o limite de 5 MB.')),
-        );
-        return;
-      }
-      source = await file.readAsString();
-    } on Object {
-      source = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
-    }
-    if (source == null || source.isEmpty) return;
-    final added = await store.importMonitorProfiles(source);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          added == null || added == 0
-              ? store.message ?? 'Não foi possível importar os perfis.'
-              : '$added perfis importados. Confira as senhas das câmeras neste dispositivo.',
+    final source = await readTransferSource(context);
+    if (source == null || !context.mounted) return;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Adicionar perfil recebido?'),
+        content: const Text(
+          'Serão adicionados os perfis e as câmeras recebidas, com os dados de acesso incluídos pelo remetente. Seus perfis atuais serão mantidos.',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Importar e abrir'),
+          ),
+        ],
       ),
     );
+    if (accepted != true) return;
+    final added = await store.importMonitorProfiles(source);
+    if (!context.mounted) return;
+    if (added != null && added > 0) {
+      final applied = await store.applyMonitorProfile(
+        store.config.monitorProfiles.last.id,
+      );
+      if (!context.mounted) return;
+      if (applied) onImported?.call();
+    }
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            added == null || added == 0
+                ? store.message ?? 'Não foi possível importar o perfil.'
+                : '$added perfil(is) importado(s).',
+          ),
+        ),
+      );
+    }
   }
 
   String _startupLabel(String value) => switch (value) {

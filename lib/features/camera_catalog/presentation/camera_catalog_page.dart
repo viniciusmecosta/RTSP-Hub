@@ -132,7 +132,9 @@ class _CameraCatalogPageState extends State<CameraCatalogPage> {
                     camera: cameras[index],
                     showHost: !store.config.simpleMode,
                     onEdit: () => _edit(context, cameras[index]),
-                    onClone: () => _clone(context, store, cameras[index]),
+                    onClone: store.config.simpleMode
+                        ? null
+                        : () => _clone(context, store, cameras[index]),
                     onDelete: () => _delete(context, store, cameras[index]),
                   ),
                   childCount: cameras.length,
