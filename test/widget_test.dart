@@ -32,6 +32,7 @@ void main() {
     await tester.pumpWidget(
       _app(
         configuration: AppConfiguration(
+          simpleMode: false,
           startupSection: 'dashboard',
           tutorialCompleted: true,
           cameras: cameras,
@@ -68,6 +69,7 @@ void main() {
       await tester.pumpWidget(
         _app(
           configuration: const AppConfiguration(
+            simpleMode: false,
             startupSection: 'monitor',
             tutorialCompleted: true,
           ),
@@ -114,6 +116,7 @@ void main() {
     await tester.pumpWidget(
       _app(
         configuration: const AppConfiguration(
+          simpleMode: false,
           startupSection: 'monitor',
           tutorialCompleted: true,
         ),
@@ -134,7 +137,7 @@ void main() {
   testWidgets('abre a tela inicial do RTSP Hub', (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Entendi'));
+    await tester.tap(find.text('Pular'));
     await tester.pumpAndSettle();
 
     expect(find.text('Adicionar câmera'), findsWidgets);
@@ -145,7 +148,7 @@ void main() {
   ) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Entendi'));
+    await tester.tap(find.text('Pular'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Monitor'));
     await tester.pumpAndSettle();
@@ -185,7 +188,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Entendi'));
+    await tester.tap(find.text('Pular'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('sidebar_layouts')));
     await tester.pumpAndSettle();
@@ -207,9 +210,11 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Entendi'));
+    await tester.tap(find.text('Pular'));
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byKey(const ValueKey('sidebar_cameras')));
+    await tester.pumpAndSettle();
     expect(find.text('Encontrar câmeras na rede'), findsOneWidget);
     expect(find.text('Achador de canais'), findsNothing);
     await tester.tap(find.text('Encontrar câmeras na rede'));
@@ -245,6 +250,7 @@ void main() {
     await tester.pumpWidget(
       _app(
         configuration: const AppConfiguration(
+          simpleMode: false,
           cameras: [camera],
           startupSection: 'layouts',
           tutorialCompleted: true,
@@ -308,6 +314,7 @@ void main() {
     await tester.pumpWidget(
       _app(
         configuration: const AppConfiguration(
+          simpleMode: false,
           cameras: cameras,
           startupSection: 'layouts',
           tutorialCompleted: true,
@@ -352,6 +359,7 @@ void main() {
     await tester.pumpWidget(
       _app(
         configuration: const AppConfiguration(
+          simpleMode: false,
           cameras: cameras,
           layoutId: 'GRID_2H',
           slotCameraIds: [null, null],
@@ -386,6 +394,7 @@ void main() {
         slotCameraIds: [null, null],
       );
       final config = const AppConfiguration(
+        simpleMode: false,
         startupSection: 'dashboard',
         tutorialCompleted: true,
         monitorProfiles: [profile],
@@ -426,6 +435,7 @@ void main() {
     await tester.pumpWidget(
       _app(
         configuration: const AppConfiguration(
+          simpleMode: false,
           startupSection: 'dashboard',
           tutorialCompleted: true,
           monitorProfiles: [profile],
@@ -449,6 +459,7 @@ void main() {
       await tester.pumpWidget(
         _app(
           configuration: const AppConfiguration(
+            simpleMode: false,
             layoutId: 'FREEFORM',
             startupSection: 'layouts',
             tutorialCompleted: true,
@@ -481,7 +492,9 @@ MyApp _app({AppConfiguration? configuration}) => MyApp(
 
 class _TestConfigRepository extends ConfigRepository {
   _TestConfigRepository([AppConfiguration? configuration])
-    : configuration = configuration ?? const AppConfiguration();
+    : configuration =
+          configuration ??
+          const AppConfiguration(simpleMode: false, startupSection: 'cameras');
 
   AppConfiguration configuration;
 

@@ -124,6 +124,7 @@ void main() {
     );
     final repo = MemoryRepository()
       ..value = AppConfiguration(
+        simpleMode: false,
         cameras: cameras,
         layoutId: 'GRID_8',
         slotCameraIds: cameras.map((c) => c.id).toList(),
@@ -242,6 +243,7 @@ void main() {
       );
       final repo = MemoryRepository()
         ..value = AppConfiguration(
+          simpleMode: false,
           cameras: cameras,
           layoutId: 'GRID_4',
           slotCameraIds: cameras.map((c) => c.id).toList(),
@@ -307,6 +309,7 @@ void main() {
         addTearDown(tester.view.resetDevicePixelRatio);
         final repo = MemoryRepository()
           ..value = AppConfiguration(
+            simpleMode: false,
             startupSection: 'settings',
             tutorialCompleted: true,
             themeMode: theme,

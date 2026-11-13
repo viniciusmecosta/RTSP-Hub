@@ -13,6 +13,7 @@ class MonitorCameraViewport extends StatefulWidget {
     required this.pageStart,
     this.freeformSlots = const [],
     this.focusedIndex,
+    this.onVisibleSlotsChanged,
     super.key,
   });
 
@@ -21,6 +22,7 @@ class MonitorCameraViewport extends StatefulWidget {
   final int pageStart;
   final List<FreeformSlot> freeformSlots;
   final int? focusedIndex;
+  final ValueChanged<Set<int>>? onVisibleSlotsChanged;
 
   @override
   State<MonitorCameraViewport> createState() => _MonitorCameraViewportState();
@@ -28,6 +30,17 @@ class MonitorCameraViewport extends StatefulWidget {
 
 class _MonitorCameraViewportState extends State<MonitorCameraViewport> {
   final _scrollController = ScrollController(keepScrollOffset: false);
+  Set<int> _lastVisible = {};
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (mounted) setState(() {});
+  }
+
   double _gridOffset = 0;
   int _scrollRevision = 0;
 
@@ -127,6 +140,29 @@ class _MonitorCameraViewportState extends State<MonitorCameraViewport> {
         ];
       } else {
         rectangles = [for (final rect in rectangles) rect.deflate(1.5)];
+      }
+      if (widget.onVisibleSlotsChanged != null) {
+        final offset = _scrollController.hasClients
+            ? _scrollController.offset
+            : 0.0;
+        final visibleArea = Rect.fromLTWH(
+          0,
+          offset,
+          canvas.width,
+          canvas.height,
+        );
+        final visible = <int>{
+          for (var i = 0; i < count; i++)
+            if (hasFocus ? i == focused : rectangles[i].overlaps(visibleArea))
+              widget.pageStart + i,
+        };
+        if (visible.length != _lastVisible.length ||
+            !visible.containsAll(_lastVisible)) {
+          _lastVisible = visible;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) widget.onVisibleSlotsChanged?.call(visible);
+          });
+        }
       }
       return SingleChildScrollView(
         controller: _scrollController,
