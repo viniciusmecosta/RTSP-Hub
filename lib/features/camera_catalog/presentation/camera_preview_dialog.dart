@@ -23,6 +23,7 @@ class CameraPreviewDialog extends StatefulWidget {
     required this.defaultPort,
     required this.bufferMs,
     this.captureOnly = false,
+    this.simpleMode = false,
     this.session,
     super.key,
   });
@@ -32,6 +33,7 @@ class CameraPreviewDialog extends StatefulWidget {
   final int defaultPort;
   final int bufferMs;
   final bool captureOnly;
+  final bool simpleMode;
   final RtspSession? session;
 
   static Future<void> openSaved(
@@ -45,6 +47,7 @@ class CameraPreviewDialog extends StatefulWidget {
       context: context,
       builder: (_) => CameraPreviewDialog(
         camera: store.resolveCamera(camera),
+        simpleMode: store.config.simpleMode,
         password: password,
         defaultPort: store.config.defaultPort,
         bufferMs: store.config.bufferMs,
@@ -216,6 +219,7 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
             ),
           if (!_session.firstFrameRendered.value)
             CameraLoadingView(
+              simpleMode: widget.simpleMode,
               status: _session.status.value,
               error: _session.error.value,
             ),
@@ -322,6 +326,7 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
                         ),
                       if (!_session.firstFrameRendered.value)
                         CameraLoadingView(
+                          simpleMode: widget.simpleMode,
                           status: _session.status.value,
                           error: _session.error.value,
                         ),
@@ -336,7 +341,7 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
                         ? 'Aguardando vídeo para capturar a miniatura.'
                         : 'Miniatura capturada • ${_session.currentResolution ?? 'Vídeo ao vivo'}'),
               ),
-              if (_session.error.value != null) ...[
+              if (!widget.simpleMode && _session.error.value != null) ...[
                 const SizedBox(height: 8),
                 Text(
                   _session.error.value!,
