@@ -3,12 +3,13 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../../../app/state/app_store.dart';
 import '../../../features/camera_catalog/domain/camera_device.dart';
+import '../../camera_catalog/presentation/camera_picker.dart';
 import '../../../features/layouts/domain/layout_preset.dart';
 import '../application/rtsp_session.dart';
 import '../application/rtsp_connection_coordinator.dart';
@@ -61,6 +62,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   Timer? _diagnosticTimer;
   final ValueNotifier<int> _diagnosticTick = ValueNotifier(0);
   int _page = 0;
+  Set<int>? _viewportSlots;
   bool? _mainStreams;
   final ValueNotifier<bool> _controlsVisible = ValueNotifier(false);
   late DateTime _lastInteraction;
@@ -175,6 +177,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     } else if (_lastLayoutId != null &&
         _lastLayoutId != store.config.layoutId) {
       _page = 0;
+      _viewportSlots = null;
       unawaited(store.updateSettings(lastMonitorPage: 0));
     }
     _lastLayoutId = store.config.layoutId;
@@ -191,10 +194,19 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     final end = (start + pageSize).clamp(0, ids.length);
     final pageSlots = ids.sublist(start, end);
     final visibleIds = pageSlots
+        .asMap()
+        .entries
+        .where(
+          (entry) =>
+              !store.config.simpleMode ||
+              _viewportSlots == null ||
+              _viewportSlots!.contains(start + entry.key),
+        )
+        .map((entry) => entry.value)
         .whereType<String>()
         .where(cameraById.containsKey)
         .toSet();
-    if (_focusedCameraId != null && !visibleIds.contains(_focusedCameraId)) {
+    if (_focusedCameraId != null && !pageSlots.contains(_focusedCameraId)) {
       _focusedCameraId = null;
     }
     _syncBackgroundSessions();
@@ -219,8 +231,11 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       final existing = _sessions[id];
       final mainStream = StreamSelectionPolicy.useMainStream(
         resourceMode: store.config.resourceMode,
-        defaultStreamMode: store.config.defaultStreamMode,
-        manualChoice: _mainStreams,
+        defaultStreamMode: store.config.simpleMode
+            ? 'sub'
+            : store.config.defaultStreamMode,
+        focused: store.config.simpleMode && _focusedCameraId == id,
+        manualChoice: store.config.simpleMode ? null : _mainStreams,
         hasSubStream: effectiveCamera.activeChannel?.sub != null,
       );
       if (existing != null &&
@@ -353,6 +368,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
   void _changePage(int page, AppStore store) {
     setState(() {
       _page = page;
+      _viewportSlots = null;
       _focusedCameraId = null;
     });
     unawaited(store.updateSettings(lastMonitorPage: page));
@@ -474,9 +490,21 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                   child: RepaintBoundary(
                     key: const ValueKey('monitorViewport'),
                     child: store.cameras.isEmpty
-                        ? const MonitorEmptyView(
-                            message:
-                                'Cadastre câmeras para começar a visualizar.',
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const MonitorEmptyView(
+                                  message:
+                                      'Adicione sua primeira câmera para ver a imagem aqui.',
+                                ),
+                                FilledButton.icon(
+                                  onPressed: widget.onConfigure,
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('Adicionar câmera'),
+                                ),
+                              ],
+                            ),
                           )
                         : visibleCount == 0
                         ? const MonitorEmptyView(
@@ -485,6 +513,15 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                           )
                         : MonitorCameraViewport(
                             layout: layout,
+                            onVisibleSlotsChanged: store.config.simpleMode
+                                ? (slots) {
+                                    if (setEquals(_viewportSlots, slots)) {
+                                      return;
+                                    }
+                                    _viewportSlots = slots;
+                                    unawaited(_syncSessions());
+                                  }
+                                : null,
                             pageStart: from,
                             freeformSlots: store.config.freeformSlots,
                             focusedIndex:
@@ -521,7 +558,18 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                         : const SizedBox.shrink(),
                   ),
                 ),
-                if (_showDiagnostics)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: _controlsVisible,
+                    builder: (context, visible, _) => visible
+                        ? SafeArea(top: false, child: _quickLayouts(store))
+                        : const SizedBox.shrink(),
+                  ),
+                ),
+                if (_showDiagnostics && !store.config.simpleMode)
                   Positioned(
                     top: 76,
                     right: 12,
@@ -551,6 +599,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     return MonitorCameraTile(
       key: ValueKey('monitor-camera-slot-$slotIndex'),
       camera: camera,
+      simpleMode: store.config.simpleMode,
       fitMode: store.config.videoFitMode,
       autofocus:
           DeviceEnvironmentScope.of(context).isTelevision &&
@@ -563,14 +612,23 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                       ) ||
               _focusedCameraId == id),
       session: session,
+      onChoose: () => _chooseCamera(slotIndex),
+      onDoubleTap: store.config.simpleMode
+          ? () => _toggleCameraFocus(camera)
+          : null,
       onTap: () {
+        if (store.config.simpleMode && _focusedCameraId == null) {
+          _chooseCamera(slotIndex);
+          return;
+        }
         if (camera != null) {
           setState(() {
             _focusedCameraId = _focusedCameraId == camera.id ? null : camera.id;
           });
           _syncBackgroundSessions();
+          if (store.config.simpleMode) unawaited(_syncSessions());
         } else {
-          _revealControls();
+          _chooseCamera(slotIndex);
         }
       },
       onFocus: camera == null
@@ -590,6 +648,72 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
       onRetry: session == null ? null : () => session.start(),
     );
   }
+
+  void _toggleCameraFocus(CameraDevice? camera) {
+    if (camera == null) return;
+    setState(
+      () => _focusedCameraId = _focusedCameraId == camera.id ? null : camera.id,
+    );
+    _syncBackgroundSessions();
+    if (AppScope.of(context).config.simpleMode) unawaited(_syncSessions());
+    _revealControls();
+  }
+
+  Future<void> _chooseCamera(int index) async {
+    final store = AppScope.of(context);
+    _revealControls();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => CameraPicker(
+        store: store,
+        position: index + 1,
+        selectedId: store.config.slotCameraIds[index],
+        onSelected: (id) {
+          Navigator.pop(context);
+          unawaited(store.setSlot(index, id));
+        },
+      ),
+    );
+    if (mounted) _revealControls();
+  }
+
+  Widget _quickLayouts(AppStore store) => Material(
+    color: const Color(0xFF101C2E),
+    child: SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.all(8),
+      child: Row(
+        children: [
+          for (final choice in const [
+            ('SINGLE', '1×1'),
+            ('GRID_4', '2×2'),
+            ('GRID_9', '3×3'),
+            ('FOCUS_BASE_RIGHT_5', '1+5'),
+          ])
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                avatar: const Icon(Icons.grid_view, size: 18),
+                label: Text(choice.$2),
+                selected: store.config.layoutId == choice.$1,
+                onSelected: (_) {
+                  _viewportSlots = null;
+                  store.setLayout(choice.$1);
+                  _revealControls();
+                },
+              ),
+            ),
+          TextButton.icon(
+            onPressed: widget.onOpenLayouts,
+            icon: const Icon(Icons.edit),
+            label: const Text('Editar layout'),
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _diagnostics(
     BuildContext context,
@@ -753,6 +877,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
     if (_focusedCameraId != null) {
       setState(() => _focusedCameraId = null);
       _syncBackgroundSessions();
+      if (AppScope.of(context).config.simpleMode) unawaited(_syncSessions());
     } else if (_showDiagnostics) {
       _closeDiagnostics();
     } else if (!_showControls) {
@@ -852,7 +977,9 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
           children: [
             IconButton(
               visualDensity: veryCompact ? VisualDensity.compact : null,
-              tooltip: 'Voltar para início',
+              tooltip: store.config.simpleMode
+                  ? 'Ajustes'
+                  : 'Voltar para início',
               onPressed: widget.onExit,
               icon: const Icon(Icons.arrow_back, color: Colors.white),
             ),
@@ -885,6 +1012,7 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                   }
                 });
                 _syncBackgroundSessions();
+                if (store.config.simpleMode) unawaited(_syncSessions());
               },
               icon: Icon(
                 _focusedCameraId == null
@@ -936,126 +1064,127 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                   color: _page + 1 < pages ? Colors.white : Colors.white38,
                 ),
               ),
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF334155)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Tooltip(
-                    message: 'Alta Definição (HD - Fluxo principal)',
-                    child: InkWell(
-                      key: const ValueKey('monitor-stream-hd'),
-                      borderRadius: const BorderRadius.horizontal(
-                        left: Radius.circular(7),
-                      ),
-                      onTap: () {
-                        if (_mainStreams != true) {
-                          setState(() => _mainStreams = true);
-                          unawaited(_restartSessions());
-                        }
-                      },
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: veryCompact ? 6 : 9,
-                          vertical: veryCompact ? 4 : 5,
+            if (!store.config.simpleMode)
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF334155)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Tooltip(
+                      message: 'Alta Definição (HD - Fluxo principal)',
+                      child: InkWell(
+                        key: const ValueKey('monitor-stream-hd'),
+                        borderRadius: const BorderRadius.horizontal(
+                          left: Radius.circular(7),
                         ),
-                        decoration: BoxDecoration(
-                          color: mainStreams
-                              ? const Color(0xFF2563EB)
-                              : Colors.transparent,
-                          borderRadius: const BorderRadius.horizontal(
-                            left: Radius.circular(7),
+                        onTap: () {
+                          if (_mainStreams != true) {
+                            setState(() => _mainStreams = true);
+                            unawaited(_restartSessions());
+                          }
+                        },
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: veryCompact ? 6 : 9,
+                            vertical: veryCompact ? 4 : 5,
                           ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.hd,
-                              size: 16,
-                              color: mainStreams
-                                  ? Colors.white
-                                  : const Color(0xFF94A3B8),
+                          decoration: BoxDecoration(
+                            color: mainStreams
+                                ? const Color(0xFF2563EB)
+                                : Colors.transparent,
+                            borderRadius: const BorderRadius.horizontal(
+                              left: Radius.circular(7),
                             ),
-                            const SizedBox(width: 3),
-                            Text(
-                              'HD',
-                              style: TextStyle(
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.hd,
+                                size: 16,
                                 color: mainStreams
                                     ? Colors.white
                                     : const Color(0xFF94A3B8),
-                                fontSize: 12,
-                                fontWeight: mainStreams
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 3),
+                              Text(
+                                'HD',
+                                style: TextStyle(
+                                  color: mainStreams
+                                      ? Colors.white
+                                      : const Color(0xFF94A3B8),
+                                  fontSize: 12,
+                                  fontWeight: mainStreams
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Tooltip(
-                    message: 'Econômico (SD - Subfluxo)',
-                    child: InkWell(
-                      key: const ValueKey('monitor-stream-sd'),
-                      borderRadius: const BorderRadius.horizontal(
-                        right: Radius.circular(7),
-                      ),
-                      onTap: () {
-                        if (_mainStreams != false) {
-                          setState(() => _mainStreams = false);
-                          unawaited(_restartSessions());
-                        }
-                      },
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: veryCompact ? 6 : 9,
-                          vertical: veryCompact ? 4 : 5,
+                    Tooltip(
+                      message: 'Econômico (SD - Subfluxo)',
+                      child: InkWell(
+                        key: const ValueKey('monitor-stream-sd'),
+                        borderRadius: const BorderRadius.horizontal(
+                          right: Radius.circular(7),
                         ),
-                        decoration: BoxDecoration(
-                          color: !mainStreams
-                              ? const Color(0xFF0D9488)
-                              : Colors.transparent,
-                          borderRadius: const BorderRadius.horizontal(
-                            right: Radius.circular(7),
+                        onTap: () {
+                          if (_mainStreams != false) {
+                            setState(() => _mainStreams = false);
+                            unawaited(_restartSessions());
+                          }
+                        },
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: veryCompact ? 6 : 9,
+                            vertical: veryCompact ? 4 : 5,
                           ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.sd,
-                              size: 16,
-                              color: !mainStreams
-                                  ? Colors.white
-                                  : const Color(0xFF94A3B8),
+                          decoration: BoxDecoration(
+                            color: !mainStreams
+                                ? const Color(0xFF0D9488)
+                                : Colors.transparent,
+                            borderRadius: const BorderRadius.horizontal(
+                              right: Radius.circular(7),
                             ),
-                            const SizedBox(width: 3),
-                            Text(
-                              'SD',
-                              style: TextStyle(
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.sd,
+                                size: 16,
                                 color: !mainStreams
                                     ? Colors.white
                                     : const Color(0xFF94A3B8),
-                                fontSize: 12,
-                                fontWeight: !mainStreams
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 3),
+                              Text(
+                                'SD',
+                                style: TextStyle(
+                                  color: !mainStreams
+                                      ? Colors.white
+                                      : const Color(0xFF94A3B8),
+                                  fontSize: 12,
+                                  fontWeight: !mainStreams
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             SizedBox(width: veryCompact ? 2 : 6),
             PopupMenuButton<String>(
               padding: veryCompact
@@ -1064,7 +1193,9 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
               tooltip: 'Ações do monitor',
               iconColor: Colors.white,
               onSelected: (value) {
-                if (value.startsWith('layout:')) {
+                if (value == 'mode') {
+                  store.updateSettings(simpleMode: !store.config.simpleMode);
+                } else if (value.startsWith('layout:')) {
                   store.setLayout(value.substring(7));
                 } else if (value == 'auto-quality') {
                   setState(() => _mainStreams = null);
@@ -1090,6 +1221,12 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                 }
               },
               itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'mode',
+                  child: Text(
+                    store.config.simpleMode ? 'Modo Avançado' : 'Modo Simples',
+                  ),
+                ),
                 if (_mainStreams != null)
                   const PopupMenuItem(
                     value: 'auto-quality',
@@ -1104,14 +1241,15 @@ class _MonitorPageState extends State<MonitorPage> with WidgetsBindingObserver {
                     value: 'layouts',
                     child: Text('Editar layout e perfis'),
                   ),
-                PopupMenuItem(
-                  value: 'diagnostics',
-                  child: Text(
-                    _showDiagnostics
-                        ? 'Fechar diagnósticos'
-                        : 'Diagnósticos das câmeras',
+                if (!store.config.simpleMode)
+                  PopupMenuItem(
+                    value: 'diagnostics',
+                    child: Text(
+                      _showDiagnostics
+                          ? 'Fechar diagnósticos'
+                          : 'Diagnósticos das câmeras',
+                    ),
                   ),
-                ),
                 if (desktop)
                   const PopupMenuItem(
                     value: 'fullscreen',

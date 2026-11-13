@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../app/state/app_store.dart';
@@ -11,6 +11,7 @@ import '../domain/camera_channel.dart';
 import '../domain/camera_field_validation.dart';
 import '../domain/found_channel.dart';
 import 'camera_preview_dialog.dart';
+import 'camera_setup_wizard.dart';
 import 'saved_frame_label.dart';
 import 'widgets/camera_auth_fields.dart';
 import 'widgets/camera_network_fields.dart';
@@ -56,6 +57,8 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
   String? _thumbnailIdentity;
   late final String _initialIdentity;
   bool _obscure = true;
+  late bool _simple;
+  final _url = TextEditingController();
   bool _portOverride = false;
   bool _busy = false;
   bool _testing = false;
@@ -70,6 +73,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _prober = CameraChannelProber();
+    _simple = widget.store.config.simpleMode;
     final camera = widget.camera;
     final selected = camera?.channels.isNotEmpty == true
         ? camera!.activeChannel
@@ -149,6 +153,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
       _password,
       _mainPath,
       _subPath,
+      _url,
     ]) {
       controller.dispose();
     }
@@ -186,58 +191,97 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
                           _buildThumbnail(),
                           const SizedBox(height: 16),
                         ],
-                        const Text(
-                          'Preencha apenas o que for diferente da conexão global. Cada campo vazio usa seu próprio padrão.',
-                        ),
-                        const SizedBox(height: 18),
-                        CameraNetworkFields(
-                          nameController: _name,
-                          hostController: _host,
-                          portController: _port,
-                          mainPathController: _mainPath,
-                          store: widget.store,
-                          editingCamera: widget.camera,
-                          portOverridden: _portOverride,
-                          onPortChanged: (_) =>
-                              setState(() => _portOverride = true),
-                          onPortReset: () => setState(() {
-                            _portOverride = false;
-                            _port.text = '${widget.store.config.defaultPort}';
-                          }),
-                        ),
-                        const SizedBox(height: 12),
-                        CameraAuthFields(
-                          usernameController: _username,
-                          passwordController: _password,
-                          defaultUser: widget.store.config.defaultUser,
-                          hasGlobalPassword:
-                              widget.globalPassword?.isNotEmpty == true,
-                          obscurePassword: _obscure,
-                          onToggleObscure: () =>
-                              setState(() => _obscure = !_obscure),
-                        ),
-                        const SizedBox(height: 12),
-                        CameraPathFields(
-                          mainPathController: _mainPath,
-                          subPathController: _subPath,
-                          defaultPath: widget.store.config.defaultPath,
-                          defaultSubPath: widget.store.config.defaultSubPath,
-                          inheritsSubPath: _channels.isEmpty,
-                          savedPaths: _savedPaths,
-                          channels: _channels.isNotEmpty
-                              ? _channels
-                              : CameraChannel.migrate(
-                                  mainPath: _mainPath.text.trim(),
-                                  subPath: _subPath.text.trim(),
-                                  savedPaths: _savedPaths,
-                                ),
-                          selectedChannelId: _selectedChannelId,
-                          onAddSavedPath: (path) =>
-                              setState(() => _savedPaths.add(path)),
-                          onSelectSavedPath: _selectChannel,
-                          onRemoveSavedPath: _removeChannel,
-                          isProbingOrTesting: _finding || _testing,
-                        ),
+                        if (_simple)
+                          CameraSetupWizard(
+                            name: _name,
+                            host: _host,
+                            username: _username,
+                            password: _password,
+                            validate: () => _formKey.currentState!.validate(),
+                            onTest: _testStream,
+                            onSave: _save,
+                            onAdvanced: () {
+                              setState(() => _simple = false);
+                              widget.store.updateSettings(simpleMode: false);
+                            },
+                            onTemplate: _applyTemplate,
+                            busy: _busy || _testing,
+                            tested:
+                                _thumbnail != null &&
+                                _thumbnailIdentity == _captureIdentity,
+                            editing: widget.camera != null,
+                          ),
+                        if (!_simple) ...[
+                          TextFormField(
+                            controller: _url,
+                            obscureText: true,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            decoration: InputDecoration(
+                              labelText: 'URL RTSP completa',
+                              hintText: 'rtsp://usuario:senha@IP:554/caminho',
+                              suffixIcon: IconButton(
+                                tooltip: 'Aplicar URL',
+                                onPressed: _applyUrl,
+                                icon: const Icon(Icons.check),
+                              ),
+                            ),
+                            onFieldSubmitted: (_) => _applyUrl(),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Preencha apenas o que for diferente da conexão global. Cada campo vazio usa seu próprio padrão.',
+                          ),
+                          const SizedBox(height: 18),
+                          CameraNetworkFields(
+                            nameController: _name,
+                            hostController: _host,
+                            portController: _port,
+                            mainPathController: _mainPath,
+                            store: widget.store,
+                            editingCamera: widget.camera,
+                            portOverridden: _portOverride,
+                            onPortChanged: (_) =>
+                                setState(() => _portOverride = true),
+                            onPortReset: () => setState(() {
+                              _portOverride = false;
+                              _port.text = '${widget.store.config.defaultPort}';
+                            }),
+                          ),
+                          const SizedBox(height: 12),
+                          CameraAuthFields(
+                            usernameController: _username,
+                            passwordController: _password,
+                            defaultUser: widget.store.config.defaultUser,
+                            hasGlobalPassword:
+                                widget.globalPassword?.isNotEmpty == true,
+                            obscurePassword: _obscure,
+                            onToggleObscure: () =>
+                                setState(() => _obscure = !_obscure),
+                          ),
+                          const SizedBox(height: 12),
+                          CameraPathFields(
+                            mainPathController: _mainPath,
+                            subPathController: _subPath,
+                            defaultPath: widget.store.config.defaultPath,
+                            defaultSubPath: widget.store.config.defaultSubPath,
+                            inheritsSubPath: _channels.isEmpty,
+                            savedPaths: _savedPaths,
+                            channels: _channels.isNotEmpty
+                                ? _channels
+                                : CameraChannel.migrate(
+                                    mainPath: _mainPath.text.trim(),
+                                    subPath: _subPath.text.trim(),
+                                    savedPaths: _savedPaths,
+                                  ),
+                            selectedChannelId: _selectedChannelId,
+                            onAddSavedPath: (path) =>
+                                setState(() => _savedPaths.add(path)),
+                            onSelectSavedPath: _selectChannel,
+                            onRemoveSavedPath: _removeChannel,
+                            isProbingOrTesting: _finding || _testing,
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -254,7 +298,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
                   ),
                 ],
                 const SizedBox(height: 16),
-                _buildActions(context),
+                if (!_simple) _buildActions(context),
               ],
             ),
           ),
@@ -356,7 +400,68 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
     );
   }
 
+  void _applyTemplate(String template) {
+    if (template == 'existing') return;
+    setState(() {
+      _mainPath.text = template == 'hikvision'
+          ? '/Streaming/Channels/101'
+          : '/cam/realmonitor?channel=1&subtype=0';
+      _subPath.text = template == 'hikvision'
+          ? '/Streaming/Channels/102'
+          : '/cam/realmonitor?channel=1&subtype=1';
+      _channels = [];
+      _savedPaths = [];
+      _selectedChannelId = '';
+    });
+  }
+
+  bool _applyUrl() {
+    try {
+      final uri = Uri.parse(_url.text.trim());
+      final path = uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
+      if (uri.scheme != 'rtsp' ||
+          uri.hasFragment ||
+          CameraFieldValidation.hostError(uri.host) != null ||
+          CameraFieldValidation.pathError(path) != null ||
+          (uri.hasPort && (uri.port < 1 || uri.port > 65535))) {
+        throw const FormatException();
+      }
+      final auth = uri.userInfo;
+      final separator = auth.indexOf(':');
+      final user = Uri.decodeComponent(
+        separator < 0 ? auth : auth.substring(0, separator),
+      );
+      final password = separator < 0
+          ? ''
+          : Uri.decodeComponent(auth.substring(separator + 1));
+      setState(() {
+        _host.text = uri.host;
+        _port.text = '${uri.hasPort ? uri.port : 554}';
+        _portOverride = true;
+        _mainPath.text = path;
+        _subPath.clear();
+        _username.text = user;
+        _password.text = password;
+        _channels = [];
+        _savedPaths = [];
+        _selectedChannelId = '';
+        _url.clear();
+      });
+      return true;
+    } on Object {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'URL inválida. Use rtsp://usuario:senha@endereço:porta/caminho.',
+          ),
+        ),
+      );
+      return false;
+    }
+  }
+
   Future<void> _testStream() async {
+    if (_url.text.trim().isNotEmpty && !_applyUrl()) return;
     if (!_formKey.currentState!.validate()) return;
     FocusManager.instance.primaryFocus?.unfocus();
     final host = _host.text.trim();
@@ -380,6 +485,7 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
       barrierDismissible: false,
       builder: (_) => CameraPreviewDialog(
         camera: widget.store.resolveCamera(camera),
+        simpleMode: _simple,
         password: _password.text.isEmpty
             ? widget.globalPassword
             : _password.text,
@@ -563,9 +669,11 @@ class _CameraEditorDialogState extends State<CameraEditorDialog>
   }
 
   Future<void> _save() async {
+    if (_url.text.trim().isNotEmpty && !_applyUrl()) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _busy = true);
-    if (_thumbnail == null || _thumbnailIdentity != _captureIdentity) {
+    if (!_simple &&
+        (_thumbnail == null || _thumbnailIdentity != _captureIdentity)) {
       await _testStream();
       if (!mounted) return;
     }

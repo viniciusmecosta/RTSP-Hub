@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rtsp_hub/shared/design_system/app_logo.dart';
 import 'package:rtsp_hub/main.dart';
@@ -19,6 +19,7 @@ void main() {
   );
 
   const config = AppConfiguration(
+    simpleMode: false,
     startupSection: 'dashboard',
     tutorialCompleted: true,
     cameras: [
@@ -156,16 +157,16 @@ void main() {
     );
     addTearDown(store.dispose);
     await store.load();
-    await tester.pumpWidget(
-      AppScope(
-        store: store,
-        child: const MaterialApp(home: SettingsPage()),
-      ),
-    );
-    await tester.pumpWidget(const SizedBox());
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        AppScope(
+          store: store,
+          child: const MaterialApp(home: SettingsPage()),
+        ),
+      );
+      await tester.pumpWidget(const SizedBox());
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
     await tester.pump();
     expect(tester.takeException(), isNull);
   });
@@ -211,7 +212,8 @@ MyApp _app({AppConfiguration? configuration}) => MyApp(
 
 class _TestConfigRepository extends ConfigRepository {
   _TestConfigRepository([AppConfiguration? configuration])
-    : configuration = configuration ?? const AppConfiguration();
+    : configuration =
+          configuration ?? const AppConfiguration(simpleMode: false);
 
   AppConfiguration configuration;
 

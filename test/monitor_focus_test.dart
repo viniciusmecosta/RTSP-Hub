@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rtsp_hub/app/data/app_configuration.dart';
@@ -47,6 +47,7 @@ class _Session extends RtspSession {
 Future<({AppStore store, List<_Session> sessions})> _openMonitor(
   WidgetTester tester, {
   String layout = 'GRID_4',
+  bool simple = false,
   String resourceMode = 'balanced',
   Completer<void>? blocked,
 }) async {
@@ -62,6 +63,7 @@ Future<({AppStore store, List<_Session> sessions})> _openMonitor(
   );
   final repo = MemoryRepository()
     ..value = AppConfiguration(
+      simpleMode: simple,
       cameras: cameras,
       layoutId: layout,
       resourceMode: resourceMode,
@@ -118,6 +120,41 @@ Future<({AppStore store, List<_Session> sessions})> _openMonitor(
 }
 
 void main() {
+  testWidgets('simple monitor changes cells and upgrades focused stream', (
+    tester,
+  ) async {
+    final monitor = await _openMonitor(tester, simple: true);
+    expect(
+      monitor.sessions.where((s) => !s.released).every((s) => !s.useMainStream),
+      isTrue,
+    );
+    final tile = find.byKey(const ValueKey('monitor-camera-slot-0'));
+    await tester.tap(tile);
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    expect(find.text('Câmera da posição 1'), findsOneWidget);
+    await tester.tap(find.byTooltip('Fechar seleção'));
+    await tester.pumpAndSettle();
+    await tester.tap(tile);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+    final playing = monitor.sessions.where((s) => !s.released).toList();
+    expect(playing.length, 1);
+    expect(playing.single.useMainStream, isTrue);
+    await tester.tap(tile);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+    expect(monitor.sessions.where((s) => !s.released).length, 4);
+    expect(
+      monitor.sessions.where((s) => !s.released).every((s) => !s.useMainStream),
+      isTrue,
+    );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('an empty page cannot focus a camera from another page', (
     tester,
   ) async {

@@ -1,13 +1,15 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+
 import '../shared/infrastructure/single_instance/single_instance_guard.dart';
 
 import 'state/app_store.dart';
 import '../shared/design_system/app_theme.dart';
 import '../shared/platform/device_environment.dart';
 import 'app_shell.dart';
+import 'app_launch.dart';
 
 class RtspHubApp extends StatefulWidget {
   const RtspHubApp({
@@ -76,7 +78,7 @@ class _RtspHubAppState extends State<RtspHubApp> {
               },
               child: FocusTraversalGroup(
                 policy: ReadingOrderTraversalPolicy(),
-                child: child ?? const SizedBox.shrink(),
+                child: AppLaunch(child: child ?? const SizedBox.shrink()),
               ),
             ),
             home: AppShell(

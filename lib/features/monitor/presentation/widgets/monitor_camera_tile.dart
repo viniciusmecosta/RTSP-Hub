@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../../camera_catalog/domain/camera_device.dart';
@@ -13,11 +13,14 @@ class MonitorCameraTile extends StatelessWidget {
     required this.session,
     required this.onTap,
     this.onFocus,
+    this.onDoubleTap,
+    this.onChoose,
     this.onClone,
     this.onSwitchChannel,
     this.autofocus = false,
     this.fitMode = 'smart',
     this.showMenu = true,
+    this.simpleMode = false,
     required this.onRetry,
     super.key,
   });
@@ -26,12 +29,15 @@ class MonitorCameraTile extends StatelessWidget {
   final RtspSession? session;
   final VoidCallback onTap;
   final VoidCallback? onFocus;
+  final VoidCallback? onDoubleTap;
+  final VoidCallback? onChoose;
   final VoidCallback? onClone;
   final ValueChanged<String>? onSwitchChannel;
   final VoidCallback? onRetry;
   final bool autofocus;
   final String fitMode;
   final bool showMenu;
+  final bool simpleMode;
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +119,8 @@ class MonitorCameraTile extends StatelessWidget {
             onActivate: onFocus,
             child: GestureDetector(
               onTap: onTap,
+              onDoubleTap: onDoubleTap,
+              onLongPress: onChoose,
               onSecondaryTap: onFocus,
               behavior: HitTestBehavior.opaque,
               child: Stack(
@@ -142,6 +150,7 @@ class MonitorCameraTile extends StatelessWidget {
                           session?.firstFrameRendered.value != true))
                     Positioned.fill(
                       child: CameraLoadingView(
+                        simpleMode: simpleMode,
                         status:
                             session?.status.value ?? CameraPlaybackStatus.idle,
                         error: session?.error.value,

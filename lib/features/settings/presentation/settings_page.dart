@@ -1,13 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
+import '../../../app/data/transfer_codec.dart';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../shared/design_system/app_logo.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:file_selector/file_selector.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../app/state/app_store.dart';
@@ -15,12 +14,17 @@ import '../../../shared/design_system/page_frame.dart';
 import '../../../shared/platform/windows_startup_service.dart';
 import '../../../shared/platform/linux_startup_service.dart';
 import 'global_connection_page.dart';
+import 'credential_export_dialog.dart';
+import 'transfer_export_dialog.dart';
+import 'transfer_import_dialog.dart';
 import '../domain/performance_preset.dart';
 import '../../monitor/domain/rtsp_buffer_policy.dart';
 import '../../../shared/platform/device_environment.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  const SettingsPage({this.onImported, super.key});
+
+  final VoidCallback? onImported;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -93,7 +97,21 @@ class _SettingsPageState extends State<SettingsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const GlobalConnectionShortcut(),
+          Card(
+            child: SwitchListTile(
+              secondary: const Icon(Icons.tune),
+              title: Text(
+                store.config.simpleMode ? 'Modo Simples' : 'Modo Avançado',
+              ),
+              subtitle: const Text(
+                'Ative para mostrar conexões e todos os ajustes técnicos.',
+              ),
+              value: !store.config.simpleMode,
+              onChanged: (advanced) =>
+                  store.updateSettings(simpleMode: !advanced),
+            ),
+          ),
+          if (!store.config.simpleMode) const GlobalConnectionShortcut(),
           const SizedBox(height: 24),
           Text(
             'Aparência e inicialização',
@@ -127,30 +145,49 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 const Divider(height: 1),
-                _SettingDropdownTile<String>(
-                  icon: Icons.start_outlined,
-                  title: 'Ao abrir o aplicativo',
-                  subtitle:
-                      'Automático escolhe o monitor quando há câmeras na grade; Última tela usada retoma onde você saiu.',
-                  value: store.config.startupSection,
-                  items: const [
-                    DropdownMenuItem(value: 'auto', child: Text('Automático')),
-                    DropdownMenuItem(
-                      value: 'last',
-                      child: Text('Última tela usada'),
-                    ),
-                    DropdownMenuItem(value: 'dashboard', child: Text('Início')),
-                    DropdownMenuItem(value: 'monitor', child: Text('Monitor')),
-                    DropdownMenuItem(value: 'cameras', child: Text('Câmeras')),
-                    DropdownMenuItem(value: 'layouts', child: Text('Layouts')),
-                    DropdownMenuItem(value: 'settings', child: Text('Ajustes')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      store.updateSettings(startupSection: value);
-                    }
-                  },
-                ),
+                if (!store.config.simpleMode)
+                  _SettingDropdownTile<String>(
+                    icon: Icons.start_outlined,
+                    title: 'Ao abrir o aplicativo',
+                    subtitle:
+                        'Automático escolhe o monitor quando há câmeras na grade; Última tela usada retoma onde você saiu.',
+                    value: store.config.startupSection,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'auto',
+                        child: Text('Automático'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'last',
+                        child: Text('Última tela usada'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'dashboard',
+                        child: Text('Início'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'monitor',
+                        child: Text('Monitor'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'cameras',
+                        child: Text('Câmeras'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'layouts',
+                        child: Text('Layouts'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'settings',
+                        child: Text('Ajustes'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        store.updateSettings(startupSection: value);
+                      }
+                    },
+                  ),
                 if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) ...[
                   const Divider(height: 1),
                   SwitchListTile(
@@ -187,134 +224,142 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 24),
-          Text(
-            'Reprodução e desempenho',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: Column(
-              children: [
-                _SettingDropdownTile<String>(
-                  icon: Icons.memory_outlined,
-                  title: 'Perfil de desempenho',
-                  subtitle:
-                      'O fluxo secundário reduz o trabalho do computador. O cache varia conforme a taxa do vídeo.',
-                  value: store.config.resourceMode,
-                  items: [
-                    for (final preset in PerformancePreset.values)
-                      DropdownMenuItem(
-                        value: preset.id,
-                        child: Text(preset.label),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      store.updateSettings(
-                        resourceMode: value,
-                        bufferMs: PerformancePreset.fromId(value).bufferMs,
-                      );
-                    }
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.high_quality_outlined),
-                  title: const Text('Cache de rede por câmera'),
-                  subtitle: Text(
-                    'Econômico: ${RtspBufferPolicy.bytesFor(targetMilliseconds: store.config.bufferMs, mainStream: false) ~/ 1024} KiB · principal: ${RtspBufferPolicy.bytesFor(targetMilliseconds: store.config.bufferMs, mainStream: true) ~/ 1024} KiB. Limite de cache, sem reduzir a resolução. Decodificação e imagens usam memória adicional.',
-                  ),
-                ),
-                const Divider(height: 1),
-                _SettingDropdownTile<int>(
-                  icon: Icons.view_comfortable_outlined,
-                  title: 'Câmeras por página',
-                  subtitle: television
-                      ? 'Automático exibe até 4 câmeras na TV. Apenas a página visível reproduz vídeo.'
-                      : 'Automático mostra a grade inteira. Use páginas menores para reduzir o consumo; as outras câmeras ficam em espera.',
-                  value: store.config.monitorPageSize,
-                  items: const [
-                    DropdownMenuItem(value: 0, child: Text('Automático')),
-                    DropdownMenuItem(value: -1, child: Text('Todas da grade')),
-                    DropdownMenuItem(value: 1, child: Text('1 câmera')),
-                    DropdownMenuItem(value: 2, child: Text('2 câmeras')),
-                    DropdownMenuItem(value: 4, child: Text('4 câmeras')),
-                    DropdownMenuItem(value: 6, child: Text('6 câmeras')),
-                    DropdownMenuItem(value: 9, child: Text('9 câmeras')),
-                    DropdownMenuItem(value: 16, child: Text('16 câmeras')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      store.updateSettings(monitorPageSize: value);
-                    }
-                  },
-                ),
-                const Divider(height: 1),
-                _SettingDropdownTile<String>(
-                  icon: Icons.aspect_ratio_outlined,
-                  title: 'Ajuste de vídeo no monitor',
-                  subtitle:
-                      'Inteligente estende o vídeo de forma controlada para aproveitar o espaço sem distorcer demais. Proporção original evita qualquer estiramento.',
-                  value: store.config.videoFitMode,
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'smart',
-                      child: Text('Inteligente (sem exagero)'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'contain',
-                      child: Text('Proporção original'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'fill',
-                      child: Text('Esticar ao máximo'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      store.updateSettings(videoFitMode: value);
-                    }
-                  },
-                ),
-                const Divider(height: 1),
-                _SettingDropdownTile<String>(
-                  icon: Icons.hd_outlined,
-                  title: 'Fluxo padrão no monitor',
-                  subtitle:
-                      'Subfluxo (SD) é mais econômico e leve para múltiplas câmeras. Fluxo principal (HD) exibe sempre em alta definição.',
-                  value: store.config.defaultStreamMode,
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'sub',
-                      child: Text('Subfluxo (Econômico / SD)'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'main',
-                      child: Text('Fluxo principal (HD)'),
-                    ),
-                    DropdownMenuItem(value: 'auto', child: Text('Automático')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      store.updateSettings(defaultStreamMode: value);
-                    }
-                  },
-                ),
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-                  child: Text(
-                    PerformancePreset.fromId(
-                      store.config.resourceMode,
-                    ).description,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
+          if (!store.config.simpleMode) ...[
+            Text(
+              'Reprodução e desempenho',
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-          ),
+            const SizedBox(height: 12),
+            Card(
+              child: Column(
+                children: [
+                  _SettingDropdownTile<String>(
+                    icon: Icons.memory_outlined,
+                    title: 'Perfil de desempenho',
+                    subtitle:
+                        'O fluxo secundário reduz o trabalho do computador. O cache varia conforme a taxa do vídeo.',
+                    value: store.config.resourceMode,
+                    items: [
+                      for (final preset in PerformancePreset.values)
+                        DropdownMenuItem(
+                          value: preset.id,
+                          child: Text(preset.label),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        store.updateSettings(
+                          resourceMode: value,
+                          bufferMs: PerformancePreset.fromId(value).bufferMs,
+                        );
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.high_quality_outlined),
+                    title: const Text('Cache de rede por câmera'),
+                    subtitle: Text(
+                      'Econômico: ${RtspBufferPolicy.bytesFor(targetMilliseconds: store.config.bufferMs, mainStream: false) ~/ 1024} KiB · principal: ${RtspBufferPolicy.bytesFor(targetMilliseconds: store.config.bufferMs, mainStream: true) ~/ 1024} KiB. Limite de cache, sem reduzir a resolução. Decodificação e imagens usam memória adicional.',
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  _SettingDropdownTile<int>(
+                    icon: Icons.view_comfortable_outlined,
+                    title: 'Câmeras por página',
+                    subtitle: television
+                        ? 'Automático exibe até 4 câmeras na TV. Apenas a página visível reproduz vídeo.'
+                        : 'Automático mostra a grade inteira. Use páginas menores para reduzir o consumo; as outras câmeras ficam em espera.',
+                    value: store.config.monitorPageSize,
+                    items: const [
+                      DropdownMenuItem(value: 0, child: Text('Automático')),
+                      DropdownMenuItem(
+                        value: -1,
+                        child: Text('Todas da grade'),
+                      ),
+                      DropdownMenuItem(value: 1, child: Text('1 câmera')),
+                      DropdownMenuItem(value: 2, child: Text('2 câmeras')),
+                      DropdownMenuItem(value: 4, child: Text('4 câmeras')),
+                      DropdownMenuItem(value: 6, child: Text('6 câmeras')),
+                      DropdownMenuItem(value: 9, child: Text('9 câmeras')),
+                      DropdownMenuItem(value: 16, child: Text('16 câmeras')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        store.updateSettings(monitorPageSize: value);
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _SettingDropdownTile<String>(
+                    icon: Icons.aspect_ratio_outlined,
+                    title: 'Ajuste de vídeo no monitor',
+                    subtitle:
+                        'Inteligente estende o vídeo de forma controlada para aproveitar o espaço sem distorcer demais. Proporção original evita qualquer estiramento.',
+                    value: store.config.videoFitMode,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'smart',
+                        child: Text('Inteligente (sem exagero)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'contain',
+                        child: Text('Proporção original'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'fill',
+                        child: Text('Esticar ao máximo'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        store.updateSettings(videoFitMode: value);
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _SettingDropdownTile<String>(
+                    icon: Icons.hd_outlined,
+                    title: 'Fluxo padrão no monitor',
+                    subtitle:
+                        'Subfluxo (SD) é mais econômico e leve para múltiplas câmeras. Fluxo principal (HD) exibe sempre em alta definição.',
+                    value: store.config.defaultStreamMode,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'sub',
+                        child: Text('Subfluxo (Econômico / SD)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'main',
+                        child: Text('Fluxo principal (HD)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'auto',
+                        child: Text('Automático'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        store.updateSettings(defaultStreamMode: value);
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+                    child: Text(
+                      PerformancePreset.fromId(
+                        store.config.resourceMode,
+                      ).description,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           Card(
             child: Padding(
@@ -328,7 +373,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Transfira câmeras, perfis, preferências, miniaturas e todas as credenciais. O arquivo inclui senhas legíveis; guarde-o em um local privado.',
+                    'Transfira câmeras, layouts, perfis e preferências. Você escolhe se deseja incluir os dados de acesso.',
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -355,7 +400,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 () => _importBackup(context, store),
                               ),
                         icon: const Icon(Icons.restore_outlined),
-                        label: const Text('Importar backup'),
+                        label: const Text('Importar arquivo, QR ou código'),
                       ),
                     ],
                   ),
@@ -387,40 +432,42 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _importBackup(BuildContext context, AppStore store) async {
-    String source;
+    final source = await readTransferSource(context);
+    if (source != null && context.mounted) {
+      await _confirmImport(context, store, source);
+    }
+  }
+
+  Future<void> _confirmImport(
+    BuildContext context,
+    AppStore store,
+    String source,
+  ) async {
+    bool profile;
     try {
-      final backup = await openFile(
-        acceptedTypeGroups: const [
-          XTypeGroup(label: 'Backup RTSP Hub', extensions: ['json']),
-        ],
-      );
-      if (backup == null) return;
-      if (await backup.length() > AppStore.maxBackupBytes) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('O backup excede o limite de 64 MB.')),
-          );
-        }
-        return;
-      }
-      source = await backup.readAsString();
+      final decoded = jsonDecode(TransferCodec.decode(source));
+      if (decoded is! Map) throw const FormatException();
+      profile = decoded['format'] == AppStore.profileExportFormat;
     } on Object {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Não foi possível abrir o arquivo de backup.'),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Configuração inválida. Confira o arquivo ou copie o código completo.',
           ),
-        );
-      }
+        ),
+      );
       return;
     }
-    if (!context.mounted) return;
     final accepted = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Substituir configurações?'),
-        content: const Text(
-          'O backup completo substituirá câmeras, layouts, preferências, miniaturas e credenciais deste dispositivo. Arquivos antigos de configuração continuam aceitos, mas não contêm senhas.',
+        title: Text(
+          profile ? 'Adicionar perfis recebidos?' : 'Substituir configurações?',
+        ),
+        content: Text(
+          profile
+              ? 'Os perfis e câmeras recebidos serão adicionados. Seus perfis atuais serão mantidos.'
+              : 'Esta configuração substituirá câmeras, layouts, preferências, miniaturas e credenciais deste dispositivo.',
         ),
         actions: [
           TextButton(
@@ -435,17 +482,29 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
     if (accepted != true) return;
-    final imported = await store.importConfiguration(source);
+    bool imported;
+    if (profile) {
+      final added = await store.importMonitorProfiles(source);
+      imported = added != null && added > 0;
+      if (imported) {
+        imported = await store.applyMonitorProfile(
+          store.config.monitorProfiles.last.id,
+        );
+      }
+    } else {
+      imported = await store.importConfiguration(source);
+    }
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           imported
-              ? 'Restauração concluída. Backups antigos sem credenciais mantêm as senhas locais existentes.'
+              ? 'Configuração importada. Você já pode trocar câmeras e editar o layout.'
               : store.message ?? 'O backup não pôde ser importado.',
         ),
       ),
     );
+    if (imported) widget.onImported?.call();
   }
 
   Future<void> _runBackup(Future<void> Function() operation) async {
@@ -469,52 +528,15 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _exportBackup(BuildContext context, AppStore store) async {
-    final content = await store.exportBackup();
+    final include = await askExportCredentials(context);
+    if (include == null) return;
+    final content = await store.exportBackup(includeCredentials: include);
     if (!context.mounted) return;
-    final now = DateTime.now();
-    final filename = 'rtsp-hub-backup-${now.millisecondsSinceEpoch}.json';
-    if (Platform.isAndroid || Platform.isIOS) {
-      final box = context.findRenderObject() as RenderBox?;
-      final origin = box == null
-          ? null
-          : box.localToGlobal(Offset.zero) & box.size;
-      final directory = Directory(
-        '${(await getTemporaryDirectory()).path}/hub-backup',
-      );
-      await directory.create(recursive: true);
-      await for (final entry in directory.list()) {
-        if (entry is File &&
-            DateTime.now().difference((await entry.stat()).modified).inDays >=
-                1) {
-          await entry.delete();
-        }
-      }
-      final file = File('${directory.path}/$filename');
-      await file.writeAsString(content, flush: true);
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path, mimeType: 'application/json')],
-          sharePositionOrigin: origin,
-          title: 'Salvar backup completo',
-        ),
-      );
-      return;
-    }
-    final location = await getSaveLocation(
-      acceptedTypeGroups: const [
-        XTypeGroup(label: 'Backup RTSP Hub', extensions: ['json']),
-      ],
-      suggestedName: filename,
+    await showDialog<void>(
+      context: context,
+      builder: (_) =>
+          TransferExportDialog(json: content, includesCredentials: include),
     );
-    if (location == null) return;
-    await File(location.path).writeAsString(content, flush: true);
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Backup completo salvo com credenciais e miniaturas.'),
-        ),
-      );
-    }
   }
 }
 

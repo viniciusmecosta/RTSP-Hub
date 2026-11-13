@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../application/rtsp_session.dart';
 
@@ -6,6 +6,7 @@ class CameraLoadingView extends StatelessWidget {
   const CameraLoadingView({
     required this.status,
     this.error,
+    this.simpleMode = false,
     this.retryDelay,
     this.onRetry,
     super.key,
@@ -13,6 +14,7 @@ class CameraLoadingView extends StatelessWidget {
 
   final CameraPlaybackStatus status;
   final String? error;
+  final bool simpleMode;
   final Duration? retryDelay;
   final VoidCallback? onRetry;
 
@@ -27,14 +29,17 @@ class CameraLoadingView extends StatelessWidget {
       CameraPlaybackStatus.error => 'Câmera indisponível',
       CameraPlaybackStatus.paused => 'Câmera pausada',
     };
-    final explanation = switch (status) {
-      CameraPlaybackStatus.reconnecting when error != null => error!,
-      CameraPlaybackStatus.reconnecting => 'Nova tentativa automática em breve',
-      CameraPlaybackStatus.error when error != null => error!,
-      CameraPlaybackStatus.error => 'Confira a rede e os dados da câmera',
-      CameraPlaybackStatus.connecting => 'Aguardando o primeiro quadro',
-      _ => '',
-    };
+    final explanation = simpleMode && error != null
+        ? 'Não foi possível ver a imagem. Confira a rede, o endereço, o usuário e a senha da câmera.'
+        : switch (status) {
+            CameraPlaybackStatus.reconnecting when error != null => error!,
+            CameraPlaybackStatus.reconnecting =>
+              'Nova tentativa automática em breve',
+            CameraPlaybackStatus.error when error != null => error!,
+            CameraPlaybackStatus.error => 'Confira a rede e os dados da câmera',
+            CameraPlaybackStatus.connecting => 'Aguardando o primeiro quadro',
+            _ => '',
+          };
     final secondary =
         retryDelay == null || status != CameraPlaybackStatus.reconnecting
         ? explanation

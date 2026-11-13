@@ -2,10 +2,11 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../../app/state/app_store.dart';
+import '../../../shared/design_system/app_motion.dart';
 import '../../monitor/application/rtsp_session.dart';
 import '../../monitor/presentation/camera_loading_view.dart';
 import '../domain/camera_device.dart';
@@ -23,6 +24,7 @@ class CameraPreviewDialog extends StatefulWidget {
     required this.defaultPort,
     required this.bufferMs,
     this.captureOnly = false,
+    this.simpleMode = false,
     this.session,
     super.key,
   });
@@ -32,6 +34,7 @@ class CameraPreviewDialog extends StatefulWidget {
   final int defaultPort;
   final int bufferMs;
   final bool captureOnly;
+  final bool simpleMode;
   final RtspSession? session;
 
   static Future<void> openSaved(
@@ -45,6 +48,7 @@ class CameraPreviewDialog extends StatefulWidget {
       context: context,
       builder: (_) => CameraPreviewDialog(
         camera: store.resolveCamera(camera),
+        simpleMode: store.config.simpleMode,
         password: password,
         defaultPort: store.config.defaultPort,
         bufferMs: store.config.bufferMs,
@@ -196,9 +200,13 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _close();
       },
-      child: widget.captureOnly
-          ? _compactDialog(context, controller)
-          : _fullscreenPlayer(context, controller),
+      child: MotionEntrance(
+        beginScale: 0.985,
+        offset: Offset.zero,
+        child: widget.captureOnly
+            ? _compactDialog(context, controller)
+            : _fullscreenPlayer(context, controller),
+      ),
     );
   }
 
@@ -216,6 +224,7 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
             ),
           if (!_session.firstFrameRendered.value)
             CameraLoadingView(
+              simpleMode: widget.simpleMode,
               status: _session.status.value,
               error: _session.error.value,
             ),
@@ -322,6 +331,7 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
                         ),
                       if (!_session.firstFrameRendered.value)
                         CameraLoadingView(
+                          simpleMode: widget.simpleMode,
                           status: _session.status.value,
                           error: _session.error.value,
                         ),
@@ -336,7 +346,7 @@ class _CameraPreviewDialogState extends State<CameraPreviewDialog>
                         ? 'Aguardando vídeo para capturar a miniatura.'
                         : 'Miniatura capturada • ${_session.currentResolution ?? 'Vídeo ao vivo'}'),
               ),
-              if (_session.error.value != null) ...[
+              if (!widget.simpleMode && _session.error.value != null) ...[
                 const SizedBox(height: 8),
                 Text(
                   _session.error.value!,

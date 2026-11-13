@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rtsp_hub/app/app.dart';
@@ -124,6 +124,7 @@ void main() {
     );
     final repo = MemoryRepository()
       ..value = AppConfiguration(
+        simpleMode: false,
         cameras: cameras,
         layoutId: 'GRID_8',
         slotCameraIds: cameras.map((c) => c.id).toList(),
@@ -242,6 +243,7 @@ void main() {
       );
       final repo = MemoryRepository()
         ..value = AppConfiguration(
+          simpleMode: false,
           cameras: cameras,
           layoutId: 'GRID_4',
           slotCameraIds: cameras.map((c) => c.id).toList(),
@@ -307,6 +309,7 @@ void main() {
         addTearDown(tester.view.resetDevicePixelRatio);
         final repo = MemoryRepository()
           ..value = AppConfiguration(
+            simpleMode: false,
             startupSection: 'settings',
             tutorialCompleted: true,
             themeMode: theme,

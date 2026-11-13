@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rtsp_hub/app/state/app_store.dart';
 import 'package:rtsp_hub/features/camera_catalog/presentation/camera_catalog_page.dart';
@@ -27,6 +27,7 @@ void main() {
         );
         addTearDown(store.dispose);
         await store.load();
+        await store.updateSettings(simpleMode: false);
         await tester.pumpWidget(
           AppScope(
             store: store,
@@ -80,6 +81,7 @@ void main() {
       );
       addTearDown(store.dispose);
       await store.load();
+      await store.updateSettings(simpleMode: false);
       await store.saveGlobalConnection(
         username: 'operator',
         password: 'global',

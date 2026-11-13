@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../domain/layout_geometry.dart';
 import '../../domain/layout_preset.dart';

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../app/state/app_store.dart';
 import '../domain/camera_device.dart';
@@ -129,12 +129,18 @@ class _CameraPickerState extends State<CameraPicker> {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          subtitle: Text(
-                            camera.id == widget.selectedId
-                                ? '${camera.host}:${camera.effectivePort(widget.store.config.defaultPort)} • Selecionada'
-                                : '${camera.host}:${camera.effectivePort(widget.store.config.defaultPort)}${_positionLabel(camera.id)}',
-                            maxLines: 2,
-                          ),
+                          subtitle: widget.store.config.simpleMode
+                              ? Text(
+                                  camera.id == widget.selectedId
+                                      ? 'Selecionada'
+                                      : _positionLabel(camera.id),
+                                )
+                              : Text(
+                                  camera.id == widget.selectedId
+                                      ? '${camera.host}:${camera.effectivePort(widget.store.config.defaultPort)} • Selecionada'
+                                      : '${camera.host}:${camera.effectivePort(widget.store.config.defaultPort)}${_positionLabel(camera.id)}',
+                                  maxLines: 2,
+                                ),
                           selected: camera.id == widget.selectedId,
                           onTap: () => widget.onSelected(camera.id),
                           trailing: IconButton(
